@@ -1,0 +1,170 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ──────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isSameGroup(groupId) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId == groupId;
+    }
+
+    // ─── Users ────────────────────────────────────────────────────────────
+
+    match /users/{userId} {
+      // Anyone can create their own user doc on signup
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      // Users can read their own doc; admins can read all
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Users can update limited fields; admins can update anything
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ─── Groups ───────────────────────────────────────────────────────────
+
+    match /groups/{groupId} {
+      allow read: if isActiveUser() && isSameGroup(groupId);
+      allow write: if isAdmin();
+    }
+
+    // ─── Members ──────────────────────────────────────────────────────────
+
+    match /members/{memberId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    // ─── Courses ──────────────────────────────────────────────────────────
+
+    match /courses/{courseId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    // ─── Rounds ───────────────────────────────────────────────────────────
+
+    match /rounds/{roundId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+
+      match /teeTimes/{teeTimeId} {
+        allow read: if isActiveUser();
+        allow write: if isAdmin();
+      }
+    }
+
+    // ─── Scorecards ───────────────────────────────────────────────────────
+
+    match /scorecards/{scorecardId} {
+      // Members can read their own scorecard or cards they are marking
+      allow read: if isActiveUser() && (
+        resource.data.playerId == request.auth.uid ||
+        resource.data.markerId == request.auth.uid ||
+        isAdmin()
+      );
+      // Members can create/update their own scorecard (not admin_locked)
+      allow create: if isActiveUser() &&
+        request.resource.data.playerId == request.auth.uid;
+      allow update: if isActiveUser() && (
+        (resource.data.playerId == request.auth.uid && resource.data.status != 'admin_locked') ||
+        (resource.data.markerId == request.auth.uid && resource.data.status != 'admin_locked') ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+
+      match /holeScores/{holeNumber} {
+        allow read: if isActiveUser();
+        allow write: if isActiveUser();
+      }
+    }
+
+    // ─── Results ──────────────────────────────────────────────────────────
+
+    match /results/{resultId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    // ─── Season Standings ─────────────────────────────────────────────────
+
+    match /seasonStandings/{standingId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    // ─── Handicap History ─────────────────────────────────────────────────
+
+    match /handicapHistory/{historyId} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    // ─── Posts ────────────────────────────────────────────────────────────
+
+    match /posts/{postId} {
+      allow read: if isActiveUser();
+      // Admins can create announcements; active members create general posts
+      allow create: if isActiveUser() && (
+        request.resource.data.type != 'announcement' || isAdmin()
+      );
+      allow update: if isActiveUser() && (
+        resource.data.authorId == request.auth.uid || isAdmin()
+      );
+      allow delete: if isAdmin();
+
+      match /comments/{commentId} {
+        allow read: if isActiveUser();
+        allow create: if isActiveUser();
+        allow delete: if isAdmin() ||
+          resource.data.authorId == request.auth.uid;
+      }
+
+      match /reactions/{reactionId} {
+        allow read: if isActiveUser();
+        allow write: if isActiveUser();
+      }
+    }
+
+    // ─── Photos ───────────────────────────────────────────────────────────
+
+    match /photos/{photoId} {
+      allow read: if isActiveUser();
+      allow create: if isActiveUser();
+      allow delete: if isAdmin() ||
+        resource.data.uploaderId == request.auth.uid;
+    }
+
+    // ─── Notifications ────────────────────────────────────────────────────
+
+    match /notifications/{notificationId} {
+      // Members can only read their own notifications
+      allow read: if isSignedIn() &&
+        resource.data.recipientId == request.auth.uid;
+      // Members can mark own notifications as read
+      allow update: if isSignedIn() &&
+        resource.data.recipientId == request.auth.uid;
+      // Only admin/cloud functions create notifications
+      allow create: if isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
