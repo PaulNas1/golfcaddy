@@ -13,7 +13,7 @@ export default function RoundDetailPage() {
   const [round, setRound] = useState<Round | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [loading, setLoading] = useState(true);
-  const { isAdmin } = useAuth();
+  const { appUser, isAdmin } = useAuth();
 
   useEffect(() => {
     if (roundId) {
@@ -92,16 +92,30 @@ export default function RoundDetailPage() {
             {results.rankings.slice(0, 10).map((ranking) => (
               <div
                 key={ranking.playerId}
-                className="flex items-center justify-between"
+                className={`flex items-center justify-between rounded-xl px-2 py-1 ${
+                  ranking.playerId === appUser?.uid ? "bg-white/70" : ""
+                }`}
               >
-                <span>
-                  #{ranking.rank} {ranking.playerName}
-                </span>
-                <span className="font-semibold">
-                  {round.format === "stableford"
-                    ? `${ranking.stablefordTotal} pts`
-                    : `${ranking.grossTotal} strokes`}
-                </span>
+                <div>
+                  <span>
+                    #{ranking.rank} {ranking.playerName}
+                  </span>
+                  {ranking.playerId === appUser?.uid && (
+                    <span className="ml-2 text-xs font-semibold text-green-700">
+                      You
+                    </span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold">
+                    {round.format === "stableford"
+                      ? `${ranking.stablefordTotal} pts`
+                      : `${ranking.grossTotal} strokes`}
+                  </p>
+                  <p className="text-[11px] text-green-700">
+                    {ranking.pointsAwarded} ladder pts
+                  </p>
+                </div>
               </div>
             ))}
           </div>

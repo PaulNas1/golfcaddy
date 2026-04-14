@@ -6,16 +6,17 @@ import { format } from "date-fns";
 import {
   getRound,
   getScorecardsForRound,
-  updateRound,
   getActiveMembers,
   updateScorecard,
-  publishRoundResults,
   getResultsForRound,
+  publishRoundResultsWithStage3,
 } from "@/lib/firestore";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Round, Scorecard, AppUser, Results, SideResult, PlayerRanking } from "@/types";
 
 export default function AdminRoundLeaderboardPage() {
   const { roundId } = useParams<{ roundId: string }>();
+  const { appUser } = useAuth();
   const [round, setRound] = useState<Round | null>(null);
   const [cards, setCards] = useState<Scorecard[]>([]);
   const [members, setMembers] = useState<AppUser[]>([]);
@@ -148,29 +149,20 @@ export default function AdminRoundLeaderboardPage() {
         },
       };
 
-      await publishRoundResults(round.id, officialResults);
-      await updateRound(round.id, {
-        resultsPublished: true,
-        resultsPublishedAt: publishedAt,
+      const published = await publishRoundResultsWithStage3({
+        round,
+        results: officialResults,
+        scorecards: cards,
+        activeUsers: members,
+        publishedBy: appUser,
       });
-      await Promise.all(
-        cards.map((card) =>
-          updateScorecard(card.id, {
-            status: "admin_locked",
-            signedOff: true,
-          })
-        )
-      );
       setRound({
         ...round,
+        status: "completed",
         resultsPublished: true,
         resultsPublishedAt: publishedAt,
       });
-      setResults({
-        id: round.id,
-        ...officialResults,
-        createdAt: publishedAt,
-      });
+      setResults(published.officialResults);
       setCards((prev) =>
         prev.map((card) => ({
           ...card,
@@ -194,6 +186,10 @@ export default function AdminRoundLeaderboardPage() {
 
   const handleReopenCard = async (cardId: string) => {
     if (!round) return;
+    if (round.resultsPublished) {
+      setError("Published results are locked. Re-opening cards is disabled.");
+      return;
+    }
     try {
       await updateScorecard(cardId, {
         status: "in_progress",
@@ -292,7 +288,7 @@ export default function AdminRoundLeaderboardPage() {
                         <p className="text-[11px] text-gray-400">
                           Hcp {c.handicapAtTime}
                         </p>
-                        {c.status !== "in_progress" && (
+                        {!round.resultsPublished && c.status !== "in_progress" && (
                           <button
                             type="button"
                             onClick={() => handleReopenCard(c.id)}

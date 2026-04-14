@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { getNotifications, markNotificationRead } from "@/lib/firestore";
@@ -21,6 +22,7 @@ const NOTIFICATION_ICONS: Record<string, string> = {
 
 export default function NotificationsPage() {
   const { appUser } = useAuth();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -39,6 +41,7 @@ export default function NotificationsPage() {
         prev.map((x) => (x.id === n.id ? { ...x, read: true } : x))
       );
     }
+    if (n.deepLink) router.push(n.deepLink);
   };
 
   return (

@@ -4,30 +4,45 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { getNextRound, getLiveRound } from "@/lib/firestore";
-import type { Round } from "@/types";
+import {
+  getGroup,
+  getNextRound,
+  getLiveRound,
+  getSeasonStandings,
+} from "@/lib/firestore";
+import type { Round, SeasonStanding } from "@/types";
 
 export default function HomePage() {
   const { appUser } = useAuth();
   const [nextRound, setNextRound] = useState<Round | null>(null);
   const [liveRound, setLiveRound] = useState<Round | null>(null);
+  const [season, setSeason] = useState(new Date().getFullYear());
+  const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [next, live] = await Promise.all([
+        const [next, live, group] = await Promise.all([
           getNextRound("fourplay"),
           getLiveRound("fourplay"),
+          getGroup(),
         ]);
+        const currentSeason = group?.currentSeason ?? new Date().getFullYear();
+        const seasonStandings = await getSeasonStandings(
+          appUser?.groupId ?? "fourplay",
+          currentSeason
+        );
         setNextRound(next);
         setLiveRound(live);
+        setSeason(currentSeason);
+        setStandings(seasonStandings);
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [appUser?.groupId]);
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
 
@@ -133,18 +148,51 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* Season snapshot (placeholder — Stage 3) */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-800">Season 2026</h3>
+          <div>
+            <h3 className="font-semibold text-gray-800">Season Ladder</h3>
+            <p className="text-xs text-gray-400">{season} standings</p>
+          </div>
           <Link href="/leaderboard" className="text-green-600 text-sm">View all</Link>
         </div>
-        <div className="flex items-center justify-center py-6 text-gray-300">
+        {standings.length === 0 ? (
+          <div className="flex items-center justify-center py-6 text-gray-300">
           <div className="text-center">
             <div className="text-3xl mb-1">🏌️</div>
             <p className="text-sm">Leaderboard live after Round 1</p>
           </div>
-        </div>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {standings.slice(0, 3).map((standing) => (
+              <div
+                key={standing.id}
+                className="flex items-center justify-between py-2 text-sm"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-7 text-xs font-semibold text-gray-400">
+                    #{standing.currentRank}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-medium text-gray-800 truncate">
+                      {standing.memberName}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {standing.roundsPlayed} rounds played
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-bold text-green-700">
+                    {standing.totalPoints}
+                  </p>
+                  <p className="text-[11px] text-gray-400">ladder pts</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

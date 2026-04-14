@@ -242,6 +242,21 @@ export interface SeasonStanding {
   updatedAt: Date;
 }
 
+// ─── Handicap History ────────────────────────────────────────────────────────
+
+export interface HandicapHistory {
+  id: string;
+  groupId: string;
+  memberId: string;
+  memberName: string;
+  roundId: string;
+  season: number;
+  previousHandicap: number;
+  newHandicap: number;
+  reason: string;
+  createdAt: Date;
+}
+
 // ─── Posts & Feed ────────────────────────────────────────────────────────────
 
 export type PostType = "announcement" | "general" | "round_linked";

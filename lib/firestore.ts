@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   addDoc,
+  writeBatch,
   query,
   where,
   orderBy,
@@ -26,7 +27,16 @@ import type {
   Scorecard,
   HoleScore,
   Results,
+  SeasonStanding,
+  Post,
 } from "@/types";
+import {
+  buildSeasonStandings,
+  calculateNextHandicap,
+  getAverageStableford,
+  getBestStableford,
+  getSeasonStandingId,
+} from "./season";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -98,16 +108,30 @@ export const getGroup = async (): Promise<Group | null> => {
 
 // ─── Members ─────────────────────────────────────────────────────────────────
 
-export const getMember = async (userId: string): Promise<Member | null> => {
-  const snap = await getDoc(doc(db, "members", userId));
-  if (!snap.exists()) return null;
-  const data = snap.data();
+const mapMember = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): Member => {
+  const data = d.data() ?? {};
   return {
-    id: snap.id,
+    id: d.id,
     ...data,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as Member;
+};
+
+export const getMember = async (userId: string): Promise<Member | null> => {
+  const snap = await getDoc(doc(db, "members", userId));
+  if (!snap.exists()) return null;
+  return mapMember(snap);
+};
+
+export const getMembersForGroup = async (
+  groupId: string
+): Promise<Member[]> => {
+  const q = query(collection(db, "members"), where("groupId", "==", groupId));
+  const snap = await getDocs(q);
+  return snap.docs.map(mapMember);
 };
 
 export const getPendingMembers = async (): Promise<AppUser[]> => {
@@ -199,16 +223,12 @@ export const updateRound = async (roundId: string, data: Partial<Round>) => {
 
 export const getNextRound = async (groupId: string): Promise<Round | null> => {
   const now = new Date();
-  const q = query(
-    collection(db, "rounds"),
-    where("groupId", "==", groupId),
-    where("date", ">=", now),
-    orderBy("date", "asc"),
-    limit(1)
-  );
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return mapRound(snap.docs[0]);
+  const rounds = await getRounds(groupId);
+  const upcomingRounds = rounds
+    .filter((round) => round.status === "upcoming" && round.date >= now)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  return upcomingRounds[0] ?? null;
 };
 
 export const getLiveRound = async (groupId: string): Promise<Round | null> => {
@@ -349,18 +369,39 @@ export const setHoleScore = async (
 
 // ─── Results ────────────────────────────────────────────────────────────────
 
+const mapResults = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): Results => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    publishedAt: toDate(data.publishedAt),
+    createdAt: toDate(data.createdAt),
+  } as Results;
+};
+
 export const getResultsForRound = async (
   roundId: string
 ): Promise<Results | null> => {
   const snap = await getDoc(doc(db, "results", roundId));
   if (!snap.exists()) return null;
-  const data = snap.data();
-  return {
-    id: snap.id,
-    ...data,
-    publishedAt: toDate(data.publishedAt),
-    createdAt: toDate(data.createdAt),
-  } as Results;
+  return mapResults(snap);
+};
+
+export const getResultsForSeason = async (
+  groupId: string,
+  season: number
+): Promise<Results[]> => {
+  const q = query(
+    collection(db, "results"),
+    where("groupId", "==", groupId),
+    where("season", "==", season)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(mapResults)
+    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
 };
 
 export const publishRoundResults = async (
@@ -371,6 +412,269 @@ export const publishRoundResults = async (
     ...data,
     createdAt: serverTimestamp(),
   });
+};
+
+export const publishRoundResultsWithStage3 = async ({
+  round,
+  results,
+  scorecards,
+  activeUsers,
+  publishedBy,
+}: {
+  round: Round;
+  results: Omit<Results, "id" | "createdAt">;
+  scorecards: Scorecard[];
+  activeUsers: AppUser[];
+  publishedBy: AppUser | null;
+}) => {
+  const publishedAt = results.publishedAt;
+  const [seasonResults, previousStandings, groupMembers] =
+    await Promise.all([
+      getResultsForSeason(round.groupId, round.season),
+      getSeasonStandings(round.groupId, round.season),
+      getMembersForGroup(round.groupId),
+    ]);
+
+  const officialResults: Results = {
+    id: round.id,
+    ...results,
+    createdAt: publishedAt,
+  };
+  const allSeasonResults = [
+    officialResults,
+    ...seasonResults.filter((result) => result.roundId !== round.id),
+  ];
+  const roundEntries = await Promise.all(
+    allSeasonResults.map(async (result) => {
+      if (result.roundId === round.id) return [result.roundId, round] as const;
+      const resultRound = await getRound(result.roundId);
+      return [result.roundId, resultRound ?? round] as const;
+    })
+  );
+  const roundsById = new Map(roundEntries);
+  const standings = buildSeasonStandings({
+    groupId: round.groupId,
+    season: round.season,
+    results: allSeasonResults,
+    roundsById,
+    previousStandings,
+    updatedAt: publishedAt,
+  });
+  const usersById = new Map(activeUsers.map((user) => [user.uid, user]));
+  const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+  const batch = writeBatch(db);
+  const winner = officialResults.rankings[0];
+  const author = publishedBy ?? activeUsers.find((user) => user.role === "admin");
+  const resultsPostId = `${round.id}_results`;
+
+  batch.set(doc(db, "results", round.id), {
+    ...results,
+    createdAt: serverTimestamp(),
+  });
+  batch.update(doc(db, "rounds", round.id), {
+    resultsPublished: true,
+    resultsPublishedAt: publishedAt,
+    status: "completed",
+    updatedAt: serverTimestamp(),
+  });
+  scorecards.forEach((card) => {
+    batch.update(doc(db, "scorecards", card.id), {
+      status: "admin_locked",
+      signedOff: true,
+      updatedAt: serverTimestamp(),
+    });
+  });
+  batch.set(doc(db, "posts", resultsPostId), {
+    groupId: round.groupId,
+    authorId: author?.uid ?? "system",
+    authorName: author?.displayName ?? "GolfCaddy",
+    authorAvatarUrl: author?.avatarUrl ?? null,
+    type: "round_linked",
+    content: winner
+      ? `Round ${round.roundNumber} results are official. ${winner.playerName} leads the table at ${round.courseName}.`
+      : `Round ${round.roundNumber} results are official for ${round.courseName}.`,
+    roundId: round.id,
+    pinned: false,
+    photoUrls: [],
+    reactionCounts: {},
+    commentCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  standings.forEach((standing) => {
+    const member = membersById.get(standing.memberId);
+    const user = usersById.get(standing.memberId);
+    const averageStableford = getAverageStableford(standing.roundResults);
+    const { bestStableford, bestRoundId } = getBestStableford(
+      standing.roundResults
+    );
+    const currentHandicap =
+      member?.currentHandicap ??
+      officialResults.rankings.find(
+        (ranking) => ranking.playerId === standing.memberId
+      )?.handicap ??
+      0;
+    const { nextHandicap, reason } = calculateNextHandicap(
+      currentHandicap,
+      standing.roundResults
+    );
+    const memberRef = doc(db, "members", standing.memberId);
+    const memberStats = {
+      userId: standing.memberId,
+      groupId: round.groupId,
+      displayName: standing.memberName,
+      avatarUrl: user?.avatarUrl ?? member?.avatarUrl ?? null,
+      currentHandicap: nextHandicap,
+      seasonYear: round.season,
+      seasonPoints: standing.totalPoints,
+      seasonRank: standing.currentRank,
+      roundsPlayed: standing.roundsPlayed,
+      ntpWins: standing.ntpWinsSeason,
+      ldWins: standing.ldWinsSeason,
+      t2Wins: standing.t2WinsSeason,
+      t3Wins: standing.t3WinsSeason,
+      avgStableford: averageStableford,
+      bestStableford,
+      bestRoundId,
+      updatedAt: serverTimestamp(),
+      ...(member ? {} : { createdAt: serverTimestamp() }),
+    };
+
+    batch.set(
+      doc(db, "seasonStandings", standing.id),
+      {
+        ...standing,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    batch.set(
+      memberRef,
+      memberStats,
+      { merge: true }
+    );
+
+    if (nextHandicap !== currentHandicap) {
+      batch.set(doc(db, "handicapHistory", `${round.id}_${standing.memberId}`), {
+        groupId: round.groupId,
+        memberId: standing.memberId,
+        memberName: standing.memberName,
+        roundId: round.id,
+        season: round.season,
+        previousHandicap: currentHandicap,
+        newHandicap: nextHandicap,
+        reason,
+        createdAt: serverTimestamp(),
+      });
+      batch.set(doc(db, "notifications", `${round.id}_handicap_${standing.memberId}`), {
+        recipientId: standing.memberId,
+        groupId: round.groupId,
+        type: "handicap_updated",
+        title: "Handicap updated",
+        body: `Your handicap moved from ${currentHandicap} to ${nextHandicap}.`,
+        deepLink: "/profile",
+        read: false,
+        roundId: round.id,
+        postId: null,
+        createdAt: serverTimestamp(),
+      });
+    }
+  });
+
+  activeUsers.forEach((user) => {
+    batch.set(doc(db, "notifications", `${round.id}_results_${user.uid}`), {
+      recipientId: user.uid,
+      groupId: round.groupId,
+      type: "results_published",
+      title: "Results published",
+      body: `Round ${round.roundNumber} results are official for ${round.courseName}.`,
+      deepLink: `/rounds/${round.id}`,
+      read: false,
+      roundId: round.id,
+      postId: resultsPostId,
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+
+  return { officialResults, standings };
+};
+
+// ─── Season Standings ───────────────────────────────────────────────────────
+
+const mapSeasonStanding = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): SeasonStanding => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    roundResults: (data.roundResults ?? []).map(
+      (roundResult: DocumentData) => ({
+        ...roundResult,
+        date: toDate(roundResult.date),
+      })
+    ),
+    updatedAt: toDate(data.updatedAt),
+  } as SeasonStanding;
+};
+
+export const getSeasonStandings = async (
+  groupId: string,
+  season: number
+): Promise<SeasonStanding[]> => {
+  const q = query(
+    collection(db, "seasonStandings"),
+    where("groupId", "==", groupId),
+    where("season", "==", season)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(mapSeasonStanding)
+    .sort((a, b) => a.currentRank - b.currentRank);
+};
+
+export const getSeasonStandingForMember = async (
+  groupId: string,
+  season: number,
+  memberId: string
+): Promise<SeasonStanding | null> => {
+  const snap = await getDoc(
+    doc(db, "seasonStandings", getSeasonStandingId(groupId, season, memberId))
+  );
+  if (!snap.exists()) return null;
+  return mapSeasonStanding(snap);
+};
+
+// ─── Posts & Feed ───────────────────────────────────────────────────────────
+
+const mapPost = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): Post => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as Post;
+};
+
+export const getFeedPosts = async (
+  groupId: string,
+  limitCount = 20
+): Promise<Post[]> => {
+  const q = query(
+    collection(db, "posts"),
+    where("groupId", "==", groupId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(mapPost)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limitCount);
 };
 
 // ─── Notifications ───────────────────────────────────────────────────────────
