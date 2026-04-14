@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
 import { getRound, updateRound, getScorecardsForRound } from "@/lib/firestore";
-import type { Round, RoundStatus, Scorecard, ScoringFormat } from "@/types";
+import type { Round, RoundStatus, Scorecard, ScoringFormat, TeeTime } from "@/types";
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -23,6 +23,9 @@ export default function AdminRoundDetailPage() {
   const [ldHole, setLdHole] = useState("");
   const [t2Hole, setT2Hole] = useState("");
   const [t3Hole, setT3Hole] = useState("");
+  const [teeTimes, setTeeTimes] = useState<Array<{ time: string; notes: string }>>([
+    { time: "", notes: "" },
+  ]);
 
   const loadScorecards = async (r: Round) => {
     const cards = await getScorecardsForRound(r.id);
@@ -43,6 +46,14 @@ export default function AdminRoundDetailPage() {
           setLdHole(r.specialHoles.ld ? String(r.specialHoles.ld) : "");
           setT2Hole(r.specialHoles.t2 ? String(r.specialHoles.t2) : "");
           setT3Hole(r.specialHoles.t3 ? String(r.specialHoles.t3) : "");
+          setTeeTimes(
+            r.teeTimes && r.teeTimes.length > 0
+              ? r.teeTimes.map((t) => ({
+                  time: t.time,
+                  notes: t.notes ?? "",
+                }))
+              : [{ time: "", notes: "" }]
+          );
           loadScorecards(r);
         }
       });
@@ -73,6 +84,14 @@ export default function AdminRoundDetailPage() {
       t2: t2Hole ? parseInt(t2Hole, 10) : null,
       t3: t3Hole ? parseInt(t3Hole, 10) : null,
     };
+    const savedTeeTimes: TeeTime[] = teeTimes
+      .filter((t) => t.time || t.notes?.trim())
+      .map((t, index) => ({
+        id: `tee-${index + 1}`,
+        time: t.time,
+        playerIds: [],
+        notes: t.notes?.trim() || null,
+      }));
 
     await updateRound(round.id, {
       courseName: courseName.trim(),
@@ -80,6 +99,7 @@ export default function AdminRoundDetailPage() {
       date: newDate,
       format: formatChoice,
       notes: notes.trim() || null,
+      teeTimes: savedTeeTimes,
       specialHoles,
     });
 
@@ -90,6 +110,7 @@ export default function AdminRoundDetailPage() {
       date: newDate,
       format: formatChoice,
       notes: notes.trim() || null,
+      teeTimes: savedTeeTimes,
       specialHoles,
     });
 
@@ -97,6 +118,23 @@ export default function AdminRoundDetailPage() {
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
   };
+
+  const addTeeTime = () =>
+    setTeeTimes([...teeTimes, { time: "", notes: "" }]);
+
+  const removeTeeTime = (index: number) =>
+    setTeeTimes(teeTimes.filter((_, i) => i !== index));
+
+  const updateTeeTime = (
+    index: number,
+    field: "time" | "notes",
+    value: string
+  ) =>
+    setTeeTimes(
+      teeTimes.map((teeTime, i) =>
+        i === index ? { ...teeTime, [field]: value } : teeTime
+      )
+    );
 
   const addHoleOverride = async (
     holeNumber: number,
@@ -223,6 +261,51 @@ export default function AdminRoundDetailPage() {
               rows={3}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-gray-700">
+                Tee times
+              </label>
+              <button
+                type="button"
+                onClick={addTeeTime}
+                className="text-xs font-medium text-green-700 underline"
+              >
+                + Add tee time
+              </button>
+            </div>
+            {teeTimes.map((teeTime, index) => (
+              <div key={index} className="flex gap-2 items-center">
+                <input
+                  type="time"
+                  value={teeTime.time}
+                  onChange={(e) =>
+                    updateTeeTime(index, "time", e.target.value)
+                  }
+                  className="w-28 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="text"
+                  value={teeTime.notes}
+                  onChange={(e) =>
+                    updateTeeTime(index, "notes", e.target.value)
+                  }
+                  placeholder="Group notes"
+                  className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                {teeTimes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeTeeTime(index)}
+                    className="text-xs text-red-500 underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 

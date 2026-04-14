@@ -90,13 +90,18 @@ export default function ScorecardPage() {
   const canEdit = useMemo(
     () =>
       scorecard &&
+      round?.status === "live" &&
       scorecard.status === "in_progress" &&
       scorecard.markerId === appUser?.uid,
-    [scorecard, appUser]
+    [scorecard, round, appUser]
   );
 
   const handleStartCard = async () => {
     if (!round || !appUser) return;
+    if (round.status !== "live") {
+      setError("Scoring is closed for this round.");
+      return;
+    }
     if (!playerToMarkId) {
       setError("Please select the player you are marking.");
       return;
@@ -281,6 +286,10 @@ export default function ScorecardPage() {
 
   const handleSignOff = async () => {
     if (!scorecard || !round) return;
+    if (round.status !== "live") {
+      setError("Scoring is closed for this round.");
+      return;
+    }
     setSigning(true);
     setError("");
     try {
@@ -303,7 +312,11 @@ export default function ScorecardPage() {
   };
 
   const handleReopen = async () => {
-    if (!scorecard) return;
+    if (!scorecard || !round) return;
+    if (round.status !== "live") {
+      setError("Scoring is closed for this round.");
+      return;
+    }
     setReopening(true);
     setError("");
     try {
@@ -493,7 +506,7 @@ export default function ScorecardPage() {
             ))}
           </div>
 
-          {scorecard.status === "in_progress" && (
+          {scorecard.status === "in_progress" && round.status === "live" && (
             <button
               type="button"
               onClick={handleSignOff}
@@ -504,12 +517,18 @@ export default function ScorecardPage() {
             </button>
           )}
 
+          {scorecard.status === "in_progress" && round.status !== "live" && (
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm text-gray-600">
+              Scoring is closed for this round.
+            </div>
+          )}
+
           {scorecard.status !== "in_progress" && (
             <div className="space-y-2">
               <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-sm text-green-800">
                 ✅ Card submitted.
               </div>
-              {scorecard.status === "submitted" && (
+              {scorecard.status === "submitted" && round.status === "live" && (
                 <button
                   type="button"
                   onClick={handleReopen}

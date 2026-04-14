@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createRound } from "@/lib/firestore";
-import type { ScoringFormat, SpecialHoles } from "@/types";
+import type { ScoringFormat, SpecialHoles, TeeTime } from "@/types";
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
@@ -56,6 +56,14 @@ export default function CreateRoundPage() {
         t2: t2Hole ? parseInt(t2Hole) : null,
         t3: t3Hole ? parseInt(t3Hole) : null,
       };
+      const savedTeeTimes: TeeTime[] = teeTimes
+        .filter((t) => t.time || t.notes.trim())
+        .map((t, index) => ({
+          id: `tee-${index + 1}`,
+          time: t.time,
+          playerIds: [],
+          notes: t.notes.trim() || null,
+        }));
 
       await createRound({
         groupId: "fourplay",
@@ -67,6 +75,7 @@ export default function CreateRoundPage() {
         format,
         status: "upcoming",
         notes: notes.trim() || null,
+        teeTimes: savedTeeTimes,
         holeOverrides: [],
         specialHoles,
         resultsPublished: false,

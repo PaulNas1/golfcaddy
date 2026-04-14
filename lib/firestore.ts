@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   Timestamp,
   QueryDocumentSnapshot,
+  DocumentSnapshot,
   DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -24,6 +25,7 @@ import type {
   AppNotification,
   Scorecard,
   HoleScore,
+  Results,
 } from "@/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -32,6 +34,23 @@ export const toDate = (val: Timestamp | Date | null | undefined): Date => {
   if (!val) return new Date();
   if (val instanceof Timestamp) return val.toDate();
   return val;
+};
+
+const mapRound = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): Round => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    teeTimes: data.teeTimes ?? [],
+    date: toDate(data.date),
+    resultsPublishedAt: data.resultsPublishedAt
+      ? toDate(data.resultsPublishedAt)
+      : null,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as Round;
 };
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -151,35 +170,13 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
     limit(20)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      ...data,
-      date: toDate(data.date),
-      resultsPublishedAt: data.resultsPublishedAt
-        ? toDate(data.resultsPublishedAt)
-        : null,
-      createdAt: toDate(data.createdAt),
-      updatedAt: toDate(data.updatedAt),
-    } as Round;
-  });
+  return snap.docs.map(mapRound);
 };
 
 export const getRound = async (roundId: string): Promise<Round | null> => {
   const snap = await getDoc(doc(db, "rounds", roundId));
   if (!snap.exists()) return null;
-  const data = snap.data();
-  return {
-    id: snap.id,
-    ...data,
-    date: toDate(data.date),
-    resultsPublishedAt: data.resultsPublishedAt
-      ? toDate(data.resultsPublishedAt)
-      : null,
-    createdAt: toDate(data.createdAt),
-    updatedAt: toDate(data.updatedAt),
-  } as Round;
+  return mapRound(snap);
 };
 
 export const createRound = async (
@@ -211,18 +208,7 @@ export const getNextRound = async (groupId: string): Promise<Round | null> => {
   );
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  const d = snap.docs[0];
-  const data = d.data();
-  return {
-    id: d.id,
-    ...data,
-    date: toDate(data.date),
-    resultsPublishedAt: data.resultsPublishedAt
-      ? toDate(data.resultsPublishedAt)
-      : null,
-    createdAt: toDate(data.createdAt),
-    updatedAt: toDate(data.updatedAt),
-  } as Round;
+  return mapRound(snap.docs[0]);
 };
 
 export const getLiveRound = async (groupId: string): Promise<Round | null> => {
@@ -234,18 +220,7 @@ export const getLiveRound = async (groupId: string): Promise<Round | null> => {
   );
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  const d = snap.docs[0];
-  const data = d.data();
-  return {
-    id: d.id,
-    ...data,
-    date: toDate(data.date),
-    resultsPublishedAt: data.resultsPublishedAt
-      ? toDate(data.resultsPublishedAt)
-      : null,
-    createdAt: toDate(data.createdAt),
-    updatedAt: toDate(data.updatedAt),
-  } as Round;
+  return mapRound(snap.docs[0]);
 };
 
 // ─── Scorecards & Hole Scores ────────────────────────────────────────────────
@@ -370,6 +345,32 @@ export const setHoleScore = async (
     },
     { merge: true }
   );
+};
+
+// ─── Results ────────────────────────────────────────────────────────────────
+
+export const getResultsForRound = async (
+  roundId: string
+): Promise<Results | null> => {
+  const snap = await getDoc(doc(db, "results", roundId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    id: snap.id,
+    ...data,
+    publishedAt: toDate(data.publishedAt),
+    createdAt: toDate(data.createdAt),
+  } as Results;
+};
+
+export const publishRoundResults = async (
+  roundId: string,
+  data: Omit<Results, "id" | "createdAt">
+) => {
+  await setDoc(doc(db, "results", roundId), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
 };
 
 // ─── Notifications ───────────────────────────────────────────────────────────

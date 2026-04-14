@@ -9,14 +9,18 @@ import {
   updateRound,
   getActiveMembers,
   updateScorecard,
+  publishRoundResults,
+  getResultsForRound,
 } from "@/lib/firestore";
-import type { Round, Scorecard, AppUser } from "@/types";
+import type { Round, Scorecard, AppUser, Results, SideResult, PlayerRanking } from "@/types";
 
 export default function AdminRoundLeaderboardPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const [round, setRound] = useState<Round | null>(null);
   const [cards, setCards] = useState<Scorecard[]>([]);
   const [members, setMembers] = useState<AppUser[]>([]);
+  const [results, setResults] = useState<Results | null>(null);
+  const [sideWinnerIds, setSideWinnerIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
@@ -26,9 +30,10 @@ export default function AdminRoundLeaderboardPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [r, activeMembers] = await Promise.all([
+        const [r, activeMembers, existingResults] = await Promise.all([
           getRound(roundId),
           getActiveMembers(),
+          getResultsForRound(roundId),
         ]);
         if (!r) {
           setRound(null);
@@ -39,6 +44,7 @@ export default function AdminRoundLeaderboardPage() {
           const c = await getScorecardsForRound(r.id);
           setCards(c);
           setMembers(activeMembers);
+          setResults(existingResults);
         }
       } catch {
         setError("Failed to load leaderboard.");
@@ -68,25 +74,122 @@ export default function AdminRoundLeaderboardPage() {
       return ag - bg; // lower is better
     });
 
+  const getPlayerName = (playerId: string) =>
+    members.find((u) => u.uid === playerId)?.displayName ??
+    `Player ${playerId.slice(0, 6)}`;
+
+  const playerOptions = cards
+    .map((card) => ({
+      id: card.playerId,
+      name: getPlayerName(card.playerId),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const buildRankings = (): PlayerRanking[] => {
+    const pointsByRank = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
+    let previousValue: number | null = null;
+    let previousRank = 0;
+
+    return sorted.map((card, index) => {
+      const scoreValue =
+        round?.format === "stableford"
+          ? card.totalStableford ?? 0
+          : card.totalGross ?? 0;
+      const rank =
+        previousValue === scoreValue ? previousRank : index + 1;
+
+      previousValue = scoreValue;
+      previousRank = rank;
+
+      return {
+        rank,
+        playerId: card.playerId,
+        playerName: getPlayerName(card.playerId),
+        grossTotal: card.totalGross ?? 0,
+        stablefordTotal: card.totalStableford ?? 0,
+        handicap: card.handicapAtTime,
+        pointsAwarded: pointsByRank[rank - 1] ?? 0,
+        countbackDetail: null,
+      };
+    });
+  };
+
+  const buildSideResult = (
+    key: string,
+    holeNumber: number | null
+  ): SideResult => {
+    const winnerId = sideWinnerIds[key] || null;
+    return {
+      holeNumber: holeNumber ?? 0,
+      winnerId,
+      winnerName: winnerId ? getPlayerName(winnerId) : null,
+    };
+  };
+
   const handlePublish = async () => {
     if (!round) return;
     setPublishing(true);
     setError("");
     try {
+      const publishedAt = new Date();
+      const officialResults: Omit<Results, "id" | "createdAt"> = {
+        roundId: round.id,
+        groupId: round.groupId,
+        season: round.season,
+        publishedAt,
+        rankings: buildRankings(),
+        sideResults: {
+          ntp: round.specialHoles.ntp.map((holeNumber) =>
+            buildSideResult(`ntp-${holeNumber}`, holeNumber)
+          ),
+          ld: buildSideResult("ld", round.specialHoles.ld),
+          t2: buildSideResult("t2", round.specialHoles.t2),
+          t3: buildSideResult("t3", round.specialHoles.t3),
+        },
+      };
+
+      await publishRoundResults(round.id, officialResults);
       await updateRound(round.id, {
         resultsPublished: true,
-        resultsPublishedAt: new Date(),
+        resultsPublishedAt: publishedAt,
       });
+      await Promise.all(
+        cards.map((card) =>
+          updateScorecard(card.id, {
+            status: "admin_locked",
+            signedOff: true,
+          })
+        )
+      );
       setRound({
         ...round,
         resultsPublished: true,
-        resultsPublishedAt: new Date(),
+        resultsPublishedAt: publishedAt,
       });
+      setResults({
+        id: round.id,
+        ...officialResults,
+        createdAt: publishedAt,
+      });
+      setCards((prev) =>
+        prev.map((card) => ({
+          ...card,
+          status: "admin_locked",
+          signedOff: true,
+        }))
+      );
     } catch {
       setError("Failed to publish results. Please try again.");
     } finally {
       setPublishing(false);
     }
+  };
+
+  const updateSideWinner = (key: string, winnerId: string) => {
+    setSideWinnerIds((prev) => ({
+      ...prev,
+      [key]: winnerId,
+    }));
   };
 
   const handleReopenCard = async (cardId: string) => {
@@ -171,9 +274,7 @@ export default function AdminRoundLeaderboardPage() {
                 className="flex items-center justify-between py-2 text-sm"
               >
                 {(() => {
-                  const m = members.find((u) => u.uid === c.playerId);
-                  const name =
-                    m?.displayName ?? `Player ${c.playerId.slice(0, 6)}`;
+                  const name = getPlayerName(c.playerId);
                   return (
                     <>
                       <div className="flex items-center gap-2">
@@ -210,15 +311,87 @@ export default function AdminRoundLeaderboardPage() {
         )}
       </div>
 
+      {!round.resultsPublished && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <h2 className="font-semibold text-gray-800 text-sm">Side Winners</h2>
+          <p className="text-xs text-gray-500">
+            Select winners before publishing. Blank winners are allowed if a prize was not run.
+          </p>
+          {round.specialHoles.ntp.map((holeNumber) => (
+            <WinnerSelect
+              key={holeNumber}
+              label={`NTP - Hole ${holeNumber}`}
+              value={sideWinnerIds[`ntp-${holeNumber}`] ?? ""}
+              options={playerOptions}
+              onChange={(winnerId) =>
+                updateSideWinner(`ntp-${holeNumber}`, winnerId)
+              }
+            />
+          ))}
+          {round.specialHoles.ld && (
+            <WinnerSelect
+              label={`Longest Drive - Hole ${round.specialHoles.ld}`}
+              value={sideWinnerIds.ld ?? ""}
+              options={playerOptions}
+              onChange={(winnerId) => updateSideWinner("ld", winnerId)}
+            />
+          )}
+          {round.specialHoles.t2 && (
+            <WinnerSelect
+              label={`T2 - Hole ${round.specialHoles.t2}`}
+              value={sideWinnerIds.t2 ?? ""}
+              options={playerOptions}
+              onChange={(winnerId) => updateSideWinner("t2", winnerId)}
+            />
+          )}
+          {round.specialHoles.t3 && (
+            <WinnerSelect
+              label={`T3 - Hole ${round.specialHoles.t3}`}
+              value={sideWinnerIds.t3 ?? ""}
+              options={playerOptions}
+              onChange={(winnerId) => updateSideWinner("t3", winnerId)}
+            />
+          )}
+        </div>
+      )}
+
+      {results && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 space-y-3">
+          <h2 className="font-semibold text-green-900 text-sm">
+            Official Results Published
+          </h2>
+          <p className="text-xs text-green-800">
+            Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
+          </p>
+          <div className="space-y-1 text-sm text-green-900">
+            {results.rankings.slice(0, 10).map((ranking) => (
+              <div
+                key={ranking.playerId}
+                className="flex items-center justify-between"
+              >
+                <span>
+                  #{ranking.rank} {ranking.playerName}
+                </span>
+                <span className="font-semibold">
+                  {round.format === "stableford"
+                    ? `${ranking.stablefordTotal} pts`
+                    : `${ranking.grossTotal} strokes`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         <h2 className="font-semibold text-gray-800 text-sm">Results</h2>
         <p className="text-xs text-gray-500">
-          Publishing will mark results as official and make the leaderboard visible to players in the next stage.
+          Publishing saves the official top 10, side winners, and locks all cards.
         </p>
         <button
           type="button"
           onClick={handlePublish}
-          disabled={publishing || round.resultsPublished}
+          disabled={publishing || round.resultsPublished || sorted.length === 0}
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
         >
           {round.resultsPublished
@@ -229,5 +402,37 @@ export default function AdminRoundLeaderboardPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+function WinnerSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ id: string; name: string }>;
+  onChange: (winnerId: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-gray-700 mb-1">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+      >
+        <option value="">No winner selected</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -130,6 +130,7 @@ export interface Round {
   format: ScoringFormat;
   status: RoundStatus;
   notes: string | null;
+  teeTimes: TeeTime[];
   holeOverrides: HoleOverride[];
   specialHoles: SpecialHoles;
   resultsPublished: boolean;

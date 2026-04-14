@@ -4,20 +4,22 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
-import { getRound } from "@/lib/firestore";
+import { getResultsForRound, getRound } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Round } from "@/types";
+import type { Results, Round } from "@/types";
 
 export default function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const [round, setRound] = useState<Round | null>(null);
+  const [results, setResults] = useState<Results | null>(null);
   const [loading, setLoading] = useState(true);
   const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (roundId) {
-      getRound(roundId).then((r) => {
+      Promise.all([getRound(roundId), getResultsForRound(roundId)]).then(([r, res]) => {
         setRound(r);
+        setResults(res);
         setLoading(false);
       });
     }
@@ -78,6 +80,35 @@ export default function RoundDetailPage() {
         </span>
       </div>
 
+      {round.resultsPublished && results && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 space-y-4">
+          <div>
+            <h2 className="font-semibold text-green-900">Final Results</h2>
+            <p className="text-xs text-green-800 mt-1">
+              Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
+            </p>
+          </div>
+          <div className="space-y-1 text-sm text-green-950">
+            {results.rankings.slice(0, 10).map((ranking) => (
+              <div
+                key={ranking.playerId}
+                className="flex items-center justify-between"
+              >
+                <span>
+                  #{ranking.rank} {ranking.playerName}
+                </span>
+                <span className="font-semibold">
+                  {round.format === "stableford"
+                    ? `${ranking.stablefordTotal} pts`
+                    : `${ranking.grossTotal} strokes`}
+                </span>
+              </div>
+            ))}
+          </div>
+          <SideResultsList results={results} />
+        </div>
+      )}
+
       {/* Live scoring button */}
       {round.status === "live" && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
@@ -109,6 +140,27 @@ export default function RoundDetailPage() {
           </a>
         </div>
       </div>
+
+      {round.teeTimes.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <h2 className="font-semibold text-gray-800 mb-3">Tee Times</h2>
+          <div className="divide-y divide-gray-100">
+            {round.teeTimes.map((teeTime) => (
+              <div
+                key={teeTime.id}
+                className="flex items-center justify-between py-2 text-sm"
+              >
+                <span className="font-semibold text-gray-800">
+                  {teeTime.time || "TBC"}
+                </span>
+                <span className="text-gray-500 text-right">
+                  {teeTime.notes || "Group details TBC"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Special holes */}
       {(round.specialHoles.ntp.length > 0 ||
@@ -197,6 +249,34 @@ export default function RoundDetailPage() {
           </Link>
         </div>
       )}
+    </div>
+  );
+}
+
+function SideResultsList({ results }: { results: Results }) {
+  const sideResults = [
+    ...results.sideResults.ntp.map((result) => ({
+      label: `NTP - Hole ${result.holeNumber}`,
+      result,
+    })),
+    { label: `Longest Drive - Hole ${results.sideResults.ld.holeNumber}`, result: results.sideResults.ld },
+    { label: `T2 - Hole ${results.sideResults.t2.holeNumber}`, result: results.sideResults.t2 },
+    { label: `T3 - Hole ${results.sideResults.t3.holeNumber}`, result: results.sideResults.t3 },
+  ].filter(({ result }) => result.holeNumber > 0);
+
+  if (sideResults.length === 0) return null;
+
+  return (
+    <div className="border-t border-green-200 pt-3 space-y-1 text-sm text-green-950">
+      <p className="font-semibold text-green-900">Side Winners</p>
+      {sideResults.map(({ label, result }) => (
+        <div key={label} className="flex items-center justify-between">
+          <span>{label}</span>
+          <span className="font-semibold">
+            {result.winnerName ?? "No winner recorded"}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
