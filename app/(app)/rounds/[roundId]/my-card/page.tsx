@@ -59,7 +59,7 @@ export default function MyCardPage() {
             setCard(c);
             setMarkedCard(mCard ?? null);
             const hs = await getHoleScores(c.id);
-            const layout = buildCourseLayout(r);
+            const layout = buildCourseLayout();
             setHoles(
               hs.length > 0
                 ? hs

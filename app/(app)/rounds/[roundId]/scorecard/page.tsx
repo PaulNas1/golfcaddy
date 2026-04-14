@@ -351,7 +351,7 @@ export default function ScorecardPage() {
     );
   }
 
-  const courseLayout = buildCourseLayout(round);
+  const courseLayout = buildCourseLayout();
 
   const playerName =
     scorecard &&
