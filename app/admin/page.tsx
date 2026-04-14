@@ -21,7 +21,6 @@ export default function AdminDashboard() {
   }, []);
 
   const liveRound = rounds.find((r) => r.status === "live");
-  const upcomingRound = rounds.find((r) => r.status === "upcoming");
 
   return (
     <div className="space-y-5">
@@ -102,17 +101,15 @@ export default function AdminDashboard() {
             <span className="text-xl">👥</span>
             <span className="text-sm font-medium text-gray-700">Manage members</span>
           </Link>
-          {upcomingRound && (
-            <Link
-              href={`/admin/rounds/${upcomingRound.id}`}
-              className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
-            >
-              <span className="text-xl">📋</span>
-              <span className="text-sm font-medium text-blue-800">
-                Edit upcoming round: {upcomingRound.courseName}
-              </span>
-            </Link>
-          )}
+          <Link
+            href="/admin/rounds"
+            className="flex items-center gap-3 p-3 bg-blue-50 rounded-xl hover:bg-blue-100 transition-colors"
+          >
+            <span className="text-xl">📋</span>
+            <span className="text-sm font-medium text-blue-800">
+              View and edit all rounds
+            </span>
+          </Link>
         </div>
       </div>
     </div>

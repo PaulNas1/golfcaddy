@@ -27,11 +27,8 @@ service cloud.firestore {
     // ─── Users ────────────────────────────────────────────────────────────
 
     match /users/{userId} {
-      // Anyone can create their own user doc on signup
       allow create: if isSignedIn() && request.auth.uid == userId;
-      // Users can read their own doc; admins can read all
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      // Users can update limited fields; admins can update anything
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
         isAdmin()
@@ -81,9 +78,13 @@ service cloud.firestore {
         resource.data.markerId == request.auth.uid ||
         isAdmin()
       );
-      // Members can create/update their own scorecard (not admin_locked)
-      allow create: if isActiveUser() &&
-        request.resource.data.playerId == request.auth.uid;
+      // Members can create scorecards they are playing in (as player or marker)
+      // and admins can create any scorecard.
+      allow create: if isActiveUser() && (
+        request.resource.data.playerId == request.auth.uid ||
+        request.resource.data.markerId == request.auth.uid ||
+        isAdmin()
+      );
       allow update: if isActiveUser() && (
         (resource.data.playerId == request.auth.uid && resource.data.status != 'admin_locked') ||
         (resource.data.markerId == request.auth.uid && resource.data.status != 'admin_locked') ||
@@ -122,7 +123,6 @@ service cloud.firestore {
 
     match /posts/{postId} {
       allow read: if isActiveUser();
-      // Admins can create announcements; active members create general posts
       allow create: if isActiveUser() && (
         request.resource.data.type != 'announcement' || isAdmin()
       );
@@ -156,13 +156,10 @@ service cloud.firestore {
     // ─── Notifications ────────────────────────────────────────────────────
 
     match /notifications/{notificationId} {
-      // Members can only read their own notifications
       allow read: if isSignedIn() &&
         resource.data.recipientId == request.auth.uid;
-      // Members can mark own notifications as read
       allow update: if isSignedIn() &&
         resource.data.recipientId == request.auth.uid;
-      // Only admin/cloud functions create notifications
       allow create: if isAdmin();
       allow delete: if isAdmin();
     }

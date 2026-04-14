@@ -12,9 +12,19 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
+  QueryDocumentSnapshot,
+  DocumentData,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { AppUser, Member, Round, Group, AppNotification } from "@/types";
+import type {
+  AppUser,
+  Member,
+  Round,
+  Group,
+  AppNotification,
+  Scorecard,
+  HoleScore,
+} from "@/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -236,6 +246,130 @@ export const getLiveRound = async (groupId: string): Promise<Round | null> => {
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as Round;
+};
+
+// ─── Scorecards & Hole Scores ────────────────────────────────────────────────
+
+export const createScorecard = async (
+  data: Omit<Scorecard, "id" | "createdAt" | "updatedAt">
+): Promise<string> => {
+  const ref = await addDoc(collection(db, "scorecards"), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+const mapScorecard = (
+  d: QueryDocumentSnapshot<DocumentData>
+): Scorecard => {
+  const data = d.data();
+  return {
+    id: d.id,
+    ...data,
+    submittedAt: data.submittedAt ? toDate(data.submittedAt) : null,
+    adminEditedAt: data.adminEditedAt ? toDate(data.adminEditedAt) : null,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as Scorecard;
+};
+
+export const getScorecardForPlayer = async (
+  roundId: string,
+  playerId: string
+): Promise<Scorecard | null> => {
+  const q = query(
+    collection(db, "scorecards"),
+    where("roundId", "==", roundId),
+    where("playerId", "==", playerId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return mapScorecard(d);
+};
+
+export const getScorecardForMarker = async (
+  roundId: string,
+  markerId: string
+): Promise<Scorecard | null> => {
+  const q = query(
+    collection(db, "scorecards"),
+    where("roundId", "==", roundId),
+    where("markerId", "==", markerId),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  const d = snap.docs[0];
+  return mapScorecard(d);
+};
+
+export const getScorecardsForRound = async (
+  roundId: string
+): Promise<Scorecard[]> => {
+  const q = query(collection(db, "scorecards"), where("roundId", "==", roundId));
+  const snap = await getDocs(q);
+  return snap.docs.map(mapScorecard);
+};
+
+export const updateScorecard = async (
+  scorecardId: string,
+  data: Partial<Scorecard>
+) => {
+  await updateDoc(doc(db, "scorecards", scorecardId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const getHoleScores = async (
+  scorecardId: string
+): Promise<HoleScore[]> => {
+  const q = query(
+    collection(db, "scorecards", scorecardId, "holeScores"),
+    orderBy("holeNumber", "asc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      holeNumber: data.holeNumber,
+      par: data.par,
+      strokeIndex: data.strokeIndex,
+      strokesReceived: data.strokesReceived,
+      grossScore:
+        typeof data.grossScore === "number" ? data.grossScore : null,
+      netScore: typeof data.netScore === "number" ? data.netScore : null,
+      stablefordPoints:
+        typeof data.stablefordPoints === "number"
+          ? data.stablefordPoints
+          : null,
+      isNTP: !!data.isNTP,
+      isLD: !!data.isLD,
+      isT2: !!data.isT2,
+      isT3: !!data.isT3,
+      savedAt: data.savedAt ? toDate(data.savedAt) : null,
+    } as HoleScore;
+  });
+};
+
+export const setHoleScore = async (
+  scorecardId: string,
+  holeNumber: number,
+  data: Omit<HoleScore, "holeNumber" | "savedAt">
+) => {
+  await setDoc(
+    doc(db, "scorecards", scorecardId, "holeScores", String(holeNumber)),
+    {
+      holeNumber,
+      ...data,
+      savedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 };
 
 // ─── Notifications ───────────────────────────────────────────────────────────

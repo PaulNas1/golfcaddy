@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { getRound } from "@/lib/firestore";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Round } from "@/types";
 
 export default function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const [round, setRound] = useState<Round | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     if (roundId) {
@@ -79,10 +82,15 @@ export default function RoundDetailPage() {
       {round.status === "live" && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
           <p className="font-semibold text-red-700 mb-1">Scoring is open</p>
-          <p className="text-red-600 text-sm mb-3">Enter your scores hole by hole</p>
-          <button className="w-full bg-red-500 text-white font-semibold py-3 rounded-xl">
+          <p className="text-red-600 text-sm mb-3">
+            Enter your scores hole by hole
+          </p>
+          <a
+            href={`/rounds/${round.id}/scorecard`}
+            className="block text-center w-full bg-red-500 text-white font-semibold py-3 rounded-xl"
+          >
             Enter Scores →
-          </button>
+          </a>
         </div>
       )}
 
@@ -170,6 +178,23 @@ export default function RoundDetailPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <h2 className="font-semibold text-gray-800 mb-2">Notes</h2>
           <p className="text-gray-600 text-sm whitespace-pre-wrap">{round.notes}</p>
+        </div>
+      )}
+
+      {/* Admin quick link */}
+      {isAdmin && (
+        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-4">
+          <h2 className="font-semibold text-gray-800 mb-2">Admin</h2>
+          <p className="text-xs text-gray-500 mb-2">
+            Edit course details, tee times, and round status.
+          </p>
+          <Link
+            href={`/admin/rounds/${round.id}`}
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
+          >
+            <span>Open round in admin</span>
+            <span className="text-lg">↗</span>
+          </Link>
         </div>
       )}
     </div>

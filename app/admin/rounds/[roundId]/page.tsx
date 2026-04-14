@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
-import { getRound, updateRound } from "@/lib/firestore";
-import type { Round, RoundStatus } from "@/types";
+import Link from "next/link";
+import { getRound, updateRound, getScorecardsForRound } from "@/lib/firestore";
+import type { Round, RoundStatus, Scorecard, ScoringFormat } from "@/types";
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -12,12 +13,38 @@ export default function AdminRoundDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
+  const [scorecards, setScorecards] = useState<Scorecard[]>([]);
+  const [courseName, setCourseName] = useState("");
+  const [roundNumber, setRoundNumber] = useState<string>("");
+  const [date, setDate] = useState("");
+  const [formatChoice, setFormatChoice] =
+    useState<ScoringFormat>("stableford");
+  const [notes, setNotes] = useState("");
+  const [ldHole, setLdHole] = useState("");
+  const [t2Hole, setT2Hole] = useState("");
+  const [t3Hole, setT3Hole] = useState("");
+
+  const loadScorecards = async (r: Round) => {
+    const cards = await getScorecardsForRound(r.id);
+    setScorecards(cards);
+  };
 
   useEffect(() => {
     if (roundId) {
       getRound(roundId).then((r) => {
         setRound(r);
         setLoading(false);
+        if (r) {
+          setCourseName(r.courseName);
+          setRoundNumber(String(r.roundNumber));
+          setDate(format(r.date, "yyyy-MM-dd"));
+          setFormatChoice(r.format);
+          setNotes(r.notes ?? "");
+          setLdHole(r.specialHoles.ld ? String(r.specialHoles.ld) : "");
+          setT2Hole(r.specialHoles.t2 ? String(r.specialHoles.t2) : "");
+          setT3Hole(r.specialHoles.t3 ? String(r.specialHoles.t3) : "");
+          loadScorecards(r);
+        }
       });
     }
   }, [roundId]);
@@ -28,6 +55,45 @@ export default function AdminRoundDetailPage() {
     await updateRound(round.id, { status });
     setRound({ ...round, status });
     setSuccess(`Round marked as ${status}`);
+    setSaving(false);
+    setTimeout(() => setSuccess(""), 3000);
+  };
+
+  const handleSaveDetails = async () => {
+    if (!round) return;
+    if (!courseName.trim() || !date) return;
+
+    setSaving(true);
+    const parsedRoundNumber =
+      parseInt(roundNumber, 10) || round.roundNumber;
+    const newDate = new Date(date);
+    const specialHoles = {
+      ...round.specialHoles,
+      ld: ldHole ? parseInt(ldHole, 10) : null,
+      t2: t2Hole ? parseInt(t2Hole, 10) : null,
+      t3: t3Hole ? parseInt(t3Hole, 10) : null,
+    };
+
+    await updateRound(round.id, {
+      courseName: courseName.trim(),
+      roundNumber: parsedRoundNumber,
+      date: newDate,
+      format: formatChoice,
+      notes: notes.trim() || null,
+      specialHoles,
+    });
+
+    setRound({
+      ...round,
+      courseName: courseName.trim(),
+      roundNumber: parsedRoundNumber,
+      date: newDate,
+      format: formatChoice,
+      notes: notes.trim() || null,
+      specialHoles,
+    });
+
+    setSuccess("Round details updated");
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
   };
@@ -83,6 +149,128 @@ export default function AdminRoundDetailPage() {
         </div>
       )}
 
+      {/* Edit round details */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+        <h2 className="font-semibold text-gray-800">Round Details</h2>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Course name
+            </label>
+            <input
+              type="text"
+              value={courseName}
+              onChange={(e) => setCourseName(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Round number
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={roundNumber}
+              onChange={(e) => setRoundNumber(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Scoring format
+            </label>
+            <div className="flex gap-2">
+              {(["stableford", "stroke"] as ScoringFormat[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFormatChoice(f)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
+                    formatChoice === f
+                      ? "bg-green-600 text-white border-green-600"
+                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {f === "stableford" ? "Stableford" : "Stroke"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">
+              Notes
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100 pt-3 mt-2 space-y-3">
+          <h3 className="text-xs font-semibold text-gray-700">
+            Special holes
+          </h3>
+          <p className="text-[11px] text-gray-400">
+            NTP holes are set from par 3s. Update LD, T2, and T3 if the course
+            changes.
+          </p>
+          <div className="space-y-2">
+            {[
+              { label: "💪 Longest Drive (LD)", value: ldHole, setter: setLdHole },
+              { label: "⭐ T2", value: t2Hole, setter: setT2Hole },
+              { label: "⭐ T3", value: t3Hole, setter: setT3Hole },
+            ].map(({ label, value, setter }) => (
+              <div key={label}>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  {label}
+                </label>
+                <select
+                  value={value}
+                  onChange={(e) => setter(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Not set</option>
+                  {Array.from({ length: 18 }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>
+                      Hole {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveDetails}
+          disabled={saving}
+          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+        >
+          {saving ? "Saving..." : "Save round details"}
+        </button>
+      </div>
+
       {/* Round status controls */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
         <h2 className="font-semibold text-gray-800">Round Status</h2>
@@ -108,6 +296,57 @@ export default function AdminRoundDetailPage() {
           Setting to &quot;Live&quot; opens scoring and notifies all members. &quot;Completed&quot; closes scoring.
         </p>
       </div>
+
+      {/* Live leaderboard (summary) */}
+      {round.status !== "upcoming" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800">Live Leaderboard</h2>
+            <Link
+              href={`/admin/rounds/${round.id}/leaderboard`}
+              className="text-xs text-green-700 font-medium hover:underline"
+            >
+              View full table →
+            </Link>
+          </div>
+          {scorecards.length === 0 ? (
+            <p className="text-xs text-gray-400">
+              No scorecards yet. Once players start entering scores, they will appear here.
+            </p>
+          ) : (
+            <div className="space-y-1 text-sm">
+              {scorecards
+                .slice()
+                .sort((a, b) => {
+                  if (round.format === "stableford") {
+                    const as = a.totalStableford ?? -Infinity;
+                    const bs = b.totalStableford ?? -Infinity;
+                    return bs - as;
+                  }
+                  const ag = a.totalGross ?? Infinity;
+                  const bg = b.totalGross ?? Infinity;
+                  return ag - bg;
+                })
+                .slice(0, 3)
+                .map((c, idx) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between text-gray-700"
+                  >
+                    <span className="text-xs text-gray-400">
+                      #{idx + 1}
+                    </span>
+                    <span className="flex-1 text-xs text-right">
+                      {round.format === "stableford"
+                        ? c.totalStableford ?? "—"
+                        : c.totalGross ?? "—"}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Override hole par */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">

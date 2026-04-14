@@ -12,6 +12,7 @@ export default function CreateRoundPage() {
 
   const [courseName, setCourseName] = useState("");
   const [date, setDate] = useState("");
+  const [roundNumber, setRoundNumber] = useState<string>("1");
   const [format, setFormat] = useState<ScoringFormat>("stableford");
   const [notes, setNotes] = useState("");
   const [ldHole, setLdHole] = useState("");
@@ -36,6 +37,12 @@ export default function CreateRoundPage() {
       return;
     }
 
+    const parsedRoundNumber = parseInt(roundNumber, 10);
+    if (!parsedRoundNumber || parsedRoundNumber <= 0) {
+      setError("Round number must be a positive number.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -56,7 +63,7 @@ export default function CreateRoundPage() {
         courseName: courseName.trim(),
         date: new Date(date),
         season: new Date().getFullYear(),
-        roundNumber: 1, // auto-increment handled later
+        roundNumber: parsedRoundNumber,
         format,
         status: "upcoming",
         notes: notes.trim() || null,
@@ -114,6 +121,23 @@ export default function CreateRoundPage() {
               required
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Round number
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={roundNumber}
+              onChange={(e) => setRoundNumber(e.target.value)}
+              required
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Used for ordering rounds within the season (e.g. 1, 2, 3...).
+            </p>
           </div>
 
           <div>
