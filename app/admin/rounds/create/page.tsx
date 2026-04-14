@@ -6,8 +6,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { createRound } from "@/lib/firestore";
 import type { ScoringFormat, SpecialHoles } from "@/types";
 
-const DEFAULT_PAR = 72;
-
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
   const router = useRouter();
