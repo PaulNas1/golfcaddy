@@ -33,7 +33,7 @@ export default function AdminRoundLeaderboardPage() {
       try {
         const [r, activeMembers, existingResults] = await Promise.all([
           getRound(roundId),
-          getActiveMembers(),
+          getActiveMembers(appUser?.groupId ?? "fourplay"),
           getResultsForRound(roundId),
         ]);
         if (!r) {
@@ -54,7 +54,7 @@ export default function AdminRoundLeaderboardPage() {
       }
     };
     load();
-  }, [roundId]);
+  }, [roundId, appUser?.groupId]);
 
   const sorted = cards
     .slice()

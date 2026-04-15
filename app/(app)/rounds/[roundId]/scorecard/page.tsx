@@ -50,8 +50,8 @@ export default function ScorecardPage() {
       try {
         const [r, existing, activeMembers] = await Promise.all([
           getRound(roundId),
-          getScorecardForMarker(roundId, appUser.uid),
-          getActiveMembers(),
+          getScorecardForMarker(roundId, appUser.uid, appUser.groupId),
+          getActiveMembers(appUser.groupId),
         ]);
 
         if (!r) {
@@ -124,7 +124,8 @@ export default function ScorecardPage() {
     try {
       const existingPlayerCard = await getScorecardForPlayer(
         round.id,
-        playerToMarkId
+        playerToMarkId,
+        appUser.groupId
       );
       if (existingPlayerCard) {
         if (existingPlayerCard.markerId === appUser.uid) {

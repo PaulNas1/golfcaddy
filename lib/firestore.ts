@@ -254,22 +254,26 @@ export const getPendingMembers = async (): Promise<AppUser[]> => {
   });
 };
 
-export const getActiveMembers = async (): Promise<AppUser[]> => {
+export const getActiveMembers = async (
+  groupId = FOURPLAY_GROUP_ID
+): Promise<AppUser[]> => {
   const q = query(
     collection(db, "users"),
     where("status", "==", "active"),
-    orderBy("displayName", "asc")
+    where("groupId", "==", groupId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      uid: d.id,
-      ...data,
-      createdAt: toDate(data.createdAt),
-      updatedAt: toDate(data.updatedAt),
-    } as AppUser;
-  });
+  return snap.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        uid: d.id,
+        ...data,
+        createdAt: toDate(data.createdAt),
+        updatedAt: toDate(data.updatedAt),
+      } as AppUser;
+    })
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
 };
 
 export const approveMember = async (uid: string) => {
@@ -623,12 +627,14 @@ const mapScorecard = (
 
 export const getScorecardForPlayer = async (
   roundId: string,
-  playerId: string
+  playerId: string,
+  groupId?: string
 ): Promise<Scorecard | null> => {
   const q = query(
     collection(db, "scorecards"),
     where("roundId", "==", roundId),
     where("playerId", "==", playerId),
+    ...(groupId ? [where("groupId", "==", groupId)] : []),
     limit(1)
   );
   const snap = await getDocs(q);
@@ -639,12 +645,14 @@ export const getScorecardForPlayer = async (
 
 export const getScorecardForMarker = async (
   roundId: string,
-  markerId: string
+  markerId: string,
+  groupId?: string
 ): Promise<Scorecard | null> => {
   const q = query(
     collection(db, "scorecards"),
     where("roundId", "==", roundId),
     where("markerId", "==", markerId),
+    ...(groupId ? [where("groupId", "==", groupId)] : []),
     limit(1)
   );
   const snap = await getDocs(q);

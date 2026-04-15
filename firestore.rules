@@ -28,11 +28,26 @@ service cloud.firestore {
       return isActiveUser() || isAdmin();
     }
 
+    function isActiveSameGroupResource() {
+      return isActiveUser() &&
+        resource.data.status == 'active' &&
+        resource.data.groupId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId;
+    }
+
+    function isSameGroupResource() {
+      return isActiveUser() &&
+        resource.data.groupId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId;
+    }
+
     // ─── Users ────────────────────────────────────────────────────────────
 
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        isActiveSameGroupResource()
+      );
       allow update: if isSignedIn() && (
         request.auth.uid == userId ||
         isAdmin()
@@ -76,12 +91,14 @@ service cloud.firestore {
     // ─── Scorecards ───────────────────────────────────────────────────────
 
     match /scorecards/{scorecardId} {
-      // Members can read their own scorecard or cards they are marking
+      // Members can read their own cards, cards they are marking, and same-group
+      // cards so marker selection can detect cards already started by another marker.
       allow read: if isAdmin() || (
         isActiveUser() &&
         (
           resource.data.playerId == request.auth.uid ||
-          resource.data.markerId == request.auth.uid
+          resource.data.markerId == request.auth.uid ||
+          isSameGroupResource()
         )
       );
       // Members can create scorecards they are playing in (as player or marker)

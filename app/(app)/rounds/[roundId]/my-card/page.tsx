@@ -42,9 +42,9 @@ export default function MyCardPage() {
       try {
         const [r, c, mCard, activeMembers] = await Promise.all([
           getRound(roundId),
-          getScorecardForPlayer(roundId, appUser.uid),
-          getScorecardForMarker(roundId, appUser.uid),
-          getActiveMembers(),
+          getScorecardForPlayer(roundId, appUser.uid, appUser.groupId),
+          getScorecardForMarker(roundId, appUser.uid, appUser.groupId),
+          getActiveMembers(appUser.groupId),
         ]);
         if (!r) {
           const live = await getLiveRound("fourplay").catch(() => null);
