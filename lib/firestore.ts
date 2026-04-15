@@ -16,6 +16,7 @@ import {
   QueryDocumentSnapshot,
   DocumentSnapshot,
   DocumentData,
+  WriteBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -40,6 +41,31 @@ import {
 import { withSeededCourseData } from "./courseData";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const FIRESTORE_BATCH_LIMIT = 450;
+
+function createBatchedWriter() {
+  let batch = writeBatch(db);
+  let operationCount = 0;
+
+  const commitCurrent = async () => {
+    if (operationCount === 0) return;
+    await batch.commit();
+    batch = writeBatch(db);
+    operationCount = 0;
+  };
+
+  return {
+    queue: async (write: (batch: WriteBatch) => void) => {
+      write(batch);
+      operationCount += 1;
+      if (operationCount >= FIRESTORE_BATCH_LIMIT) {
+        await commitCurrent();
+      }
+    },
+    commit: commitCurrent,
+  };
+}
 
 export const toDate = (val: Timestamp | Date | null | undefined): Date => {
   if (!val) return new Date();
@@ -300,6 +326,243 @@ export const updateRound = async (roundId: string, data: Partial<Round>) => {
     ...data,
     updatedAt: serverTimestamp(),
   });
+};
+
+export const deleteRoundCascade = async (roundId: string) => {
+  const round = await getRound(roundId);
+  if (!round) {
+    return {
+      deleted: false,
+      scorecardsDeleted: 0,
+      holeScoresDeleted: 0,
+      resultsDeleted: 0,
+      feedPostsDeleted: 0,
+      notificationsDeleted: 0,
+      handicapHistoryDeleted: 0,
+      standingsRebuilt: 0,
+    };
+  }
+
+  const [
+    scorecardsSnap,
+    resultsSnap,
+    postsSnap,
+    notificationsSnap,
+    handicapHistorySnap,
+    seasonResults,
+    previousStandings,
+    groupMembers,
+  ] = await Promise.all([
+    getDocs(query(collection(db, "scorecards"), where("roundId", "==", round.id))),
+    getDoc(doc(db, "results", round.id)),
+    getDocs(query(collection(db, "posts"), where("roundId", "==", round.id))),
+    getDocs(
+      query(collection(db, "notifications"), where("roundId", "==", round.id))
+    ),
+    getDocs(
+      query(collection(db, "handicapHistory"), where("roundId", "==", round.id))
+    ),
+    getResultsForSeason(round.groupId, round.season),
+    getSeasonStandings(round.groupId, round.season),
+    getMembersForGroup(round.groupId),
+  ]);
+  const shouldRebuildSeason =
+    resultsSnap.exists() ||
+    seasonResults.some((result) => result.roundId === round.id);
+  const remainingSeasonResults = seasonResults.filter(
+    (result) => result.roundId !== round.id
+  );
+  const remainingRoundEntries = await Promise.all(
+    remainingSeasonResults.map(async (result) => {
+      const resultRound = await getRound(result.roundId);
+      return [result.roundId, resultRound ?? round] as const;
+    })
+  );
+  const standings = shouldRebuildSeason
+    ? buildSeasonStandings({
+        groupId: round.groupId,
+        season: round.season,
+        results: remainingSeasonResults,
+        roundsById: new Map(remainingRoundEntries),
+        previousStandings,
+        updatedAt: new Date(),
+      })
+    : [];
+  const standingsByMemberId = new Map(
+    standings.map((standing) => [standing.memberId, standing])
+  );
+  const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+  const deletedRoundHandicapBase = new Map<string, number>();
+  handicapHistorySnap.docs.forEach((historyDoc) => {
+    const data = historyDoc.data();
+    if (
+      data.source === "published_round" &&
+      typeof data.memberId === "string" &&
+      typeof data.previousHandicap === "number"
+    ) {
+      deletedRoundHandicapBase.set(data.memberId, data.previousHandicap);
+    }
+  });
+
+  const writer = createBatchedWriter();
+  let holeScoresDeleted = 0;
+  let feedPostsDeleted = 0;
+
+  for (const scorecardDoc of scorecardsSnap.docs) {
+    const holeScoresSnap = await getDocs(
+      collection(db, "scorecards", scorecardDoc.id, "holeScores")
+    );
+    for (const holeScoreDoc of holeScoresSnap.docs) {
+      await writer.queue((batch) => batch.delete(holeScoreDoc.ref));
+      holeScoresDeleted += 1;
+    }
+    await writer.queue((batch) => batch.delete(scorecardDoc.ref));
+  }
+
+  if (resultsSnap.exists()) {
+    await writer.queue((batch) => batch.delete(resultsSnap.ref));
+  }
+
+  for (const postDoc of postsSnap.docs) {
+    const [commentsSnap, reactionsSnap] = await Promise.all([
+      getDocs(collection(db, "posts", postDoc.id, "comments")),
+      getDocs(collection(db, "posts", postDoc.id, "reactions")),
+    ]);
+    for (const commentDoc of commentsSnap.docs) {
+      await writer.queue((batch) => batch.delete(commentDoc.ref));
+    }
+    for (const reactionDoc of reactionsSnap.docs) {
+      await writer.queue((batch) => batch.delete(reactionDoc.ref));
+    }
+    await writer.queue((batch) => batch.delete(postDoc.ref));
+    feedPostsDeleted += 1;
+  }
+
+  for (const notificationDoc of notificationsSnap.docs) {
+    await writer.queue((batch) => batch.delete(notificationDoc.ref));
+  }
+
+  for (const historyDoc of handicapHistorySnap.docs) {
+    await writer.queue((batch) => batch.delete(historyDoc.ref));
+  }
+
+  const existingStandingIds = new Set(
+    shouldRebuildSeason ? previousStandings.map((standing) => standing.id) : []
+  );
+  const rebuiltStandingIds = new Set(standings.map((standing) => standing.id));
+  const affectedMemberIds = new Set<string>(
+    shouldRebuildSeason
+      ? [
+          ...previousStandings.map((standing) => standing.memberId),
+          ...standings.map((standing) => standing.memberId),
+        ]
+      : []
+  );
+
+  for (const standing of standings) {
+    const member = membersById.get(standing.memberId);
+    const averageStableford = getAverageStableford(standing.roundResults);
+    const { bestStableford, bestRoundId } = getBestStableford(
+      standing.roundResults
+    );
+    const hadDeletedRoundHandicapMovement = deletedRoundHandicapBase.has(
+      standing.memberId
+    );
+    const baseHandicap =
+      deletedRoundHandicapBase.get(standing.memberId) ??
+      member?.currentHandicap ??
+      0;
+    const { nextHandicap } = hadDeletedRoundHandicapMovement
+      ? calculateNextHandicap(baseHandicap, standing.roundResults)
+      : { nextHandicap: baseHandicap };
+
+    await writer.queue((batch) =>
+      batch.set(
+        doc(db, "seasonStandings", standing.id),
+        {
+          ...standing,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      )
+    );
+    await writer.queue((batch) =>
+      batch.set(
+        doc(db, "members", standing.memberId),
+        {
+          userId: standing.memberId,
+          groupId: round.groupId,
+          displayName: standing.memberName,
+          avatarUrl: member?.avatarUrl ?? null,
+          currentHandicap: nextHandicap,
+          seasonYear: round.season,
+          seasonPoints: standing.totalPoints,
+          seasonRank: standing.currentRank,
+          roundsPlayed: standing.roundsPlayed,
+          ntpWins: standing.ntpWinsSeason,
+          ldWins: standing.ldWinsSeason,
+          t2Wins: standing.t2WinsSeason,
+          t3Wins: standing.t3WinsSeason,
+          avgStableford: averageStableford,
+          bestStableford,
+          bestRoundId,
+          updatedAt: serverTimestamp(),
+          ...(member ? {} : { createdAt: serverTimestamp() }),
+        },
+        { merge: true }
+      )
+    );
+  }
+
+  for (const standingId of Array.from(existingStandingIds)) {
+    if (!rebuiltStandingIds.has(standingId)) {
+      await writer.queue((batch) =>
+        batch.delete(doc(db, "seasonStandings", standingId))
+      );
+    }
+  }
+
+  for (const memberId of Array.from(affectedMemberIds)) {
+    if (standingsByMemberId.has(memberId)) continue;
+    const member = membersById.get(memberId);
+    const fallbackHandicap =
+      deletedRoundHandicapBase.get(memberId) ?? member?.currentHandicap ?? 0;
+    await writer.queue((batch) =>
+      batch.set(
+        doc(db, "members", memberId),
+        {
+          currentHandicap: fallbackHandicap,
+          seasonYear: round.season,
+          seasonPoints: 0,
+          seasonRank: null,
+          roundsPlayed: 0,
+          ntpWins: 0,
+          ldWins: 0,
+          t2Wins: 0,
+          t3Wins: 0,
+          avgStableford: null,
+          bestStableford: null,
+          bestRoundId: null,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      )
+    );
+  }
+
+  await writer.queue((batch) => batch.delete(doc(db, "rounds", round.id)));
+  await writer.commit();
+
+  return {
+    deleted: true,
+    scorecardsDeleted: scorecardsSnap.size,
+    holeScoresDeleted,
+    resultsDeleted: resultsSnap.exists() ? 1 : 0,
+    feedPostsDeleted,
+    notificationsDeleted: notificationsSnap.size,
+    handicapHistoryDeleted: handicapHistorySnap.size,
+    standingsRebuilt: standings.length,
+  };
 };
 
 export const getNextRound = async (groupId: string): Promise<Round | null> => {

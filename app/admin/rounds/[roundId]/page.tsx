@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
-import { getRound, updateRound, getScorecardsForRound } from "@/lib/firestore";
+import {
+  deleteRoundCascade,
+  getRound,
+  updateRound,
+  getScorecardsForRound,
+} from "@/lib/firestore";
 import {
   type SeededCourse,
   findSeededCourseByName,
@@ -21,10 +26,14 @@ import type { Round, RoundStatus, Scorecard, ScoringFormat, TeeTime } from "@/ty
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
+  const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [success, setSuccess] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
   const [scorecards, setScorecards] = useState<Scorecard[]>([]);
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
@@ -246,6 +255,24 @@ export default function AdminRoundDetailPage() {
     setSuccess("Course data refreshed from seeded catalogue");
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
+  };
+
+  const handleDeleteRound = async () => {
+    if (!round || deleteConfirm !== "DELETE") return;
+    const confirmed = window.confirm(
+      `Delete Round ${round.roundNumber} at ${round.courseName}? This permanently removes the round, scorecards, hole scores, official results, result feed posts, notifications, and round handicap history.`
+    );
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await deleteRoundCascade(round.id);
+      router.push("/admin/rounds");
+    } catch {
+      setDeleteError("Failed to delete round. Please try again.");
+      setDeleting(false);
+    }
   };
 
   const addTeeTime = () =>
@@ -680,6 +707,46 @@ export default function AdminRoundDetailPage() {
         <InfoRow label="LD hole" value={round.specialHoles.ld?.toString() || "None set"} />
         <InfoRow label="T2 hole" value={round.specialHoles.t2?.toString() || "None set"} />
         <InfoRow label="T3 hole" value={round.specialHoles.t3?.toString() || "None set"} />
+      </div>
+
+      {/* Danger zone */}
+      <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-4 space-y-3">
+        <div>
+          <h2 className="font-semibold text-red-700">Delete Round</h2>
+          <p className="mt-1 text-xs text-gray-500">
+            Permanently removes this round and all linked scorecards, hole
+            scores, official results, result feed posts, notifications, and
+            round handicap history. Season standings and member stats are
+            rebuilt from the remaining published results.
+          </p>
+        </div>
+
+        {deleteError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            {deleteError}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Type DELETE to confirm
+          </label>
+          <input
+            type="text"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleDeleteRound}
+          disabled={deleting || saving || deleteConfirm !== "DELETE"}
+          className="w-full rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:bg-red-300"
+        >
+          {deleting ? "Deleting round..." : "Delete entire round"}
+        </button>
       </div>
     </div>
   );
