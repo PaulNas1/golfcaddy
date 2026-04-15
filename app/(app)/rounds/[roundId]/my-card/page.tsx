@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getFallbackCourseHoles } from "@/lib/courseData";
 import {
   getRound,
+  getLiveRound,
   getScorecardForPlayer,
   getScorecardForMarker,
   getHoleScores,
@@ -46,6 +47,11 @@ export default function MyCardPage() {
           getActiveMembers(),
         ]);
         if (!r) {
+          const live = await getLiveRound("fourplay").catch(() => null);
+          if (live && live.id !== roundId) {
+            router.replace(`/rounds/${live.id}/my-card`);
+            return;
+          }
           setRound(null);
           setCard(null);
           setMarkedCard(null);
@@ -90,7 +96,7 @@ export default function MyCardPage() {
       }
     };
     load();
-  }, [roundId, appUser, isActive]);
+  }, [roundId, appUser, isActive, router]);
 
   if (!isActive) {
     return (
@@ -113,7 +119,7 @@ export default function MyCardPage() {
   if (!round) {
     return (
       <div className="px-4 py-6 text-sm text-gray-500">
-        Round not found.
+        Round not found. Tried round ID: {roundId}
       </div>
     );
   }

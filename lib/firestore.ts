@@ -2,7 +2,9 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
+  getDocsFromServer,
   setDoc,
   updateDoc,
   addDoc,
@@ -293,7 +295,7 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
     orderBy("date", "desc"),
     limit(20)
   );
-  const snap = await getDocs(q);
+  const snap = await getDocsFromServer(q);
   return snap.docs
     .map(mapRound)
     .sort((a, b) => {
@@ -305,7 +307,7 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
 };
 
 export const getRound = async (roundId: string): Promise<Round | null> => {
-  const snap = await getDoc(doc(db, "rounds", roundId));
+  const snap = await getDocFromServer(doc(db, "rounds", roundId));
   if (!snap.exists()) return null;
   return mapRound(snap);
 };
@@ -578,12 +580,18 @@ export const getLiveRound = async (groupId: string): Promise<Round | null> => {
   const q = query(
     collection(db, "rounds"),
     where("groupId", "==", groupId),
-    where("status", "==", "live"),
-    limit(1)
+    where("status", "==", "live")
   );
-  const snap = await getDocs(q);
+  const snap = await getDocsFromServer(q);
   if (snap.empty) return null;
-  return mapRound(snap.docs[0]);
+  return snap.docs
+    .map(mapRound)
+    .sort((a, b) => {
+      if (a.roundNumber !== b.roundNumber) {
+        return b.roundNumber - a.roundNumber;
+      }
+      return b.date.getTime() - a.date.getTime();
+    })[0];
 };
 
 // ─── Scorecards & Hole Scores ────────────────────────────────────────────────

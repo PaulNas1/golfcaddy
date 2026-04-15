@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { getResultsForRound, getRound } from "@/lib/firestore";
+import { getLiveRound, getResultsForRound, getRound } from "@/lib/firestore";
 import { withSeededCourseData } from "@/lib/courseData";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Results, Round } from "@/types";
 
 export default function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
+  const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,17 @@ export default function RoundDetailPage() {
         .then(([r, res]) => {
           setRound(r ? withSeededCourseData(r) : null);
           setResults(res);
+          if (!r) {
+            getLiveRound("fourplay")
+              .then((live) => {
+                if (live && live.id !== roundId) {
+                  router.replace(`/rounds/${live.id}`);
+                }
+              })
+              .catch((err) => {
+                console.warn("Unable to recover missing round route", err);
+              });
+          }
         })
         .catch((err) => {
           console.error("Failed to load round detail", err);
@@ -38,7 +50,7 @@ export default function RoundDetailPage() {
         })
         .finally(() => setLoading(false));
     }
-  }, [roundId]);
+  }, [roundId, router]);
 
   if (loading) {
     return (
@@ -60,14 +72,25 @@ export default function RoundDetailPage() {
         <p className="text-sm">
           {error ? "Could not load round." : "Round not found."}
         </p>
+        {roundId && (
+          <p className="mt-2 max-w-xs break-all text-center text-xs text-gray-500">
+            Tried round ID: {roundId}
+          </p>
+        )}
         {error && (
           <p className="mt-2 max-w-xs text-center text-xs text-gray-500">
             {error}
           </p>
         )}
         <Link
+          href="/reset-cache.html"
+          className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700"
+        >
+          Reset app cache
+        </Link>
+        <Link
           href="/rounds"
-          className="mt-4 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
+          className="mt-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
         >
           Back to rounds
         </Link>

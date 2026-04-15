@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   getRound,
+  getLiveRound,
   getMember,
   getActiveMembers,
   getScorecardForPlayer,
@@ -54,7 +55,12 @@ export default function ScorecardPage() {
         ]);
 
         if (!r) {
-          setError("Round not found.");
+          const live = await getLiveRound("fourplay").catch(() => null);
+          if (live && live.id !== roundId) {
+            router.replace(`/rounds/${live.id}/scorecard`);
+            return;
+          }
+          setError(`Round not found. Tried round ID: ${roundId}`);
           setLoading(false);
           return;
         }
@@ -92,7 +98,7 @@ export default function ScorecardPage() {
     };
 
     load();
-  }, [roundId, appUser, isActive]);
+  }, [roundId, appUser, isActive, router]);
 
   const canEdit = useMemo(
     () =>
