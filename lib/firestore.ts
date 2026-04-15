@@ -37,6 +37,7 @@ import {
   getBestStableford,
   getSeasonStandingId,
 } from "./season";
+import { withSeededCourseData } from "./courseData";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -50,17 +51,31 @@ const mapRound = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
 ): Round => {
   const data = d.data() ?? {};
-  return {
+  return withSeededCourseData({
     id: d.id,
     ...data,
     teeTimes: data.teeTimes ?? [],
+    courseId: data.courseId ?? "",
+    teeSetId: data.teeSetId ?? null,
+    teeSetName: data.teeSetName ?? null,
+    coursePar: data.coursePar ?? null,
+    courseRating: data.courseRating ?? null,
+    slopeRating: data.slopeRating ?? null,
+    courseHoles: Array.isArray(data.courseHoles) ? data.courseHoles : [],
+    courseSource: data.courseSource ?? null,
+    specialHoles: data.specialHoles ?? {
+      ntp: [],
+      ld: null,
+      t2: null,
+      t3: null,
+    },
     date: toDate(data.date),
     resultsPublishedAt: data.resultsPublishedAt
       ? toDate(data.resultsPublishedAt)
       : null,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
-  } as Round;
+  } as Round);
 };
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -132,6 +147,65 @@ export const getMembersForGroup = async (
   const q = query(collection(db, "members"), where("groupId", "==", groupId));
   const snap = await getDocs(q);
   return snap.docs.map(mapMember);
+};
+
+export const updateMemberStartingHandicap = async ({
+  memberUser,
+  handicap,
+  season,
+  changedBy,
+}: {
+  memberUser: AppUser;
+  handicap: number;
+  season: number;
+  changedBy: AppUser | null;
+}) => {
+  const existingMember = await getMember(memberUser.uid);
+  const previousHandicap = existingMember?.currentHandicap ?? 0;
+  const batch = writeBatch(db);
+  const memberRef = doc(db, "members", memberUser.uid);
+  const historyRef = doc(collection(db, "handicapHistory"));
+
+  batch.set(
+    memberRef,
+    {
+      userId: memberUser.uid,
+      groupId: memberUser.groupId,
+      displayName: memberUser.displayName,
+      avatarUrl: memberUser.avatarUrl,
+      currentHandicap: handicap,
+      seasonYear: existingMember?.seasonYear ?? season,
+      seasonPoints: existingMember?.seasonPoints ?? 0,
+      seasonRank: existingMember?.seasonRank ?? null,
+      roundsPlayed: existingMember?.roundsPlayed ?? 0,
+      ntpWins: existingMember?.ntpWins ?? 0,
+      ldWins: existingMember?.ldWins ?? 0,
+      t2Wins: existingMember?.t2Wins ?? 0,
+      t3Wins: existingMember?.t3Wins ?? 0,
+      avgStableford: existingMember?.avgStableford ?? null,
+      bestStableford: existingMember?.bestStableford ?? null,
+      bestRoundId: existingMember?.bestRoundId ?? null,
+      updatedAt: serverTimestamp(),
+      ...(existingMember ? {} : { createdAt: serverTimestamp() }),
+    },
+    { merge: true }
+  );
+  batch.set(historyRef, {
+    groupId: memberUser.groupId,
+    memberId: memberUser.uid,
+    memberName: memberUser.displayName,
+    roundId: null,
+    season,
+    previousHandicap,
+    newHandicap: handicap,
+    reason: "Admin-entered GolfCaddy starting handicap.",
+    source: "manual_admin",
+    changedBy: changedBy?.uid ?? null,
+    changedByName: changedBy?.displayName ?? null,
+    createdAt: serverTimestamp(),
+  });
+
+  await batch.commit();
 };
 
 export const getPendingMembers = async (): Promise<AppUser[]> => {
@@ -334,6 +408,8 @@ export const getHoleScores = async (
       holeNumber: data.holeNumber,
       par: data.par,
       strokeIndex: data.strokeIndex,
+      distanceMeters:
+        typeof data.distanceMeters === "number" ? data.distanceMeters : undefined,
       strokesReceived: data.strokesReceived,
       grossScore:
         typeof data.grossScore === "number" ? data.grossScore : null,
@@ -565,6 +641,9 @@ export const publishRoundResultsWithStage3 = async ({
         previousHandicap: currentHandicap,
         newHandicap: nextHandicap,
         reason,
+        source: "published_round",
+        changedBy: author?.uid ?? null,
+        changedByName: author?.displayName ?? null,
         createdAt: serverTimestamp(),
       });
       batch.set(doc(db, "notifications", `${round.id}_handicap_${standing.memberId}`), {

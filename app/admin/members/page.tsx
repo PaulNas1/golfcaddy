@@ -4,21 +4,40 @@ import { useEffect, useState } from "react";
 import {
   getPendingMembers,
   getActiveMembers,
+  getMembersForGroup,
+  getGroup,
   approveMember,
   rejectMember,
+  updateMemberStartingHandicap,
 } from "@/lib/firestore";
-import type { AppUser } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import type { AppUser, Member } from "@/types";
 
 export default function AdminMembersPage() {
+  const { appUser } = useAuth();
   const [pending, setPending] = useState<AppUser[]>([]);
   const [active, setActive] = useState<AppUser[]>([]);
+  const [members, setMembers] = useState<Record<string, Member>>({});
+  const [season, setSeason] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [editingHandicapFor, setEditingHandicapFor] = useState<string | null>(null);
+  const [handicapInput, setHandicapInput] = useState("");
+  const [error, setError] = useState("");
 
   const load = async () => {
-    const [p, a] = await Promise.all([getPendingMembers(), getActiveMembers()]);
+    const [p, a, group, memberRecords] = await Promise.all([
+      getPendingMembers(),
+      getActiveMembers(),
+      getGroup(),
+      getMembersForGroup("fourplay"),
+    ]);
     setPending(p);
     setActive(a);
+    setSeason(group?.currentSeason ?? new Date().getFullYear());
+    setMembers(
+      Object.fromEntries(memberRecords.map((member) => [member.userId, member]))
+    );
     setLoading(false);
   };
 
@@ -28,6 +47,38 @@ export default function AdminMembersPage() {
     setActioning(uid);
     await approveMember(uid);
     await load();
+    setActioning(null);
+  };
+
+  const startHandicapEdit = (user: AppUser) => {
+    setError("");
+    setEditingHandicapFor(user.uid);
+    setHandicapInput(String(members[user.uid]?.currentHandicap ?? 0));
+  };
+
+  const cancelHandicapEdit = () => {
+    setEditingHandicapFor(null);
+    setHandicapInput("");
+    setError("");
+  };
+
+  const saveHandicap = async (user: AppUser) => {
+    const handicap = Number(handicapInput);
+    if (!Number.isFinite(handicap) || handicap < 0 || handicap > 54) {
+      setError("Handicap must be a number between 0 and 54.");
+      return;
+    }
+
+    setActioning(user.uid);
+    setError("");
+    await updateMemberStartingHandicap({
+      memberUser: user,
+      handicap: Number(handicap.toFixed(1)),
+      season,
+      changedBy: appUser,
+    });
+    await load();
+    cancelHandicapEdit();
     setActioning(null);
   };
 
@@ -42,6 +93,12 @@ export default function AdminMembersPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">Members</h1>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Pending approvals */}
       <div>
@@ -105,6 +162,10 @@ export default function AdminMembersPage() {
         <h2 className="font-semibold text-gray-700 mb-3">
           Active Members ({active.length})
         </h2>
+        <p className="text-xs text-gray-500 mb-3">
+          Set each player&apos;s GolfCaddy starting handicap here. Published
+          rounds will move it from this baseline.
+        </p>
         {loading ? (
           <div className="animate-pulse space-y-2">
             {[1, 2, 3].map((i) => (
@@ -116,16 +177,73 @@ export default function AdminMembersPage() {
             {active.map((user) => (
               <div
                 key={user.uid}
-                className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3"
+                className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
               >
-                <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-base font-bold text-green-700">
-                  {user.displayName.charAt(0).toUpperCase()}
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-base font-bold text-green-700">
+                    {user.displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800 text-sm">{user.displayName}</p>
+                    <p className="text-gray-400 text-xs truncate">{user.email}</p>
+                  </div>
+                  <span className="text-xs text-gray-400 capitalize">{user.role}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-800 text-sm">{user.displayName}</p>
-                  <p className="text-gray-400 text-xs truncate">{user.email}</p>
+
+                <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3">
+                  {editingHandicapFor === user.uid ? (
+                    <div className="space-y-2">
+                      <label className="block">
+                        <span className="block text-xs font-medium text-gray-600 mb-1">
+                          Starting handicap
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="54"
+                          step="0.1"
+                          value={handicapInput}
+                          onChange={(e) => setHandicapInput(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveHandicap(user)}
+                          disabled={actioning === user.uid}
+                          className="flex-1 rounded-xl bg-green-600 py-2 text-sm font-semibold text-white disabled:bg-green-300"
+                        >
+                          {actioning === user.uid ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelHandicapEdit}
+                          disabled={actioning === user.uid}
+                          className="flex-1 rounded-xl border border-gray-200 py-2 text-sm font-semibold text-gray-600"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-gray-500">GolfCaddy HCP</p>
+                        <p className="text-lg font-bold text-gray-800">
+                          {members[user.uid]?.currentHandicap ?? "Not set"}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => startHandicapEdit(user)}
+                        className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-green-700 border border-green-100"
+                      >
+                        Edit HCP
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <span className="text-xs text-gray-400 capitalize">{user.role}</span>
               </div>
             ))}
           </div>

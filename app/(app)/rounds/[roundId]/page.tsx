@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { getResultsForRound, getRound } from "@/lib/firestore";
+import { withSeededCourseData } from "@/lib/courseData";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Results, Round } from "@/types";
 
@@ -18,7 +19,7 @@ export default function RoundDetailPage() {
   useEffect(() => {
     if (roundId) {
       Promise.all([getRound(roundId), getResultsForRound(roundId)]).then(([r, res]) => {
-        setRound(r);
+        setRound(r ? withSeededCourseData(r) : null);
         setResults(res);
         setLoading(false);
       });
@@ -144,6 +145,17 @@ export default function RoundDetailPage() {
         <h2 className="font-semibold text-gray-800">Course Info</h2>
         <div className="text-sm text-gray-600 space-y-2">
           <p className="font-medium text-gray-800">{round.courseName}</p>
+          {round.teeSetName && (
+            <p className="text-xs text-gray-500">
+              {round.teeSetName} tees · Par {round.coursePar ?? "—"}
+              {round.slopeRating ? ` · Slope ${round.slopeRating}` : ""}
+            </p>
+          )}
+          {round.courseSource && (
+            <p className="text-[11px] text-gray-400">
+              Course data: {round.courseSource.provider}
+            </p>
+          )}
           <a
             href={`https://maps.google.com/?q=${encodeURIComponent(round.courseName)}`}
             target="_blank"

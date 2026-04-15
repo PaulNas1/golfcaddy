@@ -1,15 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { createRound } from "@/lib/firestore";
+import {
+  type SeededCourse,
+  findSeededCourseByName,
+  getCourseSearchLabel,
+  getDefaultTeeSet,
+  getDriveHoleOptions,
+  getFallbackCourseHoles,
+  getHoleOptionLabel,
+  getParThreeHoles,
+  getTeeSet,
+  searchSeededCourses,
+} from "@/lib/courseData";
 import type { ScoringFormat, SpecialHoles, TeeTime } from "@/types";
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
   const router = useRouter();
 
+  const [courseId, setCourseId] = useState("");
+  const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
   const [date, setDate] = useState("");
   const [roundNumber, setRoundNumber] = useState<string>("1");
@@ -23,6 +37,58 @@ export default function CreateRoundPage() {
 
   // Tee times state
   const [teeTimes, setTeeTimes] = useState([{ time: "", notes: "" }]);
+  const selectedCourse = useMemo(
+    () => findSeededCourseByName(courseName) ?? null,
+    [courseName]
+  );
+  const selectedCourseById = useMemo(
+    () => (courseId ? findSeededCourseByName(courseId) : null),
+    [courseId]
+  );
+  const activeCourse = selectedCourseById ?? selectedCourse;
+  const selectedTeeSet = courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null;
+  const holeOptions = selectedTeeSet?.holes ?? getFallbackCourseHoles();
+  const driveHoleOptions = getDriveHoleOptions(holeOptions);
+  const courseSuggestions = useMemo(
+    () => searchSeededCourses(courseName),
+    [courseName]
+  );
+  const resolvedCourseFromInput = useMemo(
+    () => findSeededCourseByName(courseName),
+    [courseName]
+  );
+  const showCourseSuggestions =
+    courseSuggestions.length > 0 &&
+    !(activeCourse && resolvedCourseFromInput?.id === activeCourse.id);
+
+  const applySeededCourse = (course: SeededCourse) => {
+    const defaultTeeSet = getDefaultTeeSet(course.id);
+    setCourseId(course.id);
+    setTeeSetId(defaultTeeSet?.id ?? "");
+    setCourseName(course.name);
+    setLdHole("");
+    setT2Hole("");
+    setT3Hole("");
+  };
+
+  const handleCourseNameChange = (value: string) => {
+    setCourseName(value);
+    const matchedCourse = findSeededCourseByName(value);
+    if (matchedCourse) {
+      const defaultTeeSet = getDefaultTeeSet(matchedCourse.id);
+      setCourseId(matchedCourse.id);
+      setTeeSetId(defaultTeeSet?.id ?? "");
+      return;
+    }
+    setCourseId("");
+    setTeeSetId("");
+  };
+
+  useEffect(() => {
+    if (!courseId || teeSetId) return;
+    const defaultTeeSet = getDefaultTeeSet(courseId);
+    setTeeSetId(defaultTeeSet?.id ?? "");
+  }, [courseId, teeSetId]);
 
   const addTeeTime = () => setTeeTimes([...teeTimes, { time: "", notes: "" }]);
   const removeTeeTime = (i: number) =>
@@ -47,9 +113,9 @@ export default function CreateRoundPage() {
     setError("");
 
     try {
-      // Par 3 holes auto-flagged as NTP — default assumption is holes 3,6,12,16 (typical)
-      // Admin can update after course data is added
-      const ntpHoles = [3, 6, 12, 16]; // placeholder — will be populated from course data
+      const ntpHoles = selectedTeeSet
+        ? getParThreeHoles(selectedTeeSet)
+        : [3, 6, 12, 16];
       const specialHoles: SpecialHoles = {
         ntp: ntpHoles,
         ld: ldHole ? parseInt(ldHole) : null,
@@ -67,8 +133,15 @@ export default function CreateRoundPage() {
 
       await createRound({
         groupId: "fourplay",
-        courseId: "", // will be populated when course API is integrated
+        courseId: selectedCourse?.id ?? "",
         courseName: courseName.trim(),
+        teeSetId: selectedTeeSet?.id ?? null,
+        teeSetName: selectedTeeSet?.name ?? null,
+        coursePar: selectedTeeSet?.par ?? null,
+        courseRating: selectedTeeSet?.courseRating ?? null,
+        slopeRating: selectedTeeSet?.slopeRating ?? null,
+        courseHoles: selectedTeeSet?.holes ?? [],
+        courseSource: selectedTeeSet?.source ?? null,
         date: new Date(date),
         season: new Date().getFullYear(),
         roundNumber: parsedRoundNumber,
@@ -96,25 +169,71 @@ export default function CreateRoundPage() {
       <h1 className="text-2xl font-bold text-gray-800">Create Round</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Course name */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
           <h2 className="font-semibold text-gray-800">Course</h2>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Course name
+              Course search
             </label>
             <input
               type="text"
               value={courseName}
-              onChange={(e) => setCourseName(e.target.value)}
+              onChange={(e) => handleCourseNameChange(e.target.value)}
               required
-              placeholder="e.g. Royal Melbourne Golf Club"
+              placeholder="Start typing Morack, Waterford, Eagle Ridge..."
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+            {showCourseSuggestions && (
+              <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 p-1">
+                {courseSuggestions.map((course) => (
+                  <button
+                    key={course.id}
+                    type="button"
+                    onClick={() => applySeededCourse(course)}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-white"
+                  >
+                    <span className="font-medium text-gray-900">
+                      {course.name}
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      {getCourseSearchLabel(course)} · {course.teeSets.length} tee set
+                      {course.teeSets.length === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             <p className="text-xs text-gray-400 mt-1">
-              Course hole data and course API integration coming in next update
+              Select a prediction to auto-fill tee data, par, stroke indexes,
+              distances, and NTP holes. Unmatched names stay as custom courses.
             </p>
           </div>
+
+          {activeCourse && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tee set
+              </label>
+              <select
+                value={teeSetId}
+                onChange={(e) => setTeeSetId(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {activeCourse.teeSets.map((teeSet) => (
+                  <option key={teeSet.id} value={teeSet.id}>
+                    {teeSet.name} - Par {teeSet.par}
+                    {teeSet.slopeRating ? ` / Slope ${teeSet.slopeRating}` : ""}
+                  </option>
+                ))}
+              </select>
+              {selectedTeeSet && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Source: {selectedTeeSet.source.provider}. NTP holes:{" "}
+                  {getParThreeHoles(selectedTeeSet).join(", ")}.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Date & format */}
@@ -236,8 +355,24 @@ export default function CreateRoundPage() {
           </p>
 
           <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                💪 Longest Drive (LD)
+              </label>
+              <select
+                value={ldHole}
+                onChange={(e) => setLdHole(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Not set</option>
+                {driveHoleOptions.map((hole) => (
+                  <option key={hole.number} value={hole.number}>
+                    {getHoleOptionLabel(hole)}
+                  </option>
+                ))}
+              </select>
+            </div>
             {[
-              { label: "💪 Longest Drive (LD)", value: ldHole, setter: setLdHole },
               { label: "⭐ T2", value: t2Hole, setter: setT2Hole },
               { label: "⭐ T3", value: t3Hole, setter: setT3Hole },
             ].map(({ label, value, setter }) => (
@@ -249,9 +384,9 @@ export default function CreateRoundPage() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Not set</option>
-                  {Array.from({ length: 18 }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      Hole {n}
+                  {holeOptions.map((hole) => (
+                    <option key={hole.number} value={hole.number}>
+                      {getHoleOptionLabel(hole)}
                     </option>
                   ))}
                 </select>

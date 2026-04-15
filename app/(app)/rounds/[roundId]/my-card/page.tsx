@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { getFallbackCourseHoles } from "@/lib/courseData";
 import {
   getRound,
   getScorecardForPlayer,
@@ -17,6 +18,7 @@ interface CourseHoleLite {
   number: number;
   par: number;
   strokeIndex: number;
+  distanceMeters?: number;
 }
 
 export default function MyCardPage() {
@@ -59,7 +61,7 @@ export default function MyCardPage() {
             setCard(c);
             setMarkedCard(mCard ?? null);
             const hs = await getHoleScores(c.id);
-            const layout = buildCourseLayout();
+            const layout = buildCourseLayout(r);
             setHoles(
               hs.length > 0
                 ? hs
@@ -67,6 +69,7 @@ export default function MyCardPage() {
                     holeNumber: h.number,
                     par: h.par,
                     strokeIndex: h.strokeIndex,
+                    distanceMeters: h.distanceMeters,
                     strokesReceived: 0,
                     grossScore: null,
                     netScore: null,
@@ -115,7 +118,7 @@ export default function MyCardPage() {
     );
   }
 
-  const layout = buildCourseLayout();
+  const layout = buildCourseLayout(round);
   const markerName =
     card &&
     members.find((m) => m.uid === card.markerId)?.displayName;
@@ -228,12 +231,17 @@ export default function MyCardPage() {
   );
 }
 
-function buildCourseLayout(): CourseHoleLite[] {
-  // Placeholder: until course data is wired in, assume par 4 and stroke index = hole number.
-  return Array.from({ length: 18 }, (_, i) => ({
-    number: i + 1,
-    par: 4,
-    strokeIndex: i + 1,
+function buildCourseLayout(round?: Round | null): CourseHoleLite[] {
+  const courseHoles =
+    round?.courseHoles && round.courseHoles.length === 18
+      ? round.courseHoles
+      : getFallbackCourseHoles();
+
+  return courseHoles.map((hole) => ({
+    number: hole.number,
+    par: hole.par,
+    strokeIndex: hole.strokeIndex,
+    distanceMeters: hole.distanceMeters,
   }));
 }
 
@@ -253,10 +261,16 @@ function holesForNine(
     const base = byNumber[n];
     const course = layout[n - 1];
     result.push(
-      base ?? ({
+      base
+        ? {
+            ...base,
+            distanceMeters: base.distanceMeters ?? course.distanceMeters,
+          }
+        : ({
         holeNumber: n,
         par: course.par,
         strokeIndex: course.strokeIndex,
+        distanceMeters: course.distanceMeters,
         strokesReceived: 0,
         grossScore: null,
         netScore: null,
@@ -284,6 +298,11 @@ function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
         )}
         {hole.isLD && (
           <span className="ml-1 text-[10px] text-blue-600">LD</span>
+        )}
+        {hole.distanceMeters && (
+          <div className="text-[10px] font-normal text-gray-400">
+            {hole.distanceMeters}m
+          </div>
         )}
       </div>
       <div className="text-xs text-gray-500 flex items-center gap-1">

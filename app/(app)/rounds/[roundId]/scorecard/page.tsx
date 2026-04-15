@@ -12,6 +12,7 @@ import {
   setHoleScore,
   updateScorecard,
 } from "@/lib/firestore";
+import { getFallbackCourseHoles } from "@/lib/courseData";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Round, Scorecard, HoleScore, AppUser } from "@/types";
 import { calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
@@ -20,6 +21,7 @@ interface CourseHoleLite {
   number: number;
   par: number;
   strokeIndex: number;
+  distanceMeters?: number;
 }
 
 export default function ScorecardPage() {
@@ -176,7 +178,7 @@ export default function ScorecardPage() {
       return;
     }
 
-    const courseHole = buildCourseLayout()[holeNumber - 1];
+    const courseHole = buildCourseLayout(round)[holeNumber - 1];
     const strokesReceived = calculateStrokesReceived(
       scorecard.handicapAtTime,
       courseHole.strokeIndex
@@ -194,6 +196,7 @@ export default function ScorecardPage() {
             ...h,
             par: courseHole.par,
             strokeIndex: courseHole.strokeIndex,
+            distanceMeters: courseHole.distanceMeters,
             strokesReceived,
             grossScore,
             netScore,
@@ -208,6 +211,7 @@ export default function ScorecardPage() {
       await setHoleScore(scorecard.id, holeNumber, {
         par: courseHole.par,
         strokeIndex: courseHole.strokeIndex,
+        distanceMeters: courseHole.distanceMeters,
         strokesReceived,
         grossScore,
         netScore,
@@ -248,6 +252,7 @@ export default function ScorecardPage() {
     await setHoleScore(scorecard.id, holeNumber, {
       par: hole.par,
       strokeIndex: hole.strokeIndex,
+      distanceMeters: hole.distanceMeters,
       strokesReceived: hole.strokesReceived,
       grossScore: hole.grossScore,
       netScore: hole.netScore,
@@ -364,7 +369,7 @@ export default function ScorecardPage() {
     );
   }
 
-  const courseLayout = buildCourseLayout();
+  const courseLayout = buildCourseLayout(round);
 
   const playerName =
     scorecard &&
@@ -546,21 +551,27 @@ export default function ScorecardPage() {
   );
 }
 
-function buildCourseLayout(): CourseHoleLite[] {
-  // Placeholder: until course data is wired in, assume par 4 and stroke index = hole number.
-  return Array.from({ length: 18 }, (_, i) => ({
-    number: i + 1,
-    par: 4,
-    strokeIndex: i + 1,
+function buildCourseLayout(round?: Round | null): CourseHoleLite[] {
+  const courseHoles =
+    round?.courseHoles && round.courseHoles.length === 18
+      ? round.courseHoles
+      : getFallbackCourseHoles();
+
+  return courseHoles.map((hole) => ({
+    number: hole.number,
+    par: hole.par,
+    strokeIndex: hole.strokeIndex,
+    distanceMeters: hole.distanceMeters,
   }));
 }
 
 function buildInitialHoles(round: Round, handicap: number): HoleScore[] {
-  const layout = buildCourseLayout();
+  const layout = buildCourseLayout(round);
   return layout.map((h) => ({
     holeNumber: h.number,
     par: h.par,
     strokeIndex: h.strokeIndex,
+    distanceMeters: h.distanceMeters,
     strokesReceived: calculateStrokesReceived(handicap, h.strokeIndex),
     grossScore: null,
     netScore: null,
@@ -588,10 +599,16 @@ function holesForNine(
     const base = byNumber[n];
     const course = layout[n - 1];
     result.push(
-      base ?? ({
+      base
+        ? {
+            ...base,
+            distanceMeters: base.distanceMeters ?? course.distanceMeters,
+          }
+        : ({
         holeNumber: n,
         par: course.par,
         strokeIndex: course.strokeIndex,
+        distanceMeters: course.distanceMeters,
         strokesReceived: 0,
         grossScore: null,
         netScore: null,
@@ -628,6 +645,11 @@ function HoleRow({
         {hole.holeNumber}
         {hole.isNTP && <span className="ml-1 text-[10px] text-yellow-600">NTP</span>}
         {hole.isLD && <span className="ml-1 text-[10px] text-blue-600">LD</span>}
+        {hole.distanceMeters && (
+          <div className="text-[10px] font-normal text-gray-400">
+            {hole.distanceMeters}m
+          </div>
+        )}
       </div>
       <div className="text-xs text-gray-500 flex items-center gap-1">
         <span>{hole.strokeIndex}</span>

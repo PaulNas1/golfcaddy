@@ -76,6 +76,7 @@ export interface CourseHole {
   par: number;           // 3, 4, or 5
   strokeIndex: number;   // 1–18
   type: HoleType;
+  distanceMeters?: number;
 }
 
 export interface Course {
@@ -90,6 +91,25 @@ export interface Course {
   createdBy: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface CourseDataSource {
+  provider: string;
+  url: string;
+  lastVerified: string;
+  confidence: "seeded" | "provider" | "admin_verified";
+}
+
+export interface CourseTeeSet {
+  id: string;
+  name: string;
+  gender: "men" | "women" | "mixed";
+  par: number;
+  distanceMeters: number;
+  courseRating: number | null;
+  slopeRating: number | null;
+  holes: CourseHole[];
+  source: CourseDataSource;
 }
 
 // ─── Round ───────────────────────────────────────────────────────────────────
@@ -124,6 +144,13 @@ export interface Round {
   groupId: string;
   courseId: string;
   courseName: string;
+  teeSetId: string | null;
+  teeSetName: string | null;
+  coursePar: number | null;
+  courseRating: number | null;
+  slopeRating: number | null;
+  courseHoles: CourseHole[];
+  courseSource: CourseDataSource | null;
   date: Date;
   season: number;
   roundNumber: number;
@@ -167,6 +194,7 @@ export interface HoleScore {
   holeNumber: number;
   par: number;
   strokeIndex: number;
+  distanceMeters?: number;
   strokesReceived: number;
   grossScore: number | null;
   netScore: number | null;
@@ -249,11 +277,14 @@ export interface HandicapHistory {
   groupId: string;
   memberId: string;
   memberName: string;
-  roundId: string;
+  roundId: string | null;
   season: number;
   previousHandicap: number;
   newHandicap: number;
   reason: string;
+  source: "manual_admin" | "published_round";
+  changedBy: string | null;
+  changedByName: string | null;
   createdAt: Date;
 }
 

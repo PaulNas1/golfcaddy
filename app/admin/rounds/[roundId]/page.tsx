@@ -1,10 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
 import { getRound, updateRound, getScorecardsForRound } from "@/lib/firestore";
+import {
+  type SeededCourse,
+  findSeededCourseByName,
+  getCourseSearchLabel,
+  getDriveHoleOptions,
+  getFallbackCourseHoles,
+  getHoleOptionLabel,
+  getParThreeHoles,
+  getTeeSet,
+  getDefaultTeeSet,
+  searchSeededCourses,
+} from "@/lib/courseData";
 import type { Round, RoundStatus, Scorecard, ScoringFormat, TeeTime } from "@/types";
 
 export default function AdminRoundDetailPage() {
@@ -14,6 +26,8 @@ export default function AdminRoundDetailPage() {
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [scorecards, setScorecards] = useState<Scorecard[]>([]);
+  const [courseId, setCourseId] = useState("");
+  const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
   const [roundNumber, setRoundNumber] = useState<string>("");
   const [date, setDate] = useState("");
@@ -26,6 +40,53 @@ export default function AdminRoundDetailPage() {
   const [teeTimes, setTeeTimes] = useState<Array<{ time: string; notes: string }>>([
     { time: "", notes: "" },
   ]);
+  const selectedCourse = useMemo(
+    () =>
+      (courseId ? findSeededCourseByName(courseId) : null) ??
+      findSeededCourseByName(courseName),
+    [courseId, courseName]
+  );
+  const selectedTeeSet = courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null;
+  const courseSuggestions = useMemo(
+    () => searchSeededCourses(courseName),
+    [courseName]
+  );
+  const resolvedCourseFromInput = useMemo(
+    () => findSeededCourseByName(courseName),
+    [courseName]
+  );
+  const showCourseSuggestions =
+    courseSuggestions.length > 0 &&
+    !(selectedCourse && resolvedCourseFromInput?.id === selectedCourse.id);
+  const holeOptions =
+    selectedTeeSet?.holes ??
+    (round?.courseHoles && round.courseHoles.length === 18
+      ? round.courseHoles
+      : getFallbackCourseHoles());
+  const driveHoleOptions = getDriveHoleOptions(holeOptions);
+
+  const applySeededCourse = (course: SeededCourse) => {
+    const defaultTeeSet = getDefaultTeeSet(course.id);
+    setCourseId(course.id);
+    setTeeSetId(defaultTeeSet?.id ?? "");
+    setCourseName(course.name);
+    setLdHole("");
+    setT2Hole("");
+    setT3Hole("");
+  };
+
+  const handleCourseNameChange = (value: string) => {
+    setCourseName(value);
+    const matchedCourse = findSeededCourseByName(value);
+    if (matchedCourse) {
+      const defaultTeeSet = getDefaultTeeSet(matchedCourse.id);
+      setCourseId(matchedCourse.id);
+      setTeeSetId(defaultTeeSet?.id ?? "");
+      return;
+    }
+    setCourseId("");
+    setTeeSetId("");
+  };
 
   const loadScorecards = async (r: Round) => {
     const cards = await getScorecardsForRound(r.id);
@@ -38,6 +99,8 @@ export default function AdminRoundDetailPage() {
         setRound(r);
         setLoading(false);
         if (r) {
+          setCourseId(r.courseId);
+          setTeeSetId(r.teeSetId ?? "");
           setCourseName(r.courseName);
           setRoundNumber(String(r.roundNumber));
           setDate(format(r.date, "yyyy-MM-dd"));
@@ -78,8 +141,31 @@ export default function AdminRoundDetailPage() {
     const parsedRoundNumber =
       parseInt(roundNumber, 10) || round.roundNumber;
     const newDate = new Date(date);
+    const appliedTeeSet = selectedTeeSet;
+    const courseDetails = appliedTeeSet
+      ? {
+          teeSetId: appliedTeeSet.id,
+          teeSetName: appliedTeeSet.name,
+          coursePar: appliedTeeSet.par,
+          courseRating: appliedTeeSet.courseRating,
+          slopeRating: appliedTeeSet.slopeRating,
+          courseHoles: appliedTeeSet.holes,
+          courseSource: appliedTeeSet.source,
+        }
+      : {
+          teeSetId: null,
+          teeSetName: null,
+          coursePar: null,
+          courseRating: null,
+          slopeRating: null,
+          courseHoles: [],
+          courseSource: null,
+        };
     const specialHoles = {
       ...round.specialHoles,
+      ntp: appliedTeeSet
+        ? getParThreeHoles(appliedTeeSet)
+        : round.specialHoles.ntp,
       ld: ldHole ? parseInt(ldHole, 10) : null,
       t2: t2Hole ? parseInt(t2Hole, 10) : null,
       t3: t3Hole ? parseInt(t3Hole, 10) : null,
@@ -94,7 +180,9 @@ export default function AdminRoundDetailPage() {
       }));
 
     await updateRound(round.id, {
+      courseId: selectedCourse?.id ?? "",
       courseName: courseName.trim(),
+      ...courseDetails,
       roundNumber: parsedRoundNumber,
       date: newDate,
       format: formatChoice,
@@ -105,7 +193,9 @@ export default function AdminRoundDetailPage() {
 
     setRound({
       ...round,
+      courseId: selectedCourse?.id ?? "",
       courseName: courseName.trim(),
+      ...courseDetails,
       roundNumber: parsedRoundNumber,
       date: newDate,
       format: formatChoice,
@@ -143,9 +233,14 @@ export default function AdminRoundDetailPage() {
   ) => {
     if (!round) return;
     setSaving(true);
+    const courseHole =
+      (round.courseHoles.length === 18
+        ? round.courseHoles
+        : getFallbackCourseHoles()
+      ).find((hole) => hole.number === holeNumber);
     const override = {
       holeNumber,
-      originalPar: 4, // default — will be from course data
+      originalPar: courseHole?.par ?? 4,
       overridePar,
       reason,
       overriddenAt: new Date(),
@@ -194,15 +289,60 @@ export default function AdminRoundDetailPage() {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Course name
+              Course search
             </label>
             <input
               type="text"
               value={courseName}
-              onChange={(e) => setCourseName(e.target.value)}
+              onChange={(e) => handleCourseNameChange(e.target.value)}
+              placeholder="Start typing Morack, Waterford, Eagle Ridge..."
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+            {showCourseSuggestions && (
+              <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 p-1">
+                {courseSuggestions.map((course) => (
+                  <button
+                    key={course.id}
+                    type="button"
+                    onClick={() => applySeededCourse(course)}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-gray-700 hover:bg-white"
+                  >
+                    <span className="font-medium text-gray-900">
+                      {course.name}
+                    </span>
+                    <span className="block text-[11px] text-gray-500">
+                      {getCourseSearchLabel(course)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {selectedCourse && (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                Tee set
+              </label>
+              <select
+                value={teeSetId}
+                onChange={(e) => setTeeSetId(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {selectedCourse.teeSets.map((teeSet) => (
+                  <option key={teeSet.id} value={teeSet.id}>
+                    {teeSet.name} - Par {teeSet.par}
+                    {teeSet.slopeRating ? ` / Slope ${teeSet.slopeRating}` : ""}
+                  </option>
+                ))}
+              </select>
+              {selectedTeeSet && (
+                <p className="text-[11px] text-gray-400 mt-1">
+                  NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -318,8 +458,24 @@ export default function AdminRoundDetailPage() {
             changes.
           </p>
           <div className="space-y-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">
+                💪 Longest Drive (LD)
+              </label>
+              <select
+                value={ldHole}
+                onChange={(e) => setLdHole(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="">Not set</option>
+                {driveHoleOptions.map((hole) => (
+                  <option key={hole.number} value={hole.number}>
+                    {getHoleOptionLabel(hole)}
+                  </option>
+                ))}
+              </select>
+            </div>
             {[
-              { label: "💪 Longest Drive (LD)", value: ldHole, setter: setLdHole },
               { label: "⭐ T2", value: t2Hole, setter: setT2Hole },
               { label: "⭐ T3", value: t3Hole, setter: setT3Hole },
             ].map(({ label, value, setter }) => (
@@ -333,9 +489,9 @@ export default function AdminRoundDetailPage() {
                   className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="">Not set</option>
-                  {Array.from({ length: 18 }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      Hole {n}
+                  {holeOptions.map((hole) => (
+                    <option key={hole.number} value={hole.number}>
+                      {getHoleOptionLabel(hole)}
                     </option>
                   ))}
                 </select>
@@ -437,7 +593,11 @@ export default function AdminRoundDetailPage() {
         <p className="text-xs text-gray-500">
           Change a hole&apos;s par for this round only (e.g. GUR). All players are notified instantly.
         </p>
-        <HoleOverrideForm onSubmit={addHoleOverride} disabled={saving} />
+        <HoleOverrideForm
+          holes={holeOptions}
+          onSubmit={addHoleOverride}
+          disabled={saving}
+        />
 
         {round.holeOverrides.length > 0 && (
           <div className="mt-3 space-y-2">
@@ -459,6 +619,9 @@ export default function AdminRoundDetailPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         <h2 className="font-semibold text-gray-800 mb-2">Round Info</h2>
         <InfoRow label="Format" value={round.format === "stableford" ? "Stableford" : "Stroke Play"} />
+        <InfoRow label="Tee set" value={round.teeSetName || "Custom"} />
+        <InfoRow label="Course par" value={round.coursePar?.toString() || "Not set"} />
+        <InfoRow label="Slope rating" value={round.slopeRating?.toString() || "Not set"} />
         <InfoRow label="NTP holes" value={round.specialHoles.ntp.join(", ") || "None set"} />
         <InfoRow label="LD hole" value={round.specialHoles.ld?.toString() || "None set"} />
         <InfoRow label="T2 hole" value={round.specialHoles.t2?.toString() || "None set"} />
@@ -478,9 +641,11 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function HoleOverrideForm({
+  holes,
   onSubmit,
   disabled,
 }: {
+  holes: Round["courseHoles"];
   onSubmit: (hole: number, par: number, reason: string) => void;
   disabled: boolean;
 }) {
@@ -505,8 +670,10 @@ function HoleOverrideForm({
           className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">Hole</option>
-          {Array.from({ length: 18 }, (_, i) => i + 1).map((n) => (
-            <option key={n} value={n}>Hole {n}</option>
+          {holes.map((courseHole) => (
+            <option key={courseHole.number} value={courseHole.number}>
+              {getHoleOptionLabel(courseHole)}
+            </option>
           ))}
         </select>
         <select
