@@ -64,6 +64,8 @@ export default function AdminRoundDetailPage() {
       ? round.courseHoles
       : getFallbackCourseHoles());
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
+  const refreshableTeeSet =
+    selectedTeeSet ?? (selectedCourse ? getDefaultTeeSet(selectedCourse.id) : null);
 
   const applySeededCourse = (course: SeededCourse) => {
     const defaultTeeSet = getDefaultTeeSet(course.id);
@@ -209,6 +211,43 @@ export default function AdminRoundDetailPage() {
     setTimeout(() => setSuccess(""), 3000);
   };
 
+  const handleRefreshCourseData = async () => {
+    if (!round || !selectedCourse || !refreshableTeeSet) return;
+
+    setSaving(true);
+    const refreshedSpecialHoles = {
+      ...round.specialHoles,
+      ntp: getParThreeHoles(refreshableTeeSet),
+      ld: ldHole ? parseInt(ldHole, 10) : null,
+      t2: t2Hole ? parseInt(t2Hole, 10) : null,
+      t3: t3Hole ? parseInt(t3Hole, 10) : null,
+    };
+    const refreshedCourseDetails = {
+      courseId: selectedCourse.id,
+      courseName: selectedCourse.name,
+      teeSetId: refreshableTeeSet.id,
+      teeSetName: refreshableTeeSet.name,
+      coursePar: refreshableTeeSet.par,
+      courseRating: refreshableTeeSet.courseRating,
+      slopeRating: refreshableTeeSet.slopeRating,
+      courseHoles: refreshableTeeSet.holes,
+      courseSource: refreshableTeeSet.source,
+      specialHoles: refreshedSpecialHoles,
+    };
+
+    await updateRound(round.id, refreshedCourseDetails);
+    setCourseId(selectedCourse.id);
+    setCourseName(selectedCourse.name);
+    setTeeSetId(refreshableTeeSet.id);
+    setRound({
+      ...round,
+      ...refreshedCourseDetails,
+    });
+    setSuccess("Course data refreshed from seeded catalogue");
+    setSaving(false);
+    setTimeout(() => setSuccess(""), 3000);
+  };
+
   const addTeeTime = () =>
     setTeeTimes([...teeTimes, { time: "", notes: "" }]);
 
@@ -341,6 +380,21 @@ export default function AdminRoundDetailPage() {
                   NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
                 </p>
               )}
+              <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
+                <p className="text-[11px] text-green-700">
+                  Refresh pars, stroke indexes, distances, tee metadata, and NTP
+                  holes from the seeded course catalogue. LD, T2, and T3 stay as
+                  currently selected below.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleRefreshCourseData}
+                  disabled={saving || !refreshableTeeSet}
+                  className="w-full rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-300"
+                >
+                  {saving ? "Refreshing..." : "Refresh course data"}
+                </button>
+              </div>
             </div>
           )}
 
