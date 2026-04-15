@@ -50,7 +50,7 @@ export default function RoundsPage() {
       ) : (
         <div className="space-y-3">
           {rounds.map((round) => (
-            <Link key={round.id} href={`/rounds/${round.id}`}>
+            <Link key={round.id} href={`/rounds/${round.id}`} prefetch={false}>
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">

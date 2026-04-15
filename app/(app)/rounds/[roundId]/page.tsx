@@ -14,15 +14,29 @@ export default function RoundDetailPage() {
   const [round, setRound] = useState<Round | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const { appUser, isAdmin } = useAuth();
 
   useEffect(() => {
     if (roundId) {
-      Promise.all([getRound(roundId), getResultsForRound(roundId)]).then(([r, res]) => {
-        setRound(r ? withSeededCourseData(r) : null);
-        setResults(res);
-        setLoading(false);
-      });
+      setLoading(true);
+      setError("");
+      Promise.all([getRound(roundId), getResultsForRound(roundId)])
+        .then(([r, res]) => {
+          setRound(r ? withSeededCourseData(r) : null);
+          setResults(res);
+        })
+        .catch((err) => {
+          console.error("Failed to load round detail", err);
+          setRound(null);
+          setResults(null);
+          setError(
+            err instanceof Error && err.message
+              ? err.message
+              : "Unable to load this round."
+          );
+        })
+        .finally(() => setLoading(false));
     }
   }, [roundId]);
 
@@ -43,7 +57,20 @@ export default function RoundDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-gray-400">
         <div className="text-4xl mb-3">🚫</div>
-        <p className="text-sm">Round not found.</p>
+        <p className="text-sm">
+          {error ? "Could not load round." : "Round not found."}
+        </p>
+        {error && (
+          <p className="mt-2 max-w-xs text-center text-xs text-gray-500">
+            {error}
+          </p>
+        )}
+        <Link
+          href="/rounds"
+          className="mt-4 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
+        >
+          Back to rounds
+        </Link>
       </div>
     );
   }

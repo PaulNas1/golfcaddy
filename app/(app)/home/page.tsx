@@ -58,7 +58,7 @@ export default function HomePage() {
 
       {/* Live round banner */}
       {liveRound && (
-        <Link href={`/rounds/${liveRound.id}`}>
+        <Link href={`/rounds/${liveRound.id}`} prefetch={false}>
           <div className="bg-red-500 text-white rounded-2xl p-4 flex items-center justify-between shadow-md">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -85,7 +85,7 @@ export default function HomePage() {
               <div className="h-4 bg-gray-100 rounded w-1/2" />
             </div>
           ) : nextRound ? (
-            <Link href={`/rounds/${nextRound.id}`}>
+            <Link href={`/rounds/${nextRound.id}`} prefetch={false}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <h2 className="font-bold text-gray-800 text-lg leading-tight">
