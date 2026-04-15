@@ -6,6 +6,7 @@ import {
   getRound,
   getMember,
   getActiveMembers,
+  getScorecardForPlayer,
   getScorecardForMarker,
   createScorecard,
   getHoleScores,
@@ -58,7 +59,11 @@ export default function ScorecardPage() {
           return;
         }
         setRound(r);
-        setMembers(activeMembers.filter((m) => m.uid !== appUser.uid));
+        setMembers(
+          activeMembers.some((member) => member.uid === appUser.uid)
+            ? activeMembers
+            : [appUser, ...activeMembers]
+        );
 
         if (!existing) {
           // No card yet — wait for user to pick who they are marking
@@ -111,6 +116,35 @@ export default function ScorecardPage() {
     setError("");
     setLoading(true);
     try {
+      const existingPlayerCard = await getScorecardForPlayer(
+        round.id,
+        playerToMarkId
+      );
+      if (existingPlayerCard) {
+        if (existingPlayerCard.markerId === appUser.uid) {
+          setScorecard(existingPlayerCard);
+          const playerMember = await getMember(existingPlayerCard.playerId);
+          const existingHoles = await getHoleScores(existingPlayerCard.id);
+          setHoles(
+            existingHoles.length > 0
+              ? existingHoles
+              : buildInitialHoles(
+                  round,
+                  playerMember?.currentHandicap ?? existingPlayerCard.handicapAtTime
+                )
+          );
+          setLoading(false);
+          return;
+        }
+
+        const markerName =
+          members.find((member) => member.uid === existingPlayerCard.markerId)
+            ?.displayName ?? "another marker";
+        setError(`That player already has a card started by ${markerName}.`);
+        setLoading(false);
+        return;
+      }
+
       const playerMember = await getMember(playerToMarkId);
       const handicap = playerMember?.currentHandicap ?? 0;
 
@@ -399,7 +433,8 @@ export default function ScorecardPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
           <h2 className="font-semibold text-gray-800">Who are you marking?</h2>
           <p className="text-xs text-gray-500">
-            Select the player whose card you&apos;ll also be marking today.
+            Select yourself to start your own card, or choose another player if
+            you are marking them today.
           </p>
           <select
             value={playerToMarkId}
@@ -409,7 +444,9 @@ export default function ScorecardPage() {
             <option value="">Select player</option>
             {members.map((m) => (
               <option key={m.uid} value={m.uid}>
-                {m.displayName}
+                {m.uid === appUser?.uid
+                  ? `${m.displayName} (my own card)`
+                  : m.displayName}
               </option>
             ))}
           </select>
