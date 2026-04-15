@@ -4,7 +4,6 @@ import { useEffect } from "react";
 
 export default function DevServiceWorkerCleanup() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "development") return;
     if (!("serviceWorker" in navigator)) return;
 
     const cleanup = async () => {
@@ -18,7 +17,7 @@ export default function DevServiceWorkerCleanup() {
     };
 
     cleanup().catch((error) => {
-      console.warn("Unable to clear development service worker cache", error);
+      console.warn("Unable to clear service worker cache", error);
     });
   }, []);
 

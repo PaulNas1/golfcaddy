@@ -33,7 +33,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
       <body className="font-sans antialiased">
-        {process.env.NODE_ENV === "development" ? <DevServiceWorkerCleanup /> : null}
+        <DevServiceWorkerCleanup />
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

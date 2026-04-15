@@ -14,7 +14,7 @@
 /out/
 
 # next-pwa generated service worker assets
-/public/sw*.js
+/public/sw *.js
 /public/swe-worker-*.js
 /public/workbox-*.js
 
