@@ -24,6 +24,10 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId == groupId;
     }
 
+    function isActiveUserOrAdmin() {
+      return isActiveUser() || isAdmin();
+    }
+
     // ─── Users ────────────────────────────────────────────────────────────
 
     match /users/{userId} {
@@ -46,25 +50,25 @@ service cloud.firestore {
     // ─── Members ──────────────────────────────────────────────────────────
 
     match /members/{memberId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow write: if isAdmin();
     }
 
     // ─── Courses ──────────────────────────────────────────────────────────
 
     match /courses/{courseId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow write: if isAdmin();
     }
 
     // ─── Rounds ───────────────────────────────────────────────────────────
 
     match /rounds/{roundId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow write: if isAdmin();
 
       match /teeTimes/{teeTimeId} {
-        allow read: if isActiveUser();
+        allow read: if isActiveUserOrAdmin();
         allow write: if isAdmin();
       }
     }
@@ -73,10 +77,12 @@ service cloud.firestore {
 
     match /scorecards/{scorecardId} {
       // Members can read their own scorecard or cards they are marking
-      allow read: if isActiveUser() && (
-        resource.data.playerId == request.auth.uid ||
-        resource.data.markerId == request.auth.uid ||
-        isAdmin()
+      allow read: if isAdmin() || (
+        isActiveUser() &&
+        (
+          resource.data.playerId == request.auth.uid ||
+          resource.data.markerId == request.auth.uid
+        )
       );
       // Members can create scorecards they are playing in (as player or marker)
       // and admins can create any scorecard.
@@ -93,36 +99,36 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /holeScores/{holeNumber} {
-        allow read: if isActiveUser();
-        allow write: if isActiveUser();
+        allow read: if isActiveUserOrAdmin();
+        allow write: if isActiveUserOrAdmin();
       }
     }
 
     // ─── Results ──────────────────────────────────────────────────────────
 
     match /results/{resultId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow write: if isAdmin();
     }
 
     // ─── Season Standings ─────────────────────────────────────────────────
 
     match /seasonStandings/{standingId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow write: if isAdmin();
     }
 
     // ─── Handicap History ─────────────────────────────────────────────────
 
     match /handicapHistory/{historyId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow write: if isAdmin();
     }
 
     // ─── Posts ────────────────────────────────────────────────────────────
 
     match /posts/{postId} {
-      allow read: if isActiveUser();
+      allow read: if isActiveUserOrAdmin();
       allow create: if isActiveUser() && (
         request.resource.data.type != 'announcement' || isAdmin()
       );
@@ -132,14 +138,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
 
       match /comments/{commentId} {
-        allow read: if isActiveUser();
+        allow read: if isActiveUserOrAdmin();
         allow create: if isActiveUser();
         allow delete: if isAdmin() ||
           resource.data.authorId == request.auth.uid;
       }
 
       match /reactions/{reactionId} {
-        allow read: if isActiveUser();
+        allow read: if isActiveUserOrAdmin();
         allow write: if isActiveUser();
       }
     }
@@ -156,10 +162,14 @@ service cloud.firestore {
     // ─── Notifications ────────────────────────────────────────────────────
 
     match /notifications/{notificationId} {
-      allow read: if isSignedIn() &&
-        resource.data.recipientId == request.auth.uid;
-      allow update: if isSignedIn() &&
-        resource.data.recipientId == request.auth.uid;
+      allow read: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.recipientId == request.auth.uid
+      );
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.recipientId == request.auth.uid
+      );
       allow create: if isAdmin();
       allow delete: if isAdmin();
     }

@@ -269,8 +269,13 @@ export default function AdminRoundDetailPage() {
     try {
       await deleteRoundCascade(round.id);
       router.push("/admin/rounds");
-    } catch {
-      setDeleteError("Failed to delete round. Please try again.");
+    } catch (err) {
+      console.error("Failed to delete round", err);
+      const message =
+        err instanceof Error && err.message
+          ? err.message
+          : "Please try again.";
+      setDeleteError(`Failed to delete round. ${message}`);
       setDeleting(false);
     }
   };

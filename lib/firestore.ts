@@ -349,9 +349,6 @@ export const deleteRoundCascade = async (roundId: string) => {
     postsSnap,
     notificationsSnap,
     handicapHistorySnap,
-    seasonResults,
-    previousStandings,
-    groupMembers,
   ] = await Promise.all([
     getDocs(query(collection(db, "scorecards"), where("roundId", "==", round.id))),
     getDoc(doc(db, "results", round.id)),
@@ -362,13 +359,15 @@ export const deleteRoundCascade = async (roundId: string) => {
     getDocs(
       query(collection(db, "handicapHistory"), where("roundId", "==", round.id))
     ),
-    getResultsForSeason(round.groupId, round.season),
-    getSeasonStandings(round.groupId, round.season),
-    getMembersForGroup(round.groupId),
   ]);
-  const shouldRebuildSeason =
-    resultsSnap.exists() ||
-    seasonResults.some((result) => result.roundId === round.id);
+  const shouldRebuildSeason = resultsSnap.exists();
+  const [seasonResults, previousStandings, groupMembers] = shouldRebuildSeason
+    ? await Promise.all([
+        getResultsForSeason(round.groupId, round.season),
+        getSeasonStandings(round.groupId, round.season),
+        getMembersForGroup(round.groupId),
+      ])
+    : [[], [], []];
   const remainingSeasonResults = seasonResults.filter(
     (result) => result.roundId !== round.id
   );
