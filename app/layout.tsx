@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
 
 export const metadata: Metadata = {
   title: "GolfCaddy",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>
       <body className="font-sans antialiased">
+        {process.env.NODE_ENV === "development" ? <DevServiceWorkerCleanup /> : null}
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

@@ -268,7 +268,14 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
     limit(20)
   );
   const snap = await getDocs(q);
-  return snap.docs.map(mapRound);
+  return snap.docs
+    .map(mapRound)
+    .sort((a, b) => {
+      if (a.roundNumber !== b.roundNumber) {
+        return b.roundNumber - a.roundNumber;
+      }
+      return b.date.getTime() - a.date.getTime();
+    });
 };
 
 export const getRound = async (roundId: string): Promise<Round | null> => {
