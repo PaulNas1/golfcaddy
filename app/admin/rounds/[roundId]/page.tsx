@@ -70,6 +70,7 @@ export default function AdminRoundDetailPage() {
   const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
+  const [courseSearchActive, setCourseSearchActive] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [courseId, setCourseId] = useState("");
@@ -109,7 +110,8 @@ export default function AdminRoundDetailPage() {
       ),
     [apiCourses, selectedCourse?.id]
   );
-  const showCourseSuggestions = apiCourseSuggestions.length > 0;
+  const showCourseSuggestions =
+    courseSearchActive && apiCourseSuggestions.length > 0;
   const holeOptions =
     selectedTeeSet?.holes ??
     (round?.courseHoles && round.courseHoles.length === 18
@@ -151,6 +153,7 @@ export default function AdminRoundDetailPage() {
   const applyCourse = (course: SeededCourse) => {
     const defaultTeeSet = course.teeSets[0] ?? null;
     setApiCourses([course]);
+    setCourseSearchActive(false);
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
@@ -191,6 +194,7 @@ export default function AdminRoundDetailPage() {
   };
 
   const handleCourseNameChange = (value: string) => {
+    setCourseSearchActive(true);
     setCourseName(value);
     setCourseId("");
     setTeeSetId("");
@@ -198,6 +202,12 @@ export default function AdminRoundDetailPage() {
 
   useEffect(() => {
     const query = courseName.trim();
+
+    if (!courseSearchActive) {
+      setApiCourseError("");
+      setApiCourseLoading(false);
+      return;
+    }
 
     if (query.length < 3) {
       setApiCourses([]);
@@ -226,7 +236,7 @@ export default function AdminRoundDetailPage() {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [courseName, selectedCourse?.name]);
+  }, [courseName, courseSearchActive, selectedCourse?.name]);
 
   const loadScorecards = async (r: Round) => {
     const cards = await getScorecardsForRound(r.id);

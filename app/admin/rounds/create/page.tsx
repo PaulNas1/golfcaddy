@@ -61,6 +61,7 @@ export default function CreateRoundPage() {
   const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
+  const [courseSearchActive, setCourseSearchActive] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
 
   // Tee times state
@@ -90,7 +91,8 @@ export default function CreateRoundPage() {
       ),
     [activeCourse?.id, apiCourses]
   );
-  const showCourseSuggestions = apiCourseSuggestions.length > 0;
+  const showCourseSuggestions =
+    courseSearchActive && apiCourseSuggestions.length > 0;
   const customCoursePar = customHoles.reduce(
     (total, hole) => total + hole.par,
     0
@@ -105,6 +107,7 @@ export default function CreateRoundPage() {
   const applyCourse = (course: SeededCourse) => {
     const defaultTeeSet = course.teeSets[0] ?? null;
     setApiCourses([course]);
+    setCourseSearchActive(false);
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
@@ -145,6 +148,7 @@ export default function CreateRoundPage() {
   };
 
   const handleCourseNameChange = (value: string) => {
+    setCourseSearchActive(true);
     setCourseName(value);
     setCourseId("");
     setTeeSetId("");
@@ -152,6 +156,12 @@ export default function CreateRoundPage() {
 
   useEffect(() => {
     const query = courseName.trim();
+
+    if (!courseSearchActive) {
+      setApiCourseError("");
+      setApiCourseLoading(false);
+      return;
+    }
 
     if (query.length < 3) {
       setApiCourses([]);
@@ -180,7 +190,7 @@ export default function CreateRoundPage() {
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [activeCourse?.name, courseName]);
+  }, [activeCourse?.name, courseName, courseSearchActive]);
 
   const addTeeTime = () =>
     setTeeTimes([...teeTimes, { time: "", notes: "", playerIds: [] }]);
