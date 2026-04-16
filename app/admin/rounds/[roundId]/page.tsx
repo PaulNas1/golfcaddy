@@ -457,22 +457,29 @@ export default function AdminRoundDetailPage() {
     }
   };
 
-  const deleteHoleOverride = async (holeNumber: number) => {
+  const deleteHoleOverride = async (
+    overrideToDelete: HoleOverride,
+    overrideIndex: number
+  ) => {
     if (!round) return;
     const confirmed = window.confirm(
-      `Delete the par override for hole ${holeNumber}?`
+      `Delete the par override for hole ${overrideToDelete.holeNumber}?`
     );
     if (!confirmed) return;
 
     setSaving(true);
     try {
       const updated = round.holeOverrides.filter(
-        (override) => override.holeNumber !== holeNumber
+        (_override, index) => index !== overrideIndex
       );
 
       await updateRound(round.id, { holeOverrides: updated });
       setRound({ ...round, holeOverrides: updated });
-      if (editingOverride?.holeNumber === holeNumber) {
+      if (
+        editingOverride?.holeNumber === overrideToDelete.holeNumber &&
+        editingOverride?.overridePar === overrideToDelete.overridePar &&
+        editingOverride?.reason === overrideToDelete.reason
+      ) {
         setEditingOverride(null);
       }
       setSuccess("Hole par override deleted. Members will be notified.");
@@ -879,9 +886,9 @@ export default function AdminRoundDetailPage() {
         {round.holeOverrides.length > 0 && (
           <div className="mt-3 space-y-2">
             <p className="text-xs font-medium text-gray-600">Current overrides:</p>
-            {round.holeOverrides.map((o) => (
+            {round.holeOverrides.map((o, index) => (
               <div
-                key={o.holeNumber}
+                key={`${o.holeNumber}-${index}`}
                 className="flex items-center justify-between gap-3 bg-amber-50 rounded-xl px-3 py-2 text-sm text-amber-800"
               >
                 <div className="min-w-0">
@@ -904,7 +911,7 @@ export default function AdminRoundDetailPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => deleteHoleOverride(o.holeNumber)}
+                    onClick={() => deleteHoleOverride(o, index)}
                     disabled={saving}
                     aria-label={`Delete override for hole ${o.holeNumber}`}
                     className="rounded-lg border border-red-100 bg-white p-2 text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
