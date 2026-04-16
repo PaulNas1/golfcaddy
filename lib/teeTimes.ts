@@ -1,5 +1,12 @@
 import type { AppUser, Round, TeeTime } from "@/types";
 
+export function formatShortMemberName(member: Pick<AppUser, "displayName">) {
+  const parts = member.displayName.trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? member.displayName;
+  const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return lastInitial ? `${firstName} ${lastInitial}` : firstName;
+}
+
 export function formatTeeTime(time: string) {
   const [hourValue, minuteValue] = time.split(":");
   const hour = parseInt(hourValue, 10);
@@ -39,6 +46,16 @@ export function getMemberNamesForIds(memberIds: string[], members: AppUser[]) {
     .map((memberId) => members.find((member) => member.uid === memberId))
     .filter((member): member is AppUser => Boolean(member))
     .map((member) => member.displayName);
+}
+
+export function getShortMemberNamesForIds(
+  memberIds: string[],
+  members: AppUser[]
+) {
+  return memberIds
+    .map((memberId) => members.find((member) => member.uid === memberId))
+    .filter((member): member is AppUser => Boolean(member))
+    .map(formatShortMemberName);
 }
 
 export function resolveMemberIdsFromText(text: string, members: AppUser[]) {
@@ -98,6 +115,34 @@ export function normaliseTeeTimePlayerIds(
   return teeTime.playerIds.length > 0
     ? teeTime.playerIds
     : resolveMemberIdsFromText(teeTime.notes ?? "", members);
+}
+
+export function randomiseMemberGroups(members: AppUser[], groupCount: number) {
+  if (groupCount <= 0) return [];
+  if (members.length > groupCount * 4) {
+    throw new Error("Add more tee times before randomising these players.");
+  }
+
+  const shuffled = [...members].sort(() => Math.random() - 0.5);
+  const populatedGroupCount = Math.min(
+    groupCount,
+    Math.max(1, Math.ceil(shuffled.length / 4))
+  );
+  const baseSize = Math.floor(shuffled.length / populatedGroupCount);
+  const extraPlayers = shuffled.length % populatedGroupCount;
+  const groups: AppUser[][] = [];
+  let offset = 0;
+
+  for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+    const size =
+      groupIndex < populatedGroupCount
+        ? baseSize + (groupIndex < extraPlayers ? 1 : 0)
+        : 0;
+    groups.push(shuffled.slice(offset, offset + size));
+    offset += size;
+  }
+
+  return groups;
 }
 
 function normalizeName(value: string) {

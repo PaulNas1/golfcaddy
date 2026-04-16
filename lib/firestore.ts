@@ -32,6 +32,8 @@ import type {
   Results,
   SeasonStanding,
   Post,
+  RoundRsvp,
+  RoundRsvpStatus,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -100,6 +102,10 @@ const mapRound = (
     slopeRating: data.slopeRating ?? null,
     courseHoles: Array.isArray(data.courseHoles) ? data.courseHoles : [],
     courseSource: data.courseSource ?? null,
+    rsvpOpen: data.rsvpOpen ?? false,
+    rsvpNotifiedAt: data.rsvpNotifiedAt
+      ? toDate(data.rsvpNotifiedAt)
+      : null,
     specialHoles: data.specialHoles ?? {
       ntp: [],
       ld: null,
@@ -343,6 +349,136 @@ export const updateRound = async (roundId: string, data: Partial<Round>) => {
   });
 };
 
+const mapRoundRsvp = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): RoundRsvp => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    respondedAt: data.respondedAt ? toDate(data.respondedAt) : null,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as RoundRsvp;
+};
+
+export const getRoundRsvps = async (roundId: string): Promise<RoundRsvp[]> => {
+  const snap = await getDocs(collection(db, "rounds", roundId, "rsvps"));
+  return snap.docs.map(mapRoundRsvp);
+};
+
+export const getRoundRsvp = async (
+  roundId: string,
+  memberId: string
+): Promise<RoundRsvp | null> => {
+  const snap = await getDoc(doc(db, "rounds", roundId, "rsvps", memberId));
+  if (!snap.exists()) return null;
+  return mapRoundRsvp(snap);
+};
+
+export const setRoundRsvp = async ({
+  round,
+  member,
+  status,
+}: {
+  round: Round;
+  member: AppUser;
+  status: Exclude<RoundRsvpStatus, "pending">;
+}) => {
+  const ref = doc(db, "rounds", round.id, "rsvps", member.uid);
+  const existing = await getDoc(ref);
+  await setDoc(
+    ref,
+    {
+      roundId: round.id,
+      groupId: round.groupId,
+      memberId: member.uid,
+      memberName: member.displayName,
+      status,
+      respondedAt: serverTimestamp(),
+      createdAt: existing.exists()
+        ? existing.data().createdAt ?? serverTimestamp()
+        : serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
+export const notifyRoundPlayers = async ({
+  round,
+  activeUsers,
+  notifiedBy,
+  mode,
+}: {
+  round: Round;
+  activeUsers: AppUser[];
+  notifiedBy: AppUser | null;
+  mode: "created" | "updated";
+}) => {
+  const existingRsvps = await getRoundRsvps(round.id);
+  const existingRsvpIds = new Set(existingRsvps.map((rsvp) => rsvp.memberId));
+  const batch = writeBatch(db);
+  const postId = `${round.id}_${mode}_${Date.now()}`;
+  const title =
+    mode === "created" ? "New round available" : "Round details updated";
+  const body =
+    mode === "created"
+      ? `Round ${round.roundNumber} is now available at ${round.courseName}. RSVP now.`
+      : `Round ${round.roundNumber} details have been updated. Please check tee times and groups.`;
+
+  batch.update(doc(db, "rounds", round.id), {
+    rsvpOpen: true,
+    rsvpNotifiedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.set(doc(db, "posts", postId), {
+    groupId: round.groupId,
+    authorId: notifiedBy?.uid ?? "system",
+    authorName: notifiedBy?.displayName ?? "GolfCaddy",
+    authorAvatarUrl: notifiedBy?.avatarUrl ?? null,
+    type: "round_linked",
+    content: body,
+    roundId: round.id,
+    pinned: false,
+    photoUrls: [],
+    reactionCounts: {},
+    commentCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  activeUsers.forEach((user) => {
+    if (!existingRsvpIds.has(user.uid)) {
+      batch.set(doc(db, "rounds", round.id, "rsvps", user.uid), {
+        roundId: round.id,
+        groupId: round.groupId,
+        memberId: user.uid,
+        memberName: user.displayName,
+        status: "pending",
+        respondedAt: null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    batch.set(doc(db, "notifications", `${postId}_${user.uid}`), {
+      recipientId: user.uid,
+      groupId: round.groupId,
+      type: mode === "created" ? "round_announced" : "tee_times_published",
+      title,
+      body,
+      deepLink: `/rounds/${round.id}`,
+      read: false,
+      roundId: round.id,
+      postId,
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+};
+
 export const deleteRoundCascade = async (roundId: string) => {
   const round = await getRound(roundId);
   if (!round) {
@@ -353,6 +489,7 @@ export const deleteRoundCascade = async (roundId: string) => {
       resultsDeleted: 0,
       feedPostsDeleted: 0,
       notificationsDeleted: 0,
+      rsvpsDeleted: 0,
       handicapHistoryDeleted: 0,
       standingsRebuilt: 0,
     };
@@ -363,6 +500,7 @@ export const deleteRoundCascade = async (roundId: string) => {
     resultsSnap,
     postsSnap,
     notificationsSnap,
+    rsvpsSnap,
     handicapHistorySnap,
   ] = await Promise.all([
     getDocs(query(collection(db, "scorecards"), where("roundId", "==", round.id))),
@@ -371,6 +509,7 @@ export const deleteRoundCascade = async (roundId: string) => {
     getDocs(
       query(collection(db, "notifications"), where("roundId", "==", round.id))
     ),
+    getDocs(collection(db, "rounds", round.id, "rsvps")),
     getDocs(
       query(collection(db, "handicapHistory"), where("roundId", "==", round.id))
     ),
@@ -454,6 +593,10 @@ export const deleteRoundCascade = async (roundId: string) => {
 
   for (const notificationDoc of notificationsSnap.docs) {
     await writer.queue((batch) => batch.delete(notificationDoc.ref));
+  }
+
+  for (const rsvpDoc of rsvpsSnap.docs) {
+    await writer.queue((batch) => batch.delete(rsvpDoc.ref));
   }
 
   for (const historyDoc of handicapHistorySnap.docs) {
@@ -574,6 +717,7 @@ export const deleteRoundCascade = async (roundId: string) => {
     resultsDeleted: resultsSnap.exists() ? 1 : 0,
     feedPostsDeleted,
     notificationsDeleted: notificationsSnap.size,
+    rsvpsDeleted: rsvpsSnap.size,
     handicapHistoryDeleted: handicapHistorySnap.size,
     standingsRebuilt: standings.length,
   };

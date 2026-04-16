@@ -158,11 +158,27 @@ export interface Round {
   status: RoundStatus;
   notes: string | null;
   teeTimes: TeeTime[];
+  rsvpOpen: boolean;
+  rsvpNotifiedAt: Date | null;
   holeOverrides: HoleOverride[];
   specialHoles: SpecialHoles;
   resultsPublished: boolean;
   resultsPublishedAt: Date | null;
   createdBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type RoundRsvpStatus = "pending" | "accepted" | "declined";
+
+export interface RoundRsvp {
+  id: string;
+  roundId: string;
+  groupId: string;
+  memberId: string;
+  memberName: string;
+  status: RoundRsvpStatus;
+  respondedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

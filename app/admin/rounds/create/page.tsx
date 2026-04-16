@@ -7,7 +7,11 @@ import {
   getGolfCourseCatalogueCourse,
   searchGolfCourseCatalogue,
 } from "@/lib/courseCatalogueClient";
-import { createRound, getActiveMembers } from "@/lib/firestore";
+import {
+  createRound,
+  getActiveMembers,
+  notifyRoundPlayers,
+} from "@/lib/firestore";
 import {
   type SeededCourse,
   getCourseSearchLabel,
@@ -17,12 +21,16 @@ import {
   getParThreeHoles,
 } from "@/lib/courseData";
 import {
+  formatShortMemberName,
   getMemberNamesForIds,
+  getShortMemberNamesForIds,
+  randomiseMemberGroups,
   resolveMemberIdsFromText,
 } from "@/lib/teeTimes";
 import type {
   AppUser,
   CourseHole,
+  Round,
   ScoringFormat,
   SpecialHoles,
   TeeTime,
@@ -209,6 +217,31 @@ export default function CreateRoundPage() {
     );
   };
 
+  const randomiseGroups = () => {
+    if (members.length === 0) {
+      setError("No active players are available to randomise.");
+      return;
+    }
+
+    try {
+      const groups = randomiseMemberGroups(members, teeTimes.length);
+      setTeeTimes((current) =>
+        current.map((teeTime, index) => {
+          const group = groups[index] ?? [];
+          const playerIds = group.map((member) => member.uid);
+          return {
+            ...teeTime,
+            playerIds,
+            notes: getShortMemberNamesForIds(playerIds, members).join(", "),
+          };
+        })
+      );
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not randomise groups.");
+    }
+  };
+
   const updateCustomHole = (
     holeNumber: number,
     field: "par" | "strokeIndex" | "distanceMeters",
@@ -245,8 +278,7 @@ export default function CreateRoundPage() {
     );
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveRound = async (notifyPlayers: boolean) => {
     if (!courseName.trim() || !date) {
       setError("Course name and date are required.");
       return;
@@ -286,7 +318,7 @@ export default function CreateRoundPage() {
           notes: t.notes.trim() || null,
         }));
 
-      await createRound({
+      const roundData: Omit<Round, "id" | "createdAt" | "updatedAt"> = {
         groupId: "fourplay",
         courseId: activeCourse?.id ?? "",
         courseName: courseName.trim(),
@@ -309,12 +341,30 @@ export default function CreateRoundPage() {
         status: "upcoming",
         notes: notes.trim() || null,
         teeTimes: savedTeeTimes,
+        rsvpOpen: notifyPlayers,
+        rsvpNotifiedAt: null,
         holeOverrides: [],
         specialHoles,
         resultsPublished: false,
         resultsPublishedAt: null,
         createdBy: appUser!.uid,
-      });
+      };
+
+      const roundId = await createRound(roundData);
+
+      if (notifyPlayers) {
+        await notifyRoundPlayers({
+          round: {
+            id: roundId,
+            ...roundData,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+          activeUsers: members,
+          notifiedBy: appUser,
+          mode: "created",
+        });
+      }
 
       router.push("/admin/rounds");
     } catch {
@@ -322,6 +372,11 @@ export default function CreateRoundPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveRound(false);
   };
 
   return (
@@ -555,13 +610,22 @@ export default function CreateRoundPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold text-gray-800">Tee Times</h2>
-            <button
-              type="button"
-              onClick={addTeeTime}
-              className="text-green-600 text-sm font-medium hover:underline"
-            >
-              + Add
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={randomiseGroups}
+                className="text-green-700 text-sm font-medium hover:underline"
+              >
+                Randomise groups
+              </button>
+              <button
+                type="button"
+                onClick={addTeeTime}
+                className="text-green-600 text-sm font-medium hover:underline"
+              >
+                + Add
+              </button>
+            </div>
           </div>
           <p className="text-xs text-gray-400">
             Enter the tee time and the players in each group. These player
@@ -612,7 +676,7 @@ export default function CreateRoundPage() {
                             : "border-gray-200 bg-white text-gray-500"
                         }`}
                       >
-                        {member.displayName.split(" ")[0]}
+                        {formatShortMemberName(member)}
                       </button>
                     );
                   })}
@@ -676,13 +740,23 @@ export default function CreateRoundPage() {
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-4 rounded-2xl text-base transition-colors"
-        >
-          {loading ? "Creating round..." : "Create Round & Notify Members"}
-        </button>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-white hover:bg-gray-50 disabled:bg-gray-100 text-green-700 border border-green-200 font-semibold py-4 rounded-2xl text-base transition-colors"
+          >
+            {loading ? "Creating round..." : "Create Round"}
+          </button>
+          <button
+            type="button"
+            onClick={() => saveRound(true)}
+            disabled={loading}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-4 rounded-2xl text-base transition-colors"
+          >
+            {loading ? "Creating round..." : "Create & Notify Players"}
+          </button>
+        </div>
       </form>
     </div>
   );

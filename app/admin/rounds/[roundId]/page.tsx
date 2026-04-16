@@ -12,6 +12,8 @@ import {
   deleteRoundCascade,
   getActiveMembers,
   getRound,
+  getRoundRsvps,
+  notifyRoundPlayers,
   updateRound,
   getScorecardsForRound,
 } from "@/lib/firestore";
@@ -24,8 +26,11 @@ import {
   getParThreeHoles,
 } from "@/lib/courseData";
 import {
+  formatShortMemberName,
   getMemberNamesForIds,
+  getShortMemberNamesForIds,
   normaliseTeeTimePlayerIds,
+  randomiseMemberGroups,
   resolveMemberIdsFromText,
 } from "@/lib/teeTimes";
 import type {
@@ -33,6 +38,7 @@ import type {
   HoleOverride,
   Round,
   RoundStatus,
+  RoundRsvp,
   Scorecard,
   ScoringFormat,
   TeeTime,
@@ -52,6 +58,7 @@ export default function AdminRoundDetailPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [success, setSuccess] = useState("");
+  const [detailsError, setDetailsError] = useState("");
   const [deleteError, setDeleteError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [scorecards, setScorecards] = useState<Scorecard[]>([]);
@@ -62,6 +69,7 @@ export default function AdminRoundDetailPage() {
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
   const [members, setMembers] = useState<AppUser[]>([]);
+  const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
@@ -102,6 +110,15 @@ export default function AdminRoundDetailPage() {
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
   const refreshableTeeSet =
     selectedTeeSet ?? selectedCourse?.teeSets[0] ?? null;
+  const acceptedMembers = useMemo(() => {
+    if (!round?.rsvpOpen) return members;
+    const acceptedIds = new Set(
+      rsvps
+        .filter((rsvp) => rsvp.status === "accepted")
+        .map((rsvp) => rsvp.memberId)
+    );
+    return members.filter((member) => acceptedIds.has(member.uid));
+  }, [members, round?.rsvpOpen, rsvps]);
 
   const applyCourse = (course: SeededCourse) => {
     const defaultTeeSet = course.teeSets[0] ?? null;
@@ -189,8 +206,13 @@ export default function AdminRoundDetailPage() {
 
   useEffect(() => {
     if (roundId) {
-      Promise.all([getRound(roundId), getActiveMembers("fourplay")]).then(([r, activeMembers]) => {
+      Promise.all([
+        getRound(roundId),
+        getActiveMembers("fourplay"),
+        getRoundRsvps(roundId),
+      ]).then(([r, activeMembers, roundRsvps]) => {
         setMembers(activeMembers);
+        setRsvps(roundRsvps);
         setRound(r);
         setLoading(false);
         if (r) {
@@ -229,11 +251,12 @@ export default function AdminRoundDetailPage() {
     setTimeout(() => setSuccess(""), 3000);
   };
 
-  const handleSaveDetails = async () => {
+  const handleSaveDetails = async (notifyPlayers = false) => {
     if (!round) return;
     if (!courseName.trim() || !date) return;
 
     setSaving(true);
+    setDetailsError("");
     const parsedRoundNumber =
       parseInt(roundNumber, 10) || round.roundNumber;
     const newDate = new Date(date);
@@ -294,19 +317,7 @@ export default function AdminRoundDetailPage() {
     const savedCourseId =
       selectedCourse?.id ?? (preserveExistingCourseData ? round.courseId : "");
 
-    await updateRound(round.id, {
-      courseId: savedCourseId,
-      courseName: courseName.trim(),
-      ...courseDetails,
-      roundNumber: parsedRoundNumber,
-      date: newDate,
-      format: formatChoice,
-      notes: notes.trim() || null,
-      teeTimes: savedTeeTimes,
-      specialHoles,
-    });
-
-    setRound({
+    const updatedRound: Round = {
       ...round,
       courseId: savedCourseId,
       courseName: courseName.trim(),
@@ -316,10 +327,42 @@ export default function AdminRoundDetailPage() {
       format: formatChoice,
       notes: notes.trim() || null,
       teeTimes: savedTeeTimes,
+      rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
+      rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
+      specialHoles,
+    };
+
+    await updateRound(round.id, {
+      courseId: savedCourseId,
+      courseName: courseName.trim(),
+      ...courseDetails,
+      roundNumber: parsedRoundNumber,
+      date: newDate,
+      format: formatChoice,
+      notes: notes.trim() || null,
+      teeTimes: savedTeeTimes,
+      rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
+      rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
       specialHoles,
     });
 
-    setSuccess("Round details updated");
+    if (notifyPlayers) {
+      await notifyRoundPlayers({
+        round: updatedRound,
+        activeUsers: members,
+        notifiedBy: null,
+        mode: round.rsvpOpen ? "updated" : "created",
+      });
+      setRsvps(await getRoundRsvps(round.id));
+    }
+
+    setRound(updatedRound);
+
+    setSuccess(
+      notifyPlayers
+        ? "Round details saved and players notified"
+        : "Round details updated"
+    );
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
   };
@@ -427,6 +470,40 @@ export default function AdminRoundDetailPage() {
     );
   };
 
+  const randomiseGroups = () => {
+    if (acceptedMembers.length === 0) {
+      setDetailsError(
+        round?.rsvpOpen
+          ? "No accepted players yet. Ask members to RSVP before randomising."
+          : "No active players are available to randomise."
+      );
+      setTimeout(() => setDetailsError(""), 3000);
+      return;
+    }
+
+    try {
+      const groups = randomiseMemberGroups(acceptedMembers, teeTimes.length);
+      setTeeTimes((current) =>
+        current.map((teeTime, index) => {
+          const group = groups[index] ?? [];
+          const playerIds = group.map((member) => member.uid);
+          return {
+            ...teeTime,
+            playerIds,
+            notes: getShortMemberNamesForIds(playerIds, members).join(", "),
+          };
+        })
+      );
+      setSuccess("Groups randomised. Save to keep these tee-time groups.");
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err) {
+      setDetailsError(
+        err instanceof Error ? err.message : "Could not randomise groups."
+      );
+      setTimeout(() => setDetailsError(""), 3000);
+    }
+  };
+
   const addHoleOverride = async (
     holeNumber: number,
     overridePar: number,
@@ -525,6 +602,11 @@ export default function AdminRoundDetailPage() {
       {success && (
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700 text-sm">
           ✅ {success}
+        </div>
+      )}
+      {detailsError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+          {detailsError}
         </div>
       )}
 
@@ -685,18 +767,32 @@ export default function AdminRoundDetailPage() {
               <label className="block text-xs font-medium text-gray-700">
                 Tee times
               </label>
-              <button
-                type="button"
-                onClick={addTeeTime}
-                className="text-xs font-medium text-green-700 underline"
-              >
-                + Add tee time
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={randomiseGroups}
+                  className="text-xs font-medium text-green-700 underline"
+                >
+                  Randomise groups
+                </button>
+                <button
+                  type="button"
+                  onClick={addTeeTime}
+                  className="text-xs font-medium text-green-700 underline"
+                >
+                  + Add tee time
+                </button>
+              </div>
             </div>
             <p className="text-[11px] text-gray-400">
               Add the players for each tee time. These names limit who can be
               selected when a marker starts a scorecard.
             </p>
+            {round.rsvpOpen && (
+              <p className="text-[11px] text-green-700">
+                Showing accepted players only: {acceptedMembers.length}
+              </p>
+            )}
             {teeTimes.map((teeTime, index) => (
               <div
                 key={index}
@@ -730,9 +826,9 @@ export default function AdminRoundDetailPage() {
                     </button>
                   )}
                 </div>
-                {members.length > 0 && (
+                {acceptedMembers.length > 0 && (
                   <div className="flex flex-wrap gap-2">
-                    {members.map((member) => {
+                    {acceptedMembers.map((member) => {
                       const selected = teeTime.playerIds.includes(member.uid);
                       return (
                         <button
@@ -745,7 +841,7 @@ export default function AdminRoundDetailPage() {
                               : "border-gray-200 bg-white text-gray-500"
                           }`}
                         >
-                          {member.displayName.split(" ")[0]}
+                          {formatShortMemberName(member)}
                         </button>
                       );
                     })}
@@ -807,14 +903,24 @@ export default function AdminRoundDetailPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSaveDetails}
-          disabled={saving}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
-        >
-          {saving ? "Saving..." : "Save round details"}
-        </button>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => handleSaveDetails(false)}
+            disabled={saving}
+            className="w-full rounded-xl border border-green-200 bg-white py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-50 disabled:text-green-300"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSaveDetails(true)}
+            disabled={saving}
+            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          >
+            {saving ? "Saving..." : "Save & Notify Players"}
+          </button>
+        </div>
       </div>
 
       {/* Round status controls */}
@@ -839,7 +945,8 @@ export default function AdminRoundDetailPage() {
           ))}
         </div>
         <p className="text-xs text-gray-400">
-          Setting to &quot;Live&quot; opens scoring and notifies all members. &quot;Completed&quot; closes scoring.
+          Setting to &quot;Live&quot; opens scoring. Use Save & Notify Players
+          above when members need an alert.
         </p>
       </div>
 

@@ -4,17 +4,25 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { getLiveRound, getResultsForRound, getRound } from "@/lib/firestore";
+import {
+  getLiveRound,
+  getResultsForRound,
+  getRound,
+  getRoundRsvp,
+  setRoundRsvp,
+} from "@/lib/firestore";
 import { withSeededCourseData } from "@/lib/courseData";
 import { formatTeeTime, getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Results, Round } from "@/types";
+import type { Results, Round, RoundRsvp } from "@/types";
 
 export default function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
   const [results, setResults] = useState<Results | null>(null);
+  const [myRsvp, setMyRsvp] = useState<RoundRsvp | null>(null);
+  const [savingRsvp, setSavingRsvp] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { appUser, isAdmin } = useAuth();
@@ -23,10 +31,15 @@ export default function RoundDetailPage() {
     if (roundId) {
       setLoading(true);
       setError("");
-      Promise.all([getRound(roundId), getResultsForRound(roundId)])
-        .then(([r, res]) => {
+      Promise.all([
+        getRound(roundId),
+        getResultsForRound(roundId),
+        appUser?.uid ? getRoundRsvp(roundId, appUser.uid) : Promise.resolve(null),
+      ])
+        .then(([r, res, rsvp]) => {
           setRound(r ? withSeededCourseData(r) : null);
           setResults(res);
+          setMyRsvp(rsvp);
           if (!r) {
             getLiveRound("fourplay")
               .then((live) => {
@@ -51,7 +64,7 @@ export default function RoundDetailPage() {
         })
         .finally(() => setLoading(false));
     }
-  }, [roundId, router]);
+  }, [appUser?.uid, roundId, router]);
 
   if (loading) {
     return (
@@ -109,6 +122,18 @@ export default function RoundDetailPage() {
   const statusLabel =
     round.status === "live" ? "● Live" : round.status === "upcoming" ? "Upcoming" : "Completed";
 
+  const handleRsvp = async (status: "accepted" | "declined") => {
+    if (!round || !appUser) return;
+    setSavingRsvp(true);
+    try {
+      await setRoundRsvp({ round, member: appUser, status });
+      const updated = await getRoundRsvp(round.id, appUser.uid);
+      setMyRsvp(updated);
+    } finally {
+      setSavingRsvp(false);
+    }
+  };
+
   return (
     <div className="px-4 py-6 space-y-4 pb-8">
       {/* Header */}
@@ -136,6 +161,48 @@ export default function RoundDetailPage() {
           {round.format === "stableford" ? "🏌️ Stableford" : "📊 Stroke Play"}
         </span>
       </div>
+
+      {round.rsvpOpen && round.status !== "completed" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div>
+            <h2 className="font-semibold text-gray-800">Playing this round?</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Let the admin know so tee-time groups can be set.
+            </p>
+          </div>
+          {myRsvp?.status && myRsvp.status !== "pending" && (
+            <p className="text-xs font-medium text-green-700">
+              RSVP saved: {myRsvp.status === "accepted" ? "Accepted" : "Declined"}
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => handleRsvp("accepted")}
+              disabled={savingRsvp}
+              className={`rounded-xl border py-2.5 text-sm font-semibold ${
+                myRsvp?.status === "accepted"
+                  ? "border-green-600 bg-green-600 text-white"
+                  : "border-green-200 bg-green-50 text-green-700"
+              }`}
+            >
+              Accept
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRsvp("declined")}
+              disabled={savingRsvp}
+              className={`rounded-xl border py-2.5 text-sm font-semibold ${
+                myRsvp?.status === "declined"
+                  ? "border-gray-700 bg-gray-800 text-white"
+                  : "border-gray-200 bg-white text-gray-600"
+              }`}
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      )}
 
       {round.resultsPublished && results && (
         <div className="bg-green-50 border border-green-200 rounded-2xl p-4 space-y-4">
