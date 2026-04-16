@@ -10,17 +10,13 @@ import {
 import { createRound } from "@/lib/firestore";
 import {
   type SeededCourse,
-  findSeededCourseByName,
   getCourseSearchLabel,
-  getDefaultTeeSet,
   getDriveHoleOptions,
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
-  getTeeSet,
-  searchSeededCourses,
 } from "@/lib/courseData";
-import type { ScoringFormat, SpecialHoles, TeeTime } from "@/types";
+import type { CourseHole, ScoringFormat, SpecialHoles, TeeTime } from "@/types";
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
@@ -44,13 +40,8 @@ export default function CreateRoundPage() {
 
   // Tee times state
   const [teeTimes, setTeeTimes] = useState([{ time: "", notes: "" }]);
-  const selectedCourse = useMemo(
-    () => findSeededCourseByName(courseName) ?? null,
-    [courseName]
-  );
-  const selectedCourseById = useMemo(
-    () => (courseId ? findSeededCourseByName(courseId) : null),
-    [courseId]
+  const [customHoles, setCustomHoles] = useState<CourseHole[]>(
+    getFallbackCourseHoles
   );
   const selectedApiCourseById = useMemo(
     () => apiCourses.find((course) => course.id === courseId) ?? null,
@@ -60,41 +51,26 @@ export default function CreateRoundPage() {
     () => apiCourses.find((course) => course.name === courseName) ?? null,
     [apiCourses, courseName]
   );
-  const activeCourse =
-    selectedCourseById ??
-    selectedApiCourseById ??
-    selectedCourse ??
-    selectedApiCourseByName;
+  const activeCourse = selectedApiCourseById ?? selectedApiCourseByName;
   const selectedTeeSet =
-    activeCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ??
-    (courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null);
-  const holeOptions = selectedTeeSet?.holes ?? getFallbackCourseHoles();
+    activeCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
+  const holeOptions = selectedTeeSet?.holes ?? customHoles;
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
-  const courseSuggestions = useMemo(
-    () => searchSeededCourses(courseName),
-    [courseName]
-  );
   const apiCourseSuggestions = useMemo(
     () =>
       apiCourses.filter(
-        (course) =>
-          course.id !== activeCourse?.id &&
-          !courseSuggestions.some(
-            (seededCourse) => seededCourse.name === course.name
-          )
+        (course) => course.id !== activeCourse?.id
       ),
-    [activeCourse?.id, apiCourses, courseSuggestions]
+    [activeCourse?.id, apiCourses]
   );
-  const resolvedCourseFromInput = useMemo(
-    () => findSeededCourseByName(courseName),
-    [courseName]
+  const showCourseSuggestions = apiCourseSuggestions.length > 0;
+  const customCoursePar = customHoles.reduce(
+    (total, hole) => total + hole.par,
+    0
   );
-  const showCourseSuggestions =
-    (courseSuggestions.length > 0 || apiCourseSuggestions.length > 0) &&
-    !(activeCourse && resolvedCourseFromInput?.id === activeCourse.id);
 
   const applyCourse = (course: SeededCourse) => {
-    const defaultTeeSet = getDefaultTeeSet(course.id) ?? course.teeSets[0] ?? null;
+    const defaultTeeSet = course.teeSets[0] ?? null;
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
@@ -136,13 +112,6 @@ export default function CreateRoundPage() {
 
   const handleCourseNameChange = (value: string) => {
     setCourseName(value);
-    const matchedCourse = findSeededCourseByName(value);
-    if (matchedCourse) {
-      const defaultTeeSet = getDefaultTeeSet(matchedCourse.id);
-      setCourseId(matchedCourse.id);
-      setTeeSetId(defaultTeeSet?.id ?? "");
-      return;
-    }
     setCourseId("");
     setTeeSetId("");
   };
@@ -179,17 +148,47 @@ export default function CreateRoundPage() {
     };
   }, [activeCourse?.name, courseName]);
 
-  useEffect(() => {
-    if (!courseId || teeSetId) return;
-    const defaultTeeSet = getDefaultTeeSet(courseId);
-    setTeeSetId(defaultTeeSet?.id ?? "");
-  }, [courseId, teeSetId]);
-
   const addTeeTime = () => setTeeTimes([...teeTimes, { time: "", notes: "" }]);
   const removeTeeTime = (i: number) =>
     setTeeTimes(teeTimes.filter((_, idx) => idx !== i));
   const updateTeeTime = (i: number, field: "time" | "notes", val: string) =>
     setTeeTimes(teeTimes.map((t, idx) => (idx === i ? { ...t, [field]: val } : t)));
+
+  const updateCustomHole = (
+    holeNumber: number,
+    field: "par" | "strokeIndex" | "distanceMeters",
+    value: string
+  ) => {
+    setCustomHoles((holes) =>
+      holes.map((hole) => {
+        if (hole.number !== holeNumber) return hole;
+
+        if (field === "distanceMeters") {
+          const distance = parseInt(value, 10);
+          return {
+            ...hole,
+            distanceMeters: Number.isFinite(distance) ? distance : undefined,
+          };
+        }
+
+        const numericValue = parseInt(value, 10);
+        if (!Number.isFinite(numericValue)) return hole;
+
+        return {
+          ...hole,
+          [field]: numericValue,
+          type:
+            field === "par"
+              ? numericValue === 3
+                ? "par3"
+                : numericValue === 5
+                ? "par5"
+                : "par4"
+              : hole.type,
+        };
+      })
+    );
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,9 +207,12 @@ export default function CreateRoundPage() {
     setError("");
 
     try {
+      const savedCourseHoles = selectedTeeSet?.holes ?? customHoles;
       const ntpHoles = selectedTeeSet
         ? getParThreeHoles(selectedTeeSet)
-        : [3, 6, 12, 16];
+        : customHoles
+            .filter((hole) => hole.par === 3)
+            .map((hole) => hole.number);
       const specialHoles: SpecialHoles = {
         ntp: ntpHoles,
         ld: ldHole ? parseInt(ldHole) : null,
@@ -231,12 +233,17 @@ export default function CreateRoundPage() {
         courseId: activeCourse?.id ?? "",
         courseName: courseName.trim(),
         teeSetId: selectedTeeSet?.id ?? null,
-        teeSetName: selectedTeeSet?.name ?? null,
-        coursePar: selectedTeeSet?.par ?? null,
+        teeSetName: selectedTeeSet?.name ?? "Custom",
+        coursePar: selectedTeeSet?.par ?? customCoursePar,
         courseRating: selectedTeeSet?.courseRating ?? null,
         slopeRating: selectedTeeSet?.slopeRating ?? null,
-        courseHoles: selectedTeeSet?.holes ?? [],
-        courseSource: selectedTeeSet?.source ?? null,
+        courseHoles: savedCourseHoles,
+        courseSource: selectedTeeSet?.source ?? {
+          provider: "Admin custom",
+          url: "",
+          lastVerified: new Date().toISOString().slice(0, 10),
+          confidence: "admin_verified",
+        },
         date: new Date(date),
         season: new Date().getFullYear(),
         roundNumber: parsedRoundNumber,
@@ -275,27 +282,11 @@ export default function CreateRoundPage() {
               value={courseName}
               onChange={(e) => handleCourseNameChange(e.target.value)}
               required
-              placeholder="Start typing Morack, Waterford, Eagle Ridge..."
+              placeholder="Start typing a course name..."
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             {showCourseSuggestions && (
               <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 p-1">
-                {courseSuggestions.map((course) => (
-                  <button
-                    key={course.id}
-                    type="button"
-                    onClick={() => applyCourse(course)}
-                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-white"
-                  >
-                    <span className="font-medium text-gray-900">
-                      {course.name}
-                    </span>
-                    <span className="block text-xs text-gray-500">
-                      {getCourseSearchLabel(course)} · {course.teeSets.length} tee set
-                      {course.teeSets.length === 1 ? "" : "s"}
-                    </span>
-                  </button>
-                ))}
                 {apiCourseSuggestions.map((course) => (
                   <button
                     key={course.id}
@@ -328,8 +319,9 @@ export default function CreateRoundPage() {
               <p className="text-xs text-amber-600 mt-1">{apiCourseError}</p>
             )}
             <p className="text-xs text-gray-400 mt-1">
-              Select a prediction to auto-fill tee data, par, stroke indexes,
-              distances, and NTP holes. Unmatched names stay as custom courses.
+              Select a GolfCourseAPI result to auto-fill tee data, pars,
+              distances, and NTP holes. If the course is not available, keep
+              your typed name and save it as a custom course.
             </p>
           </div>
 
@@ -356,6 +348,79 @@ export default function CreateRoundPage() {
                   {getParThreeHoles(selectedTeeSet).join(", ")}.
                 </p>
               )}
+            </div>
+          )}
+
+          {!activeCourse && (
+            <div className="border-t border-gray-100 pt-3">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Custom course setup
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Use this when GolfCourseAPI does not have the course. The
+                  hole data is saved to this round.
+                </p>
+                <p className="text-xs font-medium text-gray-600 mt-2">
+                  Custom par total: {customCoursePar}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {customHoles.map((hole) => (
+                  <div
+                    key={hole.number}
+                    className="grid grid-cols-[44px_1fr_1fr_1fr] items-center gap-2 text-xs"
+                  >
+                    <span className="font-semibold text-gray-700">
+                      H{hole.number}
+                    </span>
+                    <select
+                      value={hole.par}
+                      onChange={(e) =>
+                        updateCustomHole(hole.number, "par", e.target.value)
+                      }
+                      className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      aria-label={`Hole ${hole.number} par`}
+                    >
+                      {[3, 4, 5].map((par) => (
+                        <option key={par} value={par}>
+                          Par {par}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min={1}
+                      max={18}
+                      value={hole.strokeIndex}
+                      onChange={(e) =>
+                        updateCustomHole(
+                          hole.number,
+                          "strokeIndex",
+                          e.target.value
+                        )
+                      }
+                      className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      aria-label={`Hole ${hole.number} stroke index`}
+                    />
+                    <input
+                      type="number"
+                      min={1}
+                      value={hole.distanceMeters ?? ""}
+                      onChange={(e) =>
+                        updateCustomHole(
+                          hole.number,
+                          "distanceMeters",
+                          e.target.value
+                        )
+                      }
+                      placeholder="m"
+                      className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      aria-label={`Hole ${hole.number} distance metres`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

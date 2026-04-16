@@ -16,15 +16,11 @@ import {
 } from "@/lib/firestore";
 import {
   type SeededCourse,
-  findSeededCourseByName,
   getCourseSearchLabel,
   getDriveHoleOptions,
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
-  getTeeSet,
-  getDefaultTeeSet,
-  searchSeededCourses,
 } from "@/lib/courseData";
 import type {
   HoleOverride,
@@ -72,39 +68,18 @@ export default function AdminRoundDetailPage() {
       (course) => course.name === courseName
     );
 
-    return (
-      (courseId ? findSeededCourseByName(courseId) : null) ??
-      apiCourseById ??
-      findSeededCourseByName(courseName) ??
-      apiCourseByName ??
-      null
-    );
+    return apiCourseById ?? apiCourseByName ?? null;
   }, [apiCourses, courseId, courseName]);
   const selectedTeeSet =
-    selectedCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ??
-    (courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null);
-  const courseSuggestions = useMemo(
-    () => searchSeededCourses(courseName),
-    [courseName]
-  );
+    selectedCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
   const apiCourseSuggestions = useMemo(
     () =>
       apiCourses.filter(
-        (course) =>
-          course.id !== selectedCourse?.id &&
-          !courseSuggestions.some(
-            (seededCourse) => seededCourse.name === course.name
-          )
+        (course) => course.id !== selectedCourse?.id
       ),
-    [apiCourses, courseSuggestions, selectedCourse?.id]
+    [apiCourses, selectedCourse?.id]
   );
-  const resolvedCourseFromInput = useMemo(
-    () => findSeededCourseByName(courseName),
-    [courseName]
-  );
-  const showCourseSuggestions =
-    (courseSuggestions.length > 0 || apiCourseSuggestions.length > 0) &&
-    !(selectedCourse && resolvedCourseFromInput?.id === selectedCourse.id);
+  const showCourseSuggestions = apiCourseSuggestions.length > 0;
   const holeOptions =
     selectedTeeSet?.holes ??
     (round?.courseHoles && round.courseHoles.length === 18
@@ -112,13 +87,10 @@ export default function AdminRoundDetailPage() {
       : getFallbackCourseHoles());
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
   const refreshableTeeSet =
-    selectedTeeSet ??
-    (selectedCourse
-      ? getDefaultTeeSet(selectedCourse.id) ?? selectedCourse.teeSets[0] ?? null
-      : null);
+    selectedTeeSet ?? selectedCourse?.teeSets[0] ?? null;
 
   const applyCourse = (course: SeededCourse) => {
-    const defaultTeeSet = getDefaultTeeSet(course.id) ?? course.teeSets[0] ?? null;
+    const defaultTeeSet = course.teeSets[0] ?? null;
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
@@ -160,13 +132,6 @@ export default function AdminRoundDetailPage() {
 
   const handleCourseNameChange = (value: string) => {
     setCourseName(value);
-    const matchedCourse = findSeededCourseByName(value);
-    if (matchedCourse) {
-      const defaultTeeSet = getDefaultTeeSet(matchedCourse.id);
-      setCourseId(matchedCourse.id);
-      setTeeSetId(defaultTeeSet?.id ?? "");
-      return;
-    }
     setCourseId("");
     setTeeSetId("");
   };
@@ -372,7 +337,7 @@ export default function AdminRoundDetailPage() {
       ...round,
       ...refreshedCourseDetails,
     });
-    setSuccess("Course data refreshed from seeded catalogue");
+    setSuccess("Course data refreshed from GolfCourseAPI");
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
   };
@@ -531,26 +496,11 @@ export default function AdminRoundDetailPage() {
               type="text"
               value={courseName}
               onChange={(e) => handleCourseNameChange(e.target.value)}
-              placeholder="Start typing Morack, Waterford, Eagle Ridge..."
+              placeholder="Start typing a course name..."
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
             />
             {showCourseSuggestions && (
               <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 p-1">
-                {courseSuggestions.map((course) => (
-                  <button
-                    key={course.id}
-                    type="button"
-                    onClick={() => applyCourse(course)}
-                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-gray-700 hover:bg-white"
-                  >
-                    <span className="font-medium text-gray-900">
-                      {course.name}
-                    </span>
-                    <span className="block text-[11px] text-gray-500">
-                      {getCourseSearchLabel(course)}
-                    </span>
-                  </button>
-                ))}
                 {apiCourseSuggestions.map((course) => (
                   <button
                     key={course.id}
@@ -611,7 +561,7 @@ export default function AdminRoundDetailPage() {
               <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
                 <p className="text-[11px] text-green-700">
                   Refresh pars, stroke indexes, distances, tee metadata, and NTP
-                  holes from the seeded course catalogue. LD, T2, and T3 stay as
+                  holes from GolfCourseAPI. LD, T2, and T3 stay as
                   currently selected below.
                 </p>
                 <button
@@ -620,7 +570,7 @@ export default function AdminRoundDetailPage() {
                   disabled={saving || !refreshableTeeSet}
                   className="w-full rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-300"
                 >
-                  {saving ? "Refreshing..." : "Refresh course data"}
+                  {saving ? "Refreshing..." : "Refresh API course data"}
                 </button>
               </div>
             </div>
