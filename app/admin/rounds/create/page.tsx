@@ -22,8 +22,7 @@ import {
 } from "@/lib/courseData";
 import {
   formatShortMemberName,
-  getMemberNamesForIds,
-  getShortMemberNamesForIds,
+  getTeeTimeGroupLabel,
   randomiseMemberGroups,
   resolveMemberIdsFromText,
 } from "@/lib/teeTimes";
@@ -40,6 +39,7 @@ type TeeTimeDraft = {
   time: string;
   notes: string;
   playerIds: string[];
+  guestNames: string[];
 };
 
 export default function CreateRoundPage() {
@@ -66,7 +66,7 @@ export default function CreateRoundPage() {
 
   // Tee times state
   const [teeTimes, setTeeTimes] = useState<TeeTimeDraft[]>([
-    { time: "", notes: "", playerIds: [] },
+    { time: "", notes: "", playerIds: [], guestNames: [] },
   ]);
   const [customHoles, setCustomHoles] = useState<CourseHole[]>(
     getFallbackCourseHoles
@@ -193,7 +193,10 @@ export default function CreateRoundPage() {
   }, [activeCourse?.name, courseName, courseSearchActive]);
 
   const addTeeTime = () =>
-    setTeeTimes([...teeTimes, { time: "", notes: "", playerIds: [] }]);
+    setTeeTimes([
+      ...teeTimes,
+      { time: "", notes: "", playerIds: [], guestNames: [] },
+    ]);
   const removeTeeTime = (i: number) =>
     setTeeTimes(teeTimes.filter((_, idx) => idx !== i));
   const updateTeeTime = (i: number, field: "time" | "notes", val: string) =>
@@ -217,12 +220,58 @@ export default function CreateRoundPage() {
         const playerIds = teeTime.playerIds.includes(member.uid)
           ? teeTime.playerIds.filter((playerId) => playerId !== member.uid)
           : [...teeTime.playerIds, member.uid];
-        const names = getMemberNamesForIds(playerIds, members);
+        const notes = getTeeTimeGroupLabel(
+          playerIds,
+          teeTime.guestNames,
+          members
+        );
 
         return {
           ...teeTime,
           playerIds,
-          notes: names.join(", "),
+          notes,
+        };
+      })
+    );
+  };
+
+  const addGuestToTeeTime = (teeTimeIndex: number) => {
+    const guestName =
+      typeof window !== "undefined"
+        ? window.prompt("Guest name")
+        : null;
+    const trimmed = guestName?.trim();
+    if (!trimmed) return;
+
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+        const guestNames = Array.from(
+          new Set([...teeTime.guestNames, trimmed])
+        );
+        return {
+          ...teeTime,
+          guestNames,
+          notes: getTeeTimeGroupLabel(teeTime.playerIds, guestNames, members),
+        };
+      })
+    );
+  };
+
+  const removeGuestFromTeeTime = (
+    teeTimeIndex: number,
+    guestName: string
+  ) => {
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+        const guestNames = teeTime.guestNames.filter(
+          (name) => name !== guestName
+        );
+        return {
+          ...teeTime,
+          guestNames,
+          notes: getTeeTimeGroupLabel(teeTime.playerIds, guestNames, members),
         };
       })
     );
@@ -243,7 +292,12 @@ export default function CreateRoundPage() {
           return {
             ...teeTime,
             playerIds,
-            notes: getShortMemberNamesForIds(playerIds, members).join(", "),
+            guestNames: teeTime.guestNames,
+            notes: getTeeTimeGroupLabel(
+              playerIds,
+              teeTime.guestNames,
+              members
+            ),
           };
         })
       );
@@ -318,7 +372,13 @@ export default function CreateRoundPage() {
         t3: t3Hole ? parseInt(t3Hole) : null,
       };
       const savedTeeTimes: TeeTime[] = teeTimes
-        .filter((t) => t.time || t.notes.trim() || t.playerIds.length > 0)
+        .filter(
+          (t) =>
+            t.time ||
+            t.notes.trim() ||
+            t.playerIds.length > 0 ||
+            t.guestNames.length > 0
+        )
         .map((t, index) => ({
           id: `tee-${index + 1}`,
           time: t.time,
@@ -326,7 +386,11 @@ export default function CreateRoundPage() {
             t.playerIds.length > 0
               ? t.playerIds
               : resolveMemberIdsFromText(t.notes, members),
-          notes: t.notes.trim() || null,
+          guestNames: t.guestNames,
+          notes:
+            getTeeTimeGroupLabel(t.playerIds, t.guestNames, members) ||
+            t.notes.trim() ||
+            null,
         }));
 
       const roundData: Omit<Round, "id" | "createdAt" | "updatedAt"> = {
@@ -641,8 +705,8 @@ export default function CreateRoundPage() {
             </div>
           </div>
           <p className="text-xs text-gray-400">
-            Enter the tee time and the players in each group. These player
-            names control who can be selected when a marker starts a scorecard.
+            Add the tee time and players for each group. Guests are shown in
+            the group but cannot start a scorecard.
           </p>
           {teeTimes.map((tt, i) => (
             <div
@@ -658,11 +722,22 @@ export default function CreateRoundPage() {
                 />
                 <input
                   type="text"
-                  value={tt.notes}
-                  onChange={(e) => updateTeeTime(i, "notes", e.target.value)}
-                  placeholder="Players, e.g. Paul, Leigh, Brad"
+                  value={getTeeTimeGroupLabel(
+                    tt.playerIds,
+                    tt.guestNames,
+                    members
+                  )}
+                  readOnly
+                  placeholder="No players assigned"
                   className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
+                <button
+                  type="button"
+                  onClick={() => addGuestToTeeTime(i)}
+                  className="text-green-700 text-xs font-medium hover:underline"
+                >
+                  Add guest
+                </button>
                 {teeTimes.length > 1 && (
                   <button
                     type="button"
@@ -674,9 +749,9 @@ export default function CreateRoundPage() {
                   </button>
                 )}
               </div>
-              {members.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {members.map((member) => {
+              <div className="flex flex-wrap gap-2">
+                {members.length > 0 &&
+                  members.map((member) => {
                     const selected = tt.playerIds.includes(member.uid);
                     return (
                       <button
@@ -693,8 +768,18 @@ export default function CreateRoundPage() {
                       </button>
                     );
                   })}
-                </div>
-              )}
+                {tt.guestNames.map((guestName) => (
+                  <button
+                    key={guestName}
+                    type="button"
+                    onClick={() => removeGuestFromTeeTime(i, guestName)}
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
+                    aria-label={`Remove guest ${guestName}`}
+                  >
+                    {guestName} x
+                  </button>
+                ))}
+              </div>
             </div>
           ))}
         </div>

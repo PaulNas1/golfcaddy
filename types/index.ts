@@ -144,6 +144,7 @@ export interface TeeTime {
   id: string;
   time: string;           // "08:12"
   playerIds: string[];
+  guestNames: string[];
   notes: string | null;
 }
 

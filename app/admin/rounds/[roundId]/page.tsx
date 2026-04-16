@@ -29,8 +29,7 @@ import {
 } from "@/lib/courseData";
 import {
   formatShortMemberName,
-  getMemberNamesForIds,
-  getShortMemberNamesForIds,
+  getTeeTimeGroupLabel,
   normaliseTeeTimePlayerIds,
   randomiseMemberGroups,
   resolveMemberIdsFromText,
@@ -50,6 +49,7 @@ type TeeTimeDraft = {
   time: string;
   notes: string;
   playerIds: string[];
+  guestNames: string[];
 };
 
 export default function AdminRoundDetailPage() {
@@ -89,7 +89,7 @@ export default function AdminRoundDetailPage() {
   >({});
   const [showTeeAssignments, setShowTeeAssignments] = useState(false);
   const [teeTimes, setTeeTimes] = useState<TeeTimeDraft[]>([
-    { time: "", notes: "", playerIds: [] },
+    { time: "", notes: "", playerIds: [], guestNames: [] },
   ]);
   const selectedCourse = useMemo(() => {
     const apiCourseById = apiCourses.find((course) => course.id === courseId);
@@ -272,8 +272,9 @@ export default function AdminRoundDetailPage() {
                   time: t.time,
                   notes: t.notes ?? "",
                   playerIds: normaliseTeeTimePlayerIds(t, activeMembers),
+                  guestNames: t.guestNames ?? [],
                 }))
-              : [{ time: "", notes: "", playerIds: [] }]
+              : [{ time: "", notes: "", playerIds: [], guestNames: [] }]
           );
           loadScorecards(r);
         }
@@ -344,7 +345,13 @@ export default function AdminRoundDetailPage() {
       t3: t3Hole ? parseInt(t3Hole, 10) : null,
     };
     const savedTeeTimes: TeeTime[] = teeTimes
-      .filter((t) => t.time || t.notes?.trim() || t.playerIds.length > 0)
+      .filter(
+        (t) =>
+          t.time ||
+          t.notes?.trim() ||
+          t.playerIds.length > 0 ||
+          t.guestNames.length > 0
+      )
       .map((t, index) => ({
         id: `tee-${index + 1}`,
         time: t.time,
@@ -352,7 +359,11 @@ export default function AdminRoundDetailPage() {
           t.playerIds.length > 0
             ? t.playerIds
             : resolveMemberIdsFromText(t.notes, members),
-        notes: t.notes?.trim() || null,
+        guestNames: t.guestNames,
+        notes:
+          getTeeTimeGroupLabel(t.playerIds, t.guestNames, members) ||
+          t.notes?.trim() ||
+          null,
       }));
     const savedCourseId =
       selectedCourse?.id ?? (preserveExistingCourseData ? round.courseId : "");
@@ -493,7 +504,10 @@ export default function AdminRoundDetailPage() {
   };
 
   const addTeeTime = () =>
-    setTeeTimes([...teeTimes, { time: "", notes: "", playerIds: [] }]);
+    setTeeTimes([
+      ...teeTimes,
+      { time: "", notes: "", playerIds: [], guestNames: [] },
+    ]);
 
   const removeTeeTime = (index: number) =>
     setTeeTimes(teeTimes.filter((_, i) => i !== index));
@@ -524,12 +538,58 @@ export default function AdminRoundDetailPage() {
         const playerIds = teeTime.playerIds.includes(member.uid)
           ? teeTime.playerIds.filter((playerId) => playerId !== member.uid)
           : [...teeTime.playerIds, member.uid];
-        const names = getMemberNamesForIds(playerIds, members);
+        const notes = getTeeTimeGroupLabel(
+          playerIds,
+          teeTime.guestNames,
+          members
+        );
 
         return {
           ...teeTime,
           playerIds,
-          notes: names.join(", "),
+          notes,
+        };
+      })
+    );
+  };
+
+  const addGuestToTeeTime = (teeTimeIndex: number) => {
+    const guestName =
+      typeof window !== "undefined"
+        ? window.prompt("Guest name")
+        : null;
+    const trimmed = guestName?.trim();
+    if (!trimmed) return;
+
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+        const guestNames = Array.from(
+          new Set([...teeTime.guestNames, trimmed])
+        );
+        return {
+          ...teeTime,
+          guestNames,
+          notes: getTeeTimeGroupLabel(teeTime.playerIds, guestNames, members),
+        };
+      })
+    );
+  };
+
+  const removeGuestFromTeeTime = (
+    teeTimeIndex: number,
+    guestName: string
+  ) => {
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+        const guestNames = teeTime.guestNames.filter(
+          (name) => name !== guestName
+        );
+        return {
+          ...teeTime,
+          guestNames,
+          notes: getTeeTimeGroupLabel(teeTime.playerIds, guestNames, members),
         };
       })
     );
@@ -555,7 +615,12 @@ export default function AdminRoundDetailPage() {
           return {
             ...teeTime,
             playerIds,
-            notes: getShortMemberNamesForIds(playerIds, members).join(", "),
+            guestNames: teeTime.guestNames,
+            notes: getTeeTimeGroupLabel(
+              playerIds,
+              teeTime.guestNames,
+              members
+            ),
           };
         })
       );
@@ -951,8 +1016,8 @@ export default function AdminRoundDetailPage() {
               </div>
             </div>
             <p className="text-[11px] text-gray-400">
-              Add the players for each tee time. These names limit who can be
-              selected when a marker starts a scorecard.
+              Add accepted players to each tee time. Guests are shown in the
+              group but cannot start a scorecard.
             </p>
             {round.rsvpOpen && (
               <p className="text-[11px] text-green-700">
@@ -975,13 +1040,22 @@ export default function AdminRoundDetailPage() {
                   />
                   <input
                     type="text"
-                    value={teeTime.notes}
-                    onChange={(e) =>
-                      updateTeeTime(index, "notes", e.target.value)
-                    }
-                    placeholder="Players, e.g. Paul, Leigh, Brad"
+                    value={getTeeTimeGroupLabel(
+                      teeTime.playerIds,
+                      teeTime.guestNames,
+                      members
+                    )}
+                    readOnly
+                    placeholder="No players assigned"
                     className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
+                  <button
+                    type="button"
+                    onClick={() => addGuestToTeeTime(index)}
+                    className="text-xs text-green-700 underline"
+                  >
+                    Add guest
+                  </button>
                   {teeTimes.length > 1 && (
                     <button
                       type="button"
@@ -992,9 +1066,15 @@ export default function AdminRoundDetailPage() {
                     </button>
                   )}
                 </div>
-                {acceptedMembers.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {acceptedMembers.map((member) => {
+                <div className="flex flex-wrap gap-2">
+                  {acceptedMembers.length === 0 && (
+                    <p className="text-[11px] text-gray-400">
+                      No accepted players yet. Tee-time groups can be filled
+                      after players RSVP.
+                    </p>
+                  )}
+                  {acceptedMembers.length > 0 &&
+                    acceptedMembers.map((member) => {
                       const selected = teeTime.playerIds.includes(member.uid);
                       return (
                         <button
@@ -1011,8 +1091,18 @@ export default function AdminRoundDetailPage() {
                         </button>
                       );
                     })}
-                  </div>
-                )}
+                  {teeTime.guestNames.map((guestName) => (
+                    <button
+                      key={guestName}
+                      type="button"
+                      onClick={() => removeGuestFromTeeTime(index, guestName)}
+                      className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
+                      aria-label={`Remove guest ${guestName}`}
+                    >
+                      {guestName} x
+                    </button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>

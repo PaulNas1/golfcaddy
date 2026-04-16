@@ -94,6 +94,9 @@ const mapRound = (
           playerIds: Array.isArray(teeTime.playerIds)
             ? teeTime.playerIds
             : [],
+          guestNames: Array.isArray(teeTime.guestNames)
+            ? teeTime.guestNames
+            : [],
           notes: teeTime.notes ?? null,
         }))
       : [],

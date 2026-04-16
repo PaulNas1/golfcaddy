@@ -58,6 +58,17 @@ export function getShortMemberNamesForIds(
     .map(formatShortMemberName);
 }
 
+export function getTeeTimeGroupLabel(
+  playerIds: string[],
+  guestNames: string[],
+  members: AppUser[]
+) {
+  return [
+    ...getShortMemberNamesForIds(playerIds, members),
+    ...guestNames.map((name) => name.trim()).filter(Boolean),
+  ].join(", ");
+}
+
 export function resolveMemberIdsFromText(text: string, members: AppUser[]) {
   const usedIds = new Set<string>();
 
