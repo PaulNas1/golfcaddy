@@ -35,22 +35,34 @@ export default function AdminMembersPage() {
 
   const load = useCallback(async () => {
     const groupId = appUser?.groupId ?? "fourplay";
-    const [p, a, groupRecord, memberRecords, memberInvites] = await Promise.all([
-      getPendingMembers(groupId),
-      getActiveMembers(groupId),
-      getGroup(groupId),
-      getMembersForGroup(groupId),
-      getMemberInvitesForGroup(groupId),
-    ]);
-    setPending(p);
-    setActive(a);
-    setGroup(groupRecord);
-    setSeason(groupRecord?.currentSeason ?? new Date().getFullYear());
-    setInvites(memberInvites);
-    setMembers(
-      Object.fromEntries(memberRecords.map((member) => [member.userId, member]))
-    );
-    setLoading(false);
+    setLoading(true);
+    try {
+      const [p, a, groupRecord, memberRecords] = await Promise.all([
+        getPendingMembers(groupId),
+        getActiveMembers(groupId),
+        getGroup(groupId),
+        getMembersForGroup(groupId),
+      ]);
+      setPending(p);
+      setActive(a);
+      setGroup(groupRecord);
+      setSeason(groupRecord?.currentSeason ?? new Date().getFullYear());
+      setMembers(
+        Object.fromEntries(memberRecords.map((member) => [member.userId, member]))
+      );
+
+      getMemberInvitesForGroup(groupId)
+        .then(setInvites)
+        .catch((err) => {
+          console.warn("Unable to load member invites", err);
+          setInvites([]);
+        });
+    } catch (err) {
+      console.error("Unable to load members", err);
+      setError("Failed to load members. Please refresh and try again.");
+    } finally {
+      setLoading(false);
+    }
   }, [appUser?.groupId]);
 
   useEffect(() => { load(); }, [load]);
