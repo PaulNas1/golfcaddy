@@ -22,7 +22,14 @@ import {
   getDefaultTeeSet,
   searchSeededCourses,
 } from "@/lib/courseData";
-import type { Round, RoundStatus, Scorecard, ScoringFormat, TeeTime } from "@/types";
+import type {
+  HoleOverride,
+  Round,
+  RoundStatus,
+  Scorecard,
+  ScoringFormat,
+  TeeTime,
+} from "@/types";
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -35,6 +42,9 @@ export default function AdminRoundDetailPage() {
   const [deleteError, setDeleteError] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [scorecards, setScorecards] = useState<Scorecard[]>([]);
+  const [editingOverride, setEditingOverride] = useState<HoleOverride | null>(
+    null
+  );
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
@@ -304,24 +314,62 @@ export default function AdminRoundDetailPage() {
   ) => {
     if (!round) return;
     setSaving(true);
-    const courseHole =
-      (round.courseHoles.length === 18
-        ? round.courseHoles
-        : getFallbackCourseHoles()
-      ).find((hole) => hole.number === holeNumber);
-    const override = {
-      holeNumber,
-      originalPar: courseHole?.par ?? 4,
-      overridePar,
-      reason,
-      overriddenAt: new Date(),
-    };
-    const updated = [...round.holeOverrides, override];
-    await updateRound(round.id, { holeOverrides: updated });
-    setRound({ ...round, holeOverrides: updated });
-    setSuccess("Hole par updated. Members will be notified.");
-    setSaving(false);
-    setTimeout(() => setSuccess(""), 3000);
+    try {
+      const courseHole =
+        (round.courseHoles.length === 18
+          ? round.courseHoles
+          : getFallbackCourseHoles()
+        ).find((hole) => hole.number === holeNumber);
+      const existingOverride = round.holeOverrides.find(
+        (override) => override.holeNumber === holeNumber
+      );
+      const override: HoleOverride = {
+        holeNumber,
+        originalPar: existingOverride?.originalPar ?? courseHole?.par ?? 4,
+        overridePar,
+        reason: reason.trim(),
+        overriddenAt: new Date(),
+      };
+      const updated = [
+        ...round.holeOverrides.filter(
+          (current) => current.holeNumber !== holeNumber
+        ),
+        override,
+      ].sort((a, b) => a.holeNumber - b.holeNumber);
+
+      await updateRound(round.id, { holeOverrides: updated });
+      setRound({ ...round, holeOverrides: updated });
+      setEditingOverride(null);
+      setSuccess("Hole par updated. Members will be notified.");
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteHoleOverride = async (holeNumber: number) => {
+    if (!round) return;
+    const confirmed = window.confirm(
+      `Delete the par override for hole ${holeNumber}?`
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const updated = round.holeOverrides.filter(
+        (override) => override.holeNumber !== holeNumber
+      );
+
+      await updateRound(round.id, { holeOverrides: updated });
+      setRound({ ...round, holeOverrides: updated });
+      if (editingOverride?.holeNumber === holeNumber) {
+        setEditingOverride(null);
+      }
+      setSuccess("Hole par override deleted. Members will be notified.");
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -683,6 +731,8 @@ export default function AdminRoundDetailPage() {
           holes={holeOptions}
           onSubmit={addHoleOverride}
           disabled={saving}
+          editingOverride={editingOverride}
+          onCancelEdit={() => setEditingOverride(null)}
         />
 
         {round.holeOverrides.length > 0 && (
@@ -691,10 +741,36 @@ export default function AdminRoundDetailPage() {
             {round.holeOverrides.map((o) => (
               <div
                 key={o.holeNumber}
-                className="bg-amber-50 rounded-xl px-3 py-2 text-sm text-amber-800"
+                className="flex items-center justify-between gap-3 bg-amber-50 rounded-xl px-3 py-2 text-sm text-amber-800"
               >
-                Hole {o.holeNumber}: Par {o.originalPar} → {o.overridePar}
-                {o.reason && <span className="text-amber-600"> ({o.reason})</span>}
+                <div className="min-w-0">
+                  <span className="font-medium">
+                    Hole {o.holeNumber}: Par {o.originalPar} → {o.overridePar}
+                  </span>
+                  {o.reason && (
+                    <span className="ml-1 text-amber-600">({o.reason})</span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditingOverride(o)}
+                    disabled={saving}
+                    aria-label={`Edit override for hole ${o.holeNumber}`}
+                    className="rounded-lg border border-amber-200 bg-white p-2 text-amber-700 transition-colors hover:bg-amber-100 disabled:text-amber-300"
+                  >
+                    <PencilIcon />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteHoleOverride(o.holeNumber)}
+                    disabled={saving}
+                    aria-label={`Delete override for hole ${o.holeNumber}`}
+                    className="rounded-lg border border-red-100 bg-white p-2 text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -766,18 +842,73 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PencilIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M6 18h12"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .563c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916A2.25 2.25 0 0 0 13.5 2.25h-3A2.25 2.25 0 0 0 8.25 4.5v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+      />
+    </svg>
+  );
+}
+
 function HoleOverrideForm({
   holes,
   onSubmit,
   disabled,
+  editingOverride,
+  onCancelEdit,
 }: {
   holes: Round["courseHoles"];
   onSubmit: (hole: number, par: number, reason: string) => void;
   disabled: boolean;
+  editingOverride: HoleOverride | null;
+  onCancelEdit: () => void;
 }) {
   const [hole, setHole] = useState("");
   const [par, setPar] = useState("");
   const [reason, setReason] = useState("");
+  const isEditing = Boolean(editingOverride);
+
+  useEffect(() => {
+    if (!editingOverride) {
+      setHole("");
+      setPar("");
+      setReason("");
+      return;
+    }
+    setHole(String(editingOverride.holeNumber));
+    setPar(String(editingOverride.overridePar));
+    setReason(editingOverride.reason);
+  }, [editingOverride]);
 
   const handle = () => {
     if (!hole || !par) return;
@@ -793,6 +924,7 @@ function HoleOverrideForm({
         <select
           value={hole}
           onChange={(e) => setHole(e.target.value)}
+          disabled={isEditing}
           className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">Hole</option>
@@ -826,8 +958,25 @@ function HoleOverrideForm({
         disabled={disabled || !hole || !par}
         className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
       >
-        Apply Override & Notify Members
+        {isEditing
+          ? "Save Override & Notify Members"
+          : "Apply Override & Notify Members"}
       </button>
+      {isEditing && (
+        <button
+          type="button"
+          onClick={() => {
+            onCancelEdit();
+            setHole("");
+            setPar("");
+            setReason("");
+          }}
+          disabled={disabled}
+          className="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50 disabled:text-gray-300"
+        >
+          Cancel edit
+        </button>
+      )}
     </div>
   );
 }
