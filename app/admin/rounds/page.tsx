@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getRounds } from "@/lib/firestore";
+import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import type { Round, RoundStatus } from "@/types";
 
 const STATUS_STYLES: Record<RoundStatus, string> = {
@@ -66,7 +67,12 @@ export default function AdminRoundsPage() {
                       <span className="text-xs text-gray-400">Round {round.roundNumber}</span>
                     </div>
                     <h3 className="font-semibold text-gray-800">{round.courseName}</h3>
-                    <p className="text-gray-500 text-sm">{format(round.date, "EEE d MMM yyyy")}</p>
+                    <p className="text-gray-500 text-sm">
+                      {format(round.date, "EEE d MMM yyyy")}
+                      {getFirstTeeTimeLabel(round)
+                        ? ` · ${getFirstTeeTimeLabel(round)}`
+                        : ""}
+                    </p>
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-400" />
                 </div>

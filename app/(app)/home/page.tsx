@@ -10,6 +10,7 @@ import {
   getLiveRound,
   getSeasonStandings,
 } from "@/lib/firestore";
+import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import type { Round, SeasonStanding } from "@/types";
 
 export default function HomePage() {
@@ -66,7 +67,9 @@ export default function HomePage() {
                 <span className="text-xs font-semibold uppercase tracking-wide">Live now</span>
               </div>
               <p className="font-bold text-lg leading-tight">{liveRound.courseName}</p>
-              <p className="text-red-100 text-sm">Scoring is open</p>
+              <p className="text-red-100 text-sm">
+                {getFirstTeeTimeLabel(liveRound) ?? "Scoring is open"}
+              </p>
             </div>
             <div className="text-3xl">🏌️</div>
           </div>
@@ -93,6 +96,9 @@ export default function HomePage() {
                   </h2>
                   <p className="text-gray-500 text-sm mt-1">
                     {format(nextRound.date, "EEEE d MMMM yyyy")}
+                    {getFirstTeeTimeLabel(nextRound)
+                      ? ` · ${getFirstTeeTimeLabel(nextRound)}`
+                      : ""}
                   </p>
                   <div className="mt-3 flex items-center gap-2">
                     <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${

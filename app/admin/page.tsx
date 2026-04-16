@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getPendingMembers, getRounds } from "@/lib/firestore";
+import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import type { AppUser, Round } from "@/types";
 
 export default function AdminDashboard() {
@@ -74,6 +75,11 @@ export default function AdminDashboard() {
             ● Round Live
           </p>
           <p className="font-bold text-gray-800">{liveRound.courseName}</p>
+          {getFirstTeeTimeLabel(liveRound) && (
+            <p className="text-xs text-red-500 mt-1">
+              {getFirstTeeTimeLabel(liveRound)}
+            </p>
+          )}
           <Link
             href={`/admin/rounds/${liveRound.id}`}
             className="mt-3 inline-block text-sm text-red-600 font-medium hover:underline"

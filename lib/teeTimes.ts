@@ -1,0 +1,105 @@
+import type { AppUser, Round, TeeTime } from "@/types";
+
+export function formatTeeTime(time: string) {
+  const [hourValue, minuteValue] = time.split(":");
+  const hour = parseInt(hourValue, 10);
+  const minute = parseInt(minuteValue, 10);
+
+  if (
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return time;
+  }
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute.toString().padStart(2, "0")} ${suffix}`;
+}
+
+export function getFirstTeeTime(round: Pick<Round, "teeTimes">) {
+  return (
+    round.teeTimes
+      .filter((teeTime) => teeTime.time)
+      .sort((a, b) => a.time.localeCompare(b.time))[0] ?? null
+  );
+}
+
+export function getFirstTeeTimeLabel(round: Pick<Round, "teeTimes">) {
+  const firstTeeTime = getFirstTeeTime(round);
+  return firstTeeTime ? `First tee ${formatTeeTime(firstTeeTime.time)}` : null;
+}
+
+export function getMemberNamesForIds(memberIds: string[], members: AppUser[]) {
+  return memberIds
+    .map((memberId) => members.find((member) => member.uid === memberId))
+    .filter((member): member is AppUser => Boolean(member))
+    .map((member) => member.displayName);
+}
+
+export function resolveMemberIdsFromText(text: string, members: AppUser[]) {
+  const usedIds = new Set<string>();
+
+  text
+    .split(/,|\/|&|\band\b|\n/i)
+    .map((entry) => normalizeName(entry))
+    .filter(Boolean)
+    .forEach((entry) => {
+      const exactMatch = members.find(
+        (member) => normalizeName(member.displayName) === entry
+      );
+      if (exactMatch) {
+        usedIds.add(exactMatch.uid);
+        return;
+      }
+
+      const firstNameMatches = members.filter(
+        (member) => normalizeName(member.displayName.split(" ")[0]) === entry
+      );
+      if (firstNameMatches.length === 1) {
+        usedIds.add(firstNameMatches[0].uid);
+      }
+    });
+
+  return Array.from(usedIds);
+}
+
+export function getEligibleScorecardMembers(
+  round: Pick<Round, "teeTimes">,
+  members: AppUser[],
+  currentUserId: string
+) {
+  const teeTimesWithPlayers = round.teeTimes.filter(
+    (teeTime) => teeTime.playerIds.length > 0
+  );
+
+  if (teeTimesWithPlayers.length === 0) return members;
+
+  const currentUserTeeTime = teeTimesWithPlayers.find((teeTime) =>
+    teeTime.playerIds.includes(currentUserId)
+  );
+  const eligibleIds = new Set(
+    currentUserTeeTime
+      ? currentUserTeeTime.playerIds
+      : teeTimesWithPlayers.flatMap((teeTime) => teeTime.playerIds)
+  );
+
+  return members.filter((member) => eligibleIds.has(member.uid));
+}
+
+export function normaliseTeeTimePlayerIds(
+  teeTime: Pick<TeeTime, "notes" | "playerIds">,
+  members: AppUser[]
+) {
+  return teeTime.playerIds.length > 0
+    ? teeTime.playerIds
+    : resolveMemberIdsFromText(teeTime.notes ?? "", members);
+}
+
+function normalizeName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}

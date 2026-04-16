@@ -15,6 +15,7 @@ import {
   updateScorecard,
 } from "@/lib/firestore";
 import { getFallbackCourseHoles } from "@/lib/courseData";
+import { getEligibleScorecardMembers } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Round, Scorecard, HoleScore, AppUser } from "@/types";
 import { calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
@@ -117,6 +118,15 @@ export default function ScorecardPage() {
     }
     if (!playerToMarkId) {
       setError("Please select the player you are marking.");
+      return;
+    }
+    const eligiblePlayers = getEligibleScorecardMembers(
+      round,
+      members,
+      appUser.uid
+    );
+    if (!eligiblePlayers.some((member) => member.uid === playerToMarkId)) {
+      setError("Please select a player from your tee-time group.");
       return;
     }
     setError("");
@@ -416,6 +426,10 @@ export default function ScorecardPage() {
     scorecard &&
     members.find((m) => m.uid === scorecard.playerId)?.displayName;
   const markerName = appUser?.displayName;
+  const eligibleMembers =
+    round && appUser
+      ? getEligibleScorecardMembers(round, members, appUser.uid)
+      : members;
 
   return (
     <div className="px-4 py-6 space-y-4 pb-20">
@@ -449,7 +463,7 @@ export default function ScorecardPage() {
             className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="">Select player</option>
-            {members.map((m) => (
+            {eligibleMembers.map((m) => (
               <option key={m.uid} value={m.uid}>
                 {m.uid === appUser?.uid
                   ? `${m.displayName} (my own card)`
@@ -457,6 +471,11 @@ export default function ScorecardPage() {
               </option>
             ))}
           </select>
+          {eligibleMembers.length < members.length && (
+            <p className="text-[11px] text-gray-400">
+              Showing players assigned to your tee-time group.
+            </p>
+          )}
           <button
             type="button"
             onClick={handleStartCard}

@@ -10,6 +10,7 @@ import {
 } from "@/lib/courseCatalogueClient";
 import {
   deleteRoundCascade,
+  getActiveMembers,
   getRound,
   updateRound,
   getScorecardsForRound,
@@ -22,7 +23,13 @@ import {
   getHoleOptionLabel,
   getParThreeHoles,
 } from "@/lib/courseData";
+import {
+  getMemberNamesForIds,
+  normaliseTeeTimePlayerIds,
+  resolveMemberIdsFromText,
+} from "@/lib/teeTimes";
 import type {
+  AppUser,
   HoleOverride,
   Round,
   RoundStatus,
@@ -30,6 +37,12 @@ import type {
   ScoringFormat,
   TeeTime,
 } from "@/types";
+
+type TeeTimeDraft = {
+  time: string;
+  notes: string;
+  playerIds: string[];
+};
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -48,6 +61,7 @@ export default function AdminRoundDetailPage() {
   const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
+  const [members, setMembers] = useState<AppUser[]>([]);
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
@@ -59,8 +73,8 @@ export default function AdminRoundDetailPage() {
   const [ldHole, setLdHole] = useState("");
   const [t2Hole, setT2Hole] = useState("");
   const [t3Hole, setT3Hole] = useState("");
-  const [teeTimes, setTeeTimes] = useState<Array<{ time: string; notes: string }>>([
-    { time: "", notes: "" },
+  const [teeTimes, setTeeTimes] = useState<TeeTimeDraft[]>([
+    { time: "", notes: "", playerIds: [] },
   ]);
   const selectedCourse = useMemo(() => {
     const apiCourseById = apiCourses.find((course) => course.id === courseId);
@@ -175,7 +189,8 @@ export default function AdminRoundDetailPage() {
 
   useEffect(() => {
     if (roundId) {
-      getRound(roundId).then((r) => {
+      Promise.all([getRound(roundId), getActiveMembers("fourplay")]).then(([r, activeMembers]) => {
+        setMembers(activeMembers);
         setRound(r);
         setLoading(false);
         if (r) {
@@ -194,8 +209,9 @@ export default function AdminRoundDetailPage() {
               ? r.teeTimes.map((t) => ({
                   time: t.time,
                   notes: t.notes ?? "",
+                  playerIds: normaliseTeeTimePlayerIds(t, activeMembers),
                 }))
-              : [{ time: "", notes: "" }]
+              : [{ time: "", notes: "", playerIds: [] }]
           );
           loadScorecards(r);
         }
@@ -265,11 +281,14 @@ export default function AdminRoundDetailPage() {
       t3: t3Hole ? parseInt(t3Hole, 10) : null,
     };
     const savedTeeTimes: TeeTime[] = teeTimes
-      .filter((t) => t.time || t.notes?.trim())
+      .filter((t) => t.time || t.notes?.trim() || t.playerIds.length > 0)
       .map((t, index) => ({
         id: `tee-${index + 1}`,
         time: t.time,
-        playerIds: [],
+        playerIds:
+          t.playerIds.length > 0
+            ? t.playerIds
+            : resolveMemberIdsFromText(t.notes, members),
         notes: t.notes?.trim() || null,
       }));
     const savedCourseId =
@@ -366,7 +385,7 @@ export default function AdminRoundDetailPage() {
   };
 
   const addTeeTime = () =>
-    setTeeTimes([...teeTimes, { time: "", notes: "" }]);
+    setTeeTimes([...teeTimes, { time: "", notes: "", playerIds: [] }]);
 
   const removeTeeTime = (index: number) =>
     setTeeTimes(teeTimes.filter((_, i) => i !== index));
@@ -377,10 +396,36 @@ export default function AdminRoundDetailPage() {
     value: string
   ) =>
     setTeeTimes(
-      teeTimes.map((teeTime, i) =>
-        i === index ? { ...teeTime, [field]: value } : teeTime
-      )
+      teeTimes.map((teeTime, i) => {
+        if (i !== index) return teeTime;
+        const updated = { ...teeTime, [field]: value };
+        return field === "notes"
+          ? {
+              ...updated,
+              playerIds: resolveMemberIdsFromText(value, members),
+            }
+          : updated;
+      })
     );
+
+  const toggleTeeTimePlayer = (teeTimeIndex: number, member: AppUser) => {
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+
+        const playerIds = teeTime.playerIds.includes(member.uid)
+          ? teeTime.playerIds.filter((playerId) => playerId !== member.uid)
+          : [...teeTime.playerIds, member.uid];
+        const names = getMemberNamesForIds(playerIds, members);
+
+        return {
+          ...teeTime,
+          playerIds,
+          notes: names.join(", "),
+        };
+      })
+    );
+  };
 
   const addHoleOverride = async (
     holeNumber: number,
@@ -648,33 +693,63 @@ export default function AdminRoundDetailPage() {
                 + Add tee time
               </button>
             </div>
+            <p className="text-[11px] text-gray-400">
+              Add the players for each tee time. These names limit who can be
+              selected when a marker starts a scorecard.
+            </p>
             {teeTimes.map((teeTime, index) => (
-              <div key={index} className="flex gap-2 items-center">
-                <input
-                  type="time"
-                  value={teeTime.time}
-                  onChange={(e) =>
-                    updateTeeTime(index, "time", e.target.value)
-                  }
-                  className="w-28 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="text"
-                  value={teeTime.notes}
-                  onChange={(e) =>
-                    updateTeeTime(index, "notes", e.target.value)
-                  }
-                  placeholder="Group notes"
-                  className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                {teeTimes.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeTeeTime(index)}
-                    className="text-xs text-red-500 underline"
-                  >
-                    Remove
-                  </button>
+              <div
+                key={index}
+                className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2"
+              >
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="time"
+                    value={teeTime.time}
+                    onChange={(e) =>
+                      updateTeeTime(index, "time", e.target.value)
+                    }
+                    className="w-28 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <input
+                    type="text"
+                    value={teeTime.notes}
+                    onChange={(e) =>
+                      updateTeeTime(index, "notes", e.target.value)
+                    }
+                    placeholder="Players, e.g. Paul, Leigh, Brad"
+                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  {teeTimes.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeTeeTime(index)}
+                      className="text-xs text-red-500 underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {members.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {members.map((member) => {
+                      const selected = teeTime.playerIds.includes(member.uid);
+                      return (
+                        <button
+                          key={member.uid}
+                          type="button"
+                          onClick={() => toggleTeeTimePlayer(index, member)}
+                          className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                            selected
+                              ? "border-green-600 bg-green-50 text-green-700"
+                              : "border-gray-200 bg-white text-gray-500"
+                          }`}
+                        >
+                          {member.displayName.split(" ")[0]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             ))}

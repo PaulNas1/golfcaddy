@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { getLiveRound, getResultsForRound, getRound } from "@/lib/firestore";
 import { withSeededCourseData } from "@/lib/courseData";
+import { formatTeeTime, getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Results, Round } from "@/types";
 
@@ -119,7 +120,12 @@ export default function RoundDetailPage() {
           <span className="text-xs text-gray-400">Round {round.roundNumber} · {round.season}</span>
         </div>
         <h1 className="text-2xl font-bold text-gray-800 leading-tight">{round.courseName}</h1>
-        <p className="text-gray-500 mt-1">{format(round.date, "EEEE d MMMM yyyy")}</p>
+        <p className="text-gray-500 mt-1">
+          {format(round.date, "EEEE d MMMM yyyy")}
+          {getFirstTeeTimeLabel(round)
+            ? ` · ${getFirstTeeTimeLabel(round)}`
+            : ""}
+        </p>
       </div>
 
       {/* Scoring format */}
@@ -227,7 +233,7 @@ export default function RoundDetailPage() {
                 className="flex items-center justify-between py-2 text-sm"
               >
                 <span className="font-semibold text-gray-800">
-                  {teeTime.time || "TBC"}
+                  {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
                 </span>
                 <span className="text-gray-500 text-right">
                   {teeTime.notes || "Group details TBC"}

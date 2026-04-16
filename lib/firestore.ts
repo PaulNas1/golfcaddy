@@ -82,7 +82,16 @@ const mapRound = (
   return withSeededCourseData({
     id: d.id,
     ...data,
-    teeTimes: data.teeTimes ?? [],
+    teeTimes: Array.isArray(data.teeTimes)
+      ? data.teeTimes.map((teeTime, index) => ({
+          id: teeTime.id ?? `tee-${index + 1}`,
+          time: teeTime.time ?? "",
+          playerIds: Array.isArray(teeTime.playerIds)
+            ? teeTime.playerIds
+            : [],
+          notes: teeTime.notes ?? null,
+        }))
+      : [],
     courseId: data.courseId ?? "",
     teeSetId: data.teeSetId ?? null,
     teeSetName: data.teeSetName ?? null,
