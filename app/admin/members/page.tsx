@@ -328,6 +328,9 @@ export default function AdminMembersPage() {
                   </div>
                   {editingHandicapFor !== user.uid && (
                     <div className="flex shrink-0 items-center gap-2">
+                      <span className="whitespace-nowrap text-xs text-gray-400">
+                        {formatRoleLabel(user.role)}
+                      </span>
                       <span className="whitespace-nowrap rounded-lg bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-700">
                         HCP {members[user.uid]?.currentHandicap ?? "—"}
                       </span>
@@ -388,6 +391,10 @@ export default function AdminMembersPage() {
       </div>
     </div>
   );
+}
+
+function formatRoleLabel(role: AppUser["role"]) {
+  return role === "admin" ? "Admin" : "Member";
 }
 
 function buildInviteLink(invite: MemberInvite) {
