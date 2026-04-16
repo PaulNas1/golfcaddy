@@ -316,7 +316,7 @@ export default function AdminMembersPage() {
             {active.map((user) => (
               <div
                 key={user.uid}
-                className="bg-white rounded-2xl border border-gray-100 px-4 py-3"
+                className="bg-white rounded-xl border border-gray-100 px-4 py-3"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-base font-bold text-green-700">
@@ -326,11 +326,25 @@ export default function AdminMembersPage() {
                     <p className="font-medium text-gray-800 text-sm">{user.displayName}</p>
                     <p className="text-gray-400 text-xs truncate">{user.email}</p>
                   </div>
-                  <span className="text-xs text-gray-400 capitalize">{user.role}</span>
+                  {editingHandicapFor !== user.uid && (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="whitespace-nowrap rounded-lg bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-700">
+                        HCP {members[user.uid]?.currentHandicap ?? "—"}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Edit handicap for ${user.displayName}`}
+                        onClick={() => startHandicapEdit(user)}
+                        className="rounded-lg border border-green-100 bg-white p-2 text-green-700"
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3">
-                  {editingHandicapFor === user.uid ? (
+                {editingHandicapFor === user.uid && (
+                  <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3">
                     <div className="space-y-2">
                       <label className="block">
                         <span className="block text-xs font-medium text-gray-600 mb-1">
@@ -365,27 +379,8 @@ export default function AdminMembersPage() {
                         </button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-baseline gap-2">
-                        <p className="text-xs font-medium text-gray-500">
-                          GolfCaddy HCP
-                        </p>
-                        <p className="text-lg font-bold text-gray-800">
-                          {members[user.uid]?.currentHandicap ?? "Not set"}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`Edit handicap for ${user.displayName}`}
-                        onClick={() => startHandicapEdit(user)}
-                        className="rounded-lg bg-white p-2 text-green-700 border border-green-100"
-                      >
-                        <PencilIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
