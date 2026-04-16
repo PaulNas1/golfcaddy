@@ -169,7 +169,7 @@ export default function CreateRoundPage() {
       if (cancelled) return;
 
       setApiCourses(result.courses.slice(0, 6));
-      setApiCourseError(result.configured ? result.error ?? "" : "");
+      setApiCourseError(result.error ?? "");
       setApiCourseLoading(false);
     }, 600);
 
