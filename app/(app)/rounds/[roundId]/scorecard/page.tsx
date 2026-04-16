@@ -758,6 +758,7 @@ function HoleRow({
         {!disabled && (
           <button
             type="button"
+            aria-label={`Edit Stableford points for hole ${hole.holeNumber}`}
             onClick={() => {
               const current =
                 hole.stablefordPoints != null
@@ -770,12 +771,31 @@ function HoleRow({
               if (next == null) return;
               onStablefordOverride(hole.holeNumber, next);
             }}
-            className="text-[10px] text-green-600 underline"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-green-600 hover:bg-green-50"
           >
-            Edit
+            <PencilIcon className="h-4 w-4" />
           </button>
         )}
       </div>
     </div>
+  );
+}
+
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487 19.5 7.125m-1.5-4.5a2.121 2.121 0 0 1 3 3L7.5 19.125 3 20.25l1.125-4.5L18 2.625Z"
+      />
+    </svg>
   );
 }
