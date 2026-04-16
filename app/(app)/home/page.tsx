@@ -24,14 +24,15 @@ export default function HomePage() {
   useEffect(() => {
     const load = async () => {
       try {
+        const groupId = appUser?.groupId ?? "fourplay";
         const [next, live, group] = await Promise.all([
-          getNextRound("fourplay"),
-          getLiveRound("fourplay"),
+          getNextRound(groupId),
+          getLiveRound(groupId),
           getGroup(),
         ]);
         const currentSeason = group?.currentSeason ?? new Date().getFullYear();
         const seasonStandings = await getSeasonStandings(
-          appUser?.groupId ?? "fourplay",
+          groupId,
           currentSeason
         );
         setNextRound(next);

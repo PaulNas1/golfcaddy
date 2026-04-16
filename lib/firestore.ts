@@ -809,11 +809,15 @@ export const deleteRoundCascade = async (roundId: string) => {
 };
 
 export const getNextRound = async (groupId: string): Promise<Round | null> => {
-  const now = new Date();
   const rounds = await getRounds(groupId);
   const upcomingRounds = rounds
-    .filter((round) => round.status === "upcoming" && round.date >= now)
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+    .filter((round) => round.status === "upcoming")
+    .sort((a, b) => {
+      if (a.roundNumber !== b.roundNumber) {
+        return a.roundNumber - b.roundNumber;
+      }
+      return a.date.getTime() - b.date.getTime();
+    });
 
   return upcomingRounds[0] ?? null;
 };

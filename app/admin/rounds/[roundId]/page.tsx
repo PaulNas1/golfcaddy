@@ -120,6 +120,10 @@ export default function AdminRoundDetailPage() {
     );
     return members.filter((member) => acceptedIds.has(member.uid));
   }, [members, round?.rsvpOpen, rsvps]);
+  const getScorecardPlayerName = (playerId: string) => {
+    const member = members.find((item) => item.uid === playerId);
+    return member ? formatShortMemberName(member) : "Player";
+  };
 
   const applyCourse = (course: SeededCourse) => {
     const defaultTeeSet = course.teeSets[0] ?? null;
@@ -989,12 +993,15 @@ export default function AdminRoundDetailPage() {
                 .map((c, idx) => (
                   <div
                     key={c.id}
-                    className="flex items-center justify-between text-gray-700"
+                    className="grid grid-cols-[2rem_1fr_auto] items-center gap-2 text-gray-700"
                   >
                     <span className="text-xs text-gray-400">
                       #{idx + 1}
                     </span>
-                    <span className="flex-1 text-xs text-right">
+                    <span className="truncate text-xs font-medium text-gray-700">
+                      {getScorecardPlayerName(c.playerId)}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-800">
                       {round.format === "stableford"
                         ? c.totalStableford ?? "—"
                         : c.totalGross ?? "—"}
