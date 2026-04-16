@@ -25,6 +25,7 @@ import { db } from "./firebase";
 import type {
   AppUser,
   Member,
+  MemberInvite,
   Round,
   Group,
   AppNotification,
@@ -187,15 +188,38 @@ export const updateUser = async (uid: string, data: Partial<AppUser>) => {
 
 const FOURPLAY_GROUP_ID = "fourplay";
 
-export const getGroup = async (): Promise<Group | null> => {
-  const snap = await getDoc(doc(db, "groups", FOURPLAY_GROUP_ID));
+export const getGroup = async (
+  groupId = FOURPLAY_GROUP_ID
+): Promise<Group | null> => {
+  const snap = await getDoc(doc(db, "groups", groupId));
   if (!snap.exists()) return null;
   const data = snap.data();
   return {
     id: snap.id,
     ...data,
+    logoUrl: data.logoUrl ?? null,
     settings: normaliseGroupSettings(data.settings),
   } as Group;
+};
+
+export const updateGroupProfile = async ({
+  groupId,
+  name,
+  logoUrl,
+}: {
+  groupId: string;
+  name: string;
+  logoUrl: string | null;
+}) => {
+  await setDoc(
+    doc(db, "groups", groupId),
+    {
+      name,
+      logoUrl,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 };
 
 export const updateGroupSettings = async (
@@ -299,22 +323,95 @@ export const updateMemberStartingHandicap = async ({
   await batch.commit();
 };
 
-export const getPendingMembers = async (): Promise<AppUser[]> => {
+export const getPendingMembers = async (
+  groupId = FOURPLAY_GROUP_ID
+): Promise<AppUser[]> => {
   const q = query(
     collection(db, "users"),
     where("status", "==", "pending"),
-    orderBy("createdAt", "desc")
+    where("groupId", "==", groupId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      uid: d.id,
-      ...data,
-      createdAt: toDate(data.createdAt),
-      updatedAt: toDate(data.updatedAt),
-    } as AppUser;
+  return snap.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        uid: d.id,
+        ...data,
+        createdAt: toDate(data.createdAt),
+        updatedAt: toDate(data.updatedAt),
+      } as AppUser;
+    })
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+};
+
+const mapMemberInvite = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): MemberInvite => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    contact: data.contact ?? null,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as MemberInvite;
+};
+
+export const createMemberInvite = async ({
+  group,
+  inviteeName,
+  contact,
+  createdBy,
+}: {
+  group: Group;
+  inviteeName: string;
+  contact: string | null;
+  createdBy: AppUser;
+}) => {
+  const token =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const inviteRef = await addDoc(collection(db, "memberInvites"), {
+    groupId: group.id,
+    groupName: group.name,
+    inviteeName,
+    contact,
+    token,
+    status: "created",
+    createdBy: createdBy.uid,
+    createdByName: createdBy.displayName,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
+
+  return {
+    id: inviteRef.id,
+    groupId: group.id,
+    groupName: group.name,
+    inviteeName,
+    contact,
+    token,
+    status: "created",
+    createdBy: createdBy.uid,
+    createdByName: createdBy.displayName,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  } as MemberInvite;
+};
+
+export const getMemberInvitesForGroup = async (
+  groupId: string
+): Promise<MemberInvite[]> => {
+  const q = query(
+    collection(db, "memberInvites"),
+    where("groupId", "==", groupId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(mapMemberInvite)
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 };
 
 export const getActiveMembers = async (
@@ -645,7 +742,7 @@ export const deleteRoundCascade = async (roundId: string) => {
         getResultsForSeason(round.groupId, round.season),
         getSeasonStandings(round.groupId, round.season),
         getMembersForGroup(round.groupId),
-        getGroup(),
+        getGroup(round.groupId),
       ])
     : [[], [], [], null];
   const remainingSeasonResults = seasonResults.filter(
@@ -1089,7 +1186,7 @@ export const publishRoundResultsWithStage3 = async ({
       getResultsForSeason(round.groupId, round.season),
       getSeasonStandings(round.groupId, round.season),
       getMembersForGroup(round.groupId),
-      getGroup(),
+      getGroup(round.groupId),
     ]);
 
   const officialResults: Results = {

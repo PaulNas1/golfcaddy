@@ -6,35 +6,47 @@ import {
   getActiveMembers,
   getMembersForGroup,
   getGroup,
+  createMemberInvite,
+  getMemberInvitesForGroup,
   approveMember,
   rejectMember,
   updateMemberStartingHandicap,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import type { AppUser, Member } from "@/types";
+import type { AppUser, Group, Member, MemberInvite } from "@/types";
 
 export default function AdminMembersPage() {
   const { appUser } = useAuth();
   const [pending, setPending] = useState<AppUser[]>([]);
   const [active, setActive] = useState<AppUser[]>([]);
   const [members, setMembers] = useState<Record<string, Member>>({});
+  const [group, setGroup] = useState<Group | null>(null);
+  const [invites, setInvites] = useState<MemberInvite[]>([]);
   const [season, setSeason] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [actioning, setActioning] = useState<string | null>(null);
   const [editingHandicapFor, setEditingHandicapFor] = useState<string | null>(null);
   const [handicapInput, setHandicapInput] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteContact, setInviteContact] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const load = useCallback(async () => {
-    const [p, a, group, memberRecords] = await Promise.all([
-      getPendingMembers(),
-      getActiveMembers(appUser?.groupId ?? "fourplay"),
-      getGroup(),
-      getMembersForGroup("fourplay"),
+    const groupId = appUser?.groupId ?? "fourplay";
+    const [p, a, groupRecord, memberRecords, memberInvites] = await Promise.all([
+      getPendingMembers(groupId),
+      getActiveMembers(groupId),
+      getGroup(groupId),
+      getMembersForGroup(groupId),
+      getMemberInvitesForGroup(groupId),
     ]);
     setPending(p);
     setActive(a);
-    setSeason(group?.currentSeason ?? new Date().getFullYear());
+    setGroup(groupRecord);
+    setSeason(groupRecord?.currentSeason ?? new Date().getFullYear());
+    setInvites(memberInvites);
     setMembers(
       Object.fromEntries(memberRecords.map((member) => [member.userId, member]))
     );
@@ -90,6 +102,38 @@ export default function AdminMembersPage() {
     setActioning(null);
   };
 
+  const handleCreateInvite = async () => {
+    if (!appUser || !group) return;
+    const trimmedName = inviteName.trim();
+    if (!trimmedName) {
+      setError("Enter the player's name before creating an invite.");
+      return;
+    }
+
+    setActioning("invite");
+    setError("");
+    setSuccess("");
+    try {
+      const invite = await createMemberInvite({
+        group,
+        inviteeName: trimmedName,
+        contact: inviteContact.trim() || null,
+        createdBy: appUser,
+      });
+      const link = buildInviteLink(invite);
+      setInviteLink(link);
+      setInviteName("");
+      setInviteContact("");
+      await navigator.clipboard?.writeText(link).catch(() => {});
+      setSuccess("Invite link created. Share it with the player to sign up.");
+      await load();
+    } catch {
+      setError("Could not create invite. Please try again.");
+    } finally {
+      setActioning(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">Members</h1>
@@ -99,6 +143,89 @@ export default function AdminMembersPage() {
           {error}
         </div>
       )}
+      {success && (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {success}
+        </div>
+      )}
+
+      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-800">Invite New Player</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Create a signup link. The player owns their account and still
+              needs admin approval.
+            </p>
+          </div>
+          <span className="rounded-lg bg-green-50 p-2 text-green-700">
+            <InviteIcon className="h-5 w-5" />
+          </span>
+        </div>
+        <div className="mt-4 space-y-3">
+          <input
+            type="text"
+            value={inviteName}
+            onChange={(event) => setInviteName(event.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="Player name"
+          />
+          <input
+            type="text"
+            value={inviteContact}
+            onChange={(event) => setInviteContact(event.target.value)}
+            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="Mobile or email optional"
+          />
+          <button
+            type="button"
+            onClick={handleCreateInvite}
+            disabled={actioning === "invite"}
+            className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
+          >
+            {actioning === "invite" ? "Creating..." : "Create Invite Link"}
+          </button>
+          {inviteLink && (
+            <div className="rounded-xl bg-gray-50 px-3 py-3">
+              <p className="text-xs font-semibold text-gray-600">
+                Latest invite link
+              </p>
+              <p className="mt-1 break-all text-xs text-gray-500">
+                {inviteLink}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(inviteLink)}
+                className="mt-2 text-xs font-semibold text-green-700 underline"
+              >
+                Copy link
+              </button>
+            </div>
+          )}
+          {invites.length > 0 && (
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-semibold text-gray-600">
+                Recent invites
+              </p>
+              <div className="mt-2 space-y-1">
+                {invites.slice(0, 3).map((invite) => (
+                  <div
+                    key={invite.id}
+                    className="flex items-center justify-between text-xs"
+                  >
+                    <span className="truncate text-gray-600">
+                      {invite.inviteeName}
+                    </span>
+                    <span className="capitalize text-gray-400">
+                      {invite.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Pending approvals */}
       <div>
@@ -256,6 +383,20 @@ export default function AdminMembersPage() {
   );
 }
 
+function buildInviteLink(invite: MemberInvite) {
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : "";
+  const params = new URLSearchParams({
+    invite: invite.id,
+    token: invite.token,
+    groupId: invite.groupId,
+    groupName: invite.groupName,
+    name: invite.inviteeName,
+  });
+  if (invite.contact) params.set("contact", invite.contact);
+  return `${origin}/signup?${params.toString()}`;
+}
+
 function PencilIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -274,6 +415,24 @@ function PencilIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M19.5 7.125L16.875 4.5M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+      />
+    </svg>
+  );
+}
+
+function InviteIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M18 14v4m2-2h-4M15 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 20a7 7 0 0 1 10-6.32"
       />
     </svg>
   );

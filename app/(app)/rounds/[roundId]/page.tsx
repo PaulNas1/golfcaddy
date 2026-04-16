@@ -62,7 +62,7 @@ export default function RoundDetailPage() {
           setMembers(activeMembers);
           setSideClaims(claims);
           if (!r) {
-            getLiveRound("fourplay")
+            getLiveRound(appUser?.groupId ?? "fourplay")
               .then((live) => {
                 if (live && live.id !== roundId) {
                   router.replace(`/rounds/${live.id}`);

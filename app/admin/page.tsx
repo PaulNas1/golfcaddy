@@ -3,24 +3,33 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { getPendingMembers, getRounds } from "@/lib/firestore";
+import { getGroup, getPendingMembers, getRounds } from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
-import type { AppUser, Round } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import type { AppUser, Group, Round } from "@/types";
 
 export default function AdminDashboard() {
+  const { appUser } = useAuth();
   const [pending, setPending] = useState<AppUser[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
+  const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getPendingMembers(), getRounds("fourplay")]).then(
-      ([p, r]) => {
+    const groupId = appUser?.groupId ?? "fourplay";
+    Promise.all([
+      getPendingMembers(groupId),
+      getRounds(groupId),
+      getGroup(groupId),
+    ]).then(
+      ([p, r, groupRecord]) => {
         setPending(p);
         setRounds(r);
+        setGroup(groupRecord);
         setLoading(false);
       }
     );
-  }, []);
+  }, [appUser?.groupId]);
 
   const liveRound = rounds.find((r) => r.status === "live");
 
@@ -28,7 +37,9 @@ export default function AdminDashboard() {
     <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
-        <p className="text-gray-500 text-sm">FourPlay Golf Group</p>
+        <p className="text-gray-500 text-sm">
+          {group?.name ?? "Golf group"}
+        </p>
       </div>
 
       {/* Alerts */}

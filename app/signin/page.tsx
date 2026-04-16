@@ -34,7 +34,7 @@ export default function SignInPage() {
         <div className="text-center mb-10">
           <div className="text-6xl mb-3">⛳</div>
           <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
-          <p className="text-green-200 mt-1">FourPlay Golf Group</p>
+          <p className="text-green-200 mt-1">Social golf groups</p>
         </div>
 
         {/* Card */}

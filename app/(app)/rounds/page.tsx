@@ -5,6 +5,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { getRounds } from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Round, RoundStatus } from "@/types";
 
 const STATUS_STYLES: Record<RoundStatus, string> = {
@@ -20,15 +21,17 @@ const STATUS_LABEL: Record<RoundStatus, string> = {
 };
 
 export default function RoundsPage() {
+  const { appUser } = useAuth();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getRounds("fourplay").then((r) => {
+    if (!appUser?.groupId) return;
+    getRounds(appUser.groupId).then((r) => {
       setRounds(r);
       setLoading(false);
     });
-  }, []);
+  }, [appUser?.groupId]);
 
   return (
     <div className="px-4 py-6">

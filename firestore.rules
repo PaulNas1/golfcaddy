@@ -69,6 +69,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ─── Member Invites ──────────────────────────────────────────────────
+
+    match /memberInvites/{inviteId} {
+      allow read, write: if isAdmin();
+    }
+
     // ─── Courses ──────────────────────────────────────────────────────────
 
     match /courses/{courseId} {

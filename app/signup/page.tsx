@@ -1,15 +1,36 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignUpPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-green-700 flex items-center justify-center">
+          <div className="text-sm text-green-100">Loading signup...</div>
+        </div>
+      }
+    >
+      <SignUpForm />
+    </Suspense>
+  );
+}
+
+function SignUpForm() {
   const { signUp } = useAuth();
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const invitedName = searchParams.get("name") ?? "";
+  const invitedContact = searchParams.get("contact") ?? "";
+  const invitedEmail = invitedContact.includes("@") ? invitedContact : "";
+  const inviteId = searchParams.get("invite") ?? "";
+  const groupId = searchParams.get("groupId") ?? "fourplay";
+  const groupName = searchParams.get("groupName") ?? "your golf group";
+  const [name, setName] = useState(invitedName);
+  const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
@@ -30,7 +51,10 @@ export default function SignUpPage() {
 
     setLoading(true);
     try {
-      await signUp(email, password, name.trim());
+      await signUp(email, password, name.trim(), {
+        groupId,
+        inviteId: inviteId || undefined,
+      });
       router.replace("/pending");
     } catch (err: unknown) {
       if (err instanceof Error && err.message?.includes("email-already-in-use")) {
@@ -49,13 +73,16 @@ export default function SignUpPage() {
         <div className="text-center mb-8">
           <div className="text-5xl mb-3">⛳</div>
           <h1 className="text-2xl font-bold text-white">GolfCaddy</h1>
-          <p className="text-green-200 mt-1 text-sm">Request access to FourPlay</p>
+          <p className="text-green-200 mt-1 text-sm">
+            Request access to {groupName}
+          </p>
         </div>
 
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-2">Create account</h2>
           <p className="text-gray-500 text-sm mb-6">
-            An admin will review and approve your request before you can access the app.
+            An admin will review and approve your request before you can access
+            the app.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">

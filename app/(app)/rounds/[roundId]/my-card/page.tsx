@@ -51,7 +51,7 @@ export default function MyCardPage() {
           getActiveMembers(appUser.groupId),
         ]);
         if (!r) {
-          const live = await getLiveRound("fourplay").catch(() => null);
+          const live = await getLiveRound(appUser.groupId).catch(() => null);
           if (live && live.id !== roundId) {
             router.replace(`/rounds/${live.id}/my-card`);
             return;

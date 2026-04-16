@@ -394,7 +394,7 @@ export default function CreateRoundPage() {
         }));
 
       const roundData: Omit<Round, "id" | "createdAt" | "updatedAt"> = {
-        groupId: "fourplay",
+        groupId: appUser!.groupId,
         courseId: activeCourse?.id ?? "",
         courseName: courseName.trim(),
         teeSetId: selectedTeeSet?.id ?? null,

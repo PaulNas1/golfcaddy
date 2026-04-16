@@ -18,7 +18,9 @@ export default function PendingPage() {
         <div className="text-6xl mb-4">⏳</div>
         <h1 className="text-2xl font-bold text-white mb-2">Awaiting approval</h1>
         <p className="text-green-200 text-sm max-w-xs">
-          Hey {appUser?.displayName?.split(" ")[0] || "there"} — your request to join FourPlay has been submitted. The admin will approve you shortly.
+          Hey {appUser?.displayName?.split(" ")[0] || "there"} — your request
+          to join the group has been submitted. The admin will approve you
+          shortly.
         </p>
       </div>
 

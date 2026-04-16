@@ -11,12 +11,13 @@ import {
   getSeasonStandings,
 } from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
-import type { Round, SeasonStanding } from "@/types";
+import type { Group, Round, SeasonStanding } from "@/types";
 
 export default function HomePage() {
   const { appUser } = useAuth();
   const [nextRound, setNextRound] = useState<Round | null>(null);
   const [liveRound, setLiveRound] = useState<Round | null>(null);
+  const [group, setGroup] = useState<Group | null>(null);
   const [season, setSeason] = useState(new Date().getFullYear());
   const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,7 +29,7 @@ export default function HomePage() {
         const [next, live, group] = await Promise.all([
           getNextRound(groupId),
           getLiveRound(groupId),
-          getGroup(),
+          getGroup(groupId),
         ]);
         const currentSeason = group?.currentSeason ?? new Date().getFullYear();
         const seasonStandings = await getSeasonStandings(
@@ -37,6 +38,7 @@ export default function HomePage() {
         );
         setNextRound(next);
         setLiveRound(live);
+        setGroup(group);
         setSeason(currentSeason);
         setStandings(seasonStandings);
       } finally {
@@ -55,7 +57,9 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold text-gray-800">
           Hey {firstName} 👋
         </h1>
-        <p className="text-gray-500 text-sm mt-0.5">FourPlay Golf Group</p>
+        <p className="text-gray-500 text-sm mt-0.5">
+          {group?.name ?? "Golf group"}
+        </p>
       </div>
 
       {/* Live round banner */}

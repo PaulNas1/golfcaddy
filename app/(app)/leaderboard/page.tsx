@@ -15,7 +15,7 @@ export default function LeaderboardPage() {
     const load = async () => {
       if (!appUser?.groupId) return;
       try {
-        const group = await getGroup();
+        const group = await getGroup(appUser.groupId);
         const currentSeason = group?.currentSeason ?? new Date().getFullYear();
         setSeason(currentSeason);
         const seasonStandings = await getSeasonStandings(

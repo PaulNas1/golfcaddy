@@ -39,7 +39,7 @@ export default function ProfilePage() {
     const load = async () => {
       if (!appUser?.uid || !appUser.groupId) return;
       try {
-        const group = await getGroup();
+        const group = await getGroup(appUser.groupId);
         const currentSeason = group?.currentSeason ?? new Date().getFullYear();
         const [memberRecord, seasonStanding] = await Promise.all([
           getMember(appUser.uid),

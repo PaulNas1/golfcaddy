@@ -17,6 +17,7 @@ import {
   updateRound,
   getScorecardsForRound,
 } from "@/lib/firestore";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   type SeededCourse,
   getCourseSearchLabel,
@@ -55,6 +56,7 @@ type TeeTimeDraft = {
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const router = useRouter();
+  const { appUser } = useAuth();
   const [round, setRound] = useState<Round | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -247,7 +249,7 @@ export default function AdminRoundDetailPage() {
     if (roundId) {
       Promise.all([
         getRound(roundId),
-        getActiveMembers("fourplay"),
+        getActiveMembers(appUser?.groupId ?? "fourplay"),
         getRoundRsvps(roundId),
       ]).then(([r, activeMembers, roundRsvps]) => {
         setMembers(activeMembers);
@@ -280,7 +282,7 @@ export default function AdminRoundDetailPage() {
         }
       });
     }
-  }, [roundId]);
+  }, [appUser?.groupId, roundId]);
 
   const setStatus = async (status: RoundStatus) => {
     if (!round) return;

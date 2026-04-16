@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { getGroup } from "@/lib/firestore";
+import type { Group } from "@/types";
 
 const NAV_ITEMS = [
   { href: "/home", label: "Home", icon: HomeIcon },
@@ -17,8 +19,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { firebaseUser, appUser, loading, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [group, setGroup] = useState<Group | null>(null);
 
   const isPreview = appUser?.uid === "preview-user";
+
+  useEffect(() => {
+    if (!appUser?.groupId || appUser.status !== "active") return;
+    getGroup(appUser.groupId)
+      .then(setGroup)
+      .catch(() => setGroup(null));
+  }, [appUser?.groupId, appUser?.status]);
 
   useEffect(() => {
     if (loading) return;
@@ -51,8 +61,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Top bar */}
       <header className="bg-green-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20">
         <div className="flex items-center gap-2">
-          <span className="text-xl">⛳</span>
-          <span className="font-bold text-lg">GolfCaddy</span>
+          {group?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={group.logoUrl}
+              alt=""
+              className="h-7 w-7 rounded-lg object-cover"
+            />
+          ) : (
+            <span className="text-xl">⛳</span>
+          )}
+          <span className="font-bold text-lg">
+            {group?.name ?? "GolfCaddy"}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin && (

@@ -19,8 +19,23 @@ export interface AppUser {
   role: UserRole;
   status: UserStatus;
   groupId: string;
+  inviteId?: string | null;
   avatarUrl: string | null;
   fcmToken: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MemberInvite {
+  id: string;
+  groupId: string;
+  groupName: string;
+  inviteeName: string;
+  contact: string | null;
+  token: string;
+  status: "created" | "used" | "cancelled";
+  createdBy: string;
+  createdByName: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +61,7 @@ export interface Group {
   id: string;
   name: string;
   slug: string;
+  logoUrl: string | null;
   adminIds: string[];
   memberCount: number;
   currentSeason: number;

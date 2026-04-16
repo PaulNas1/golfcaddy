@@ -57,7 +57,7 @@ export default function AdminRoundLeaderboardPage() {
           getRound(roundId),
           getActiveMembers(appUser?.groupId ?? "fourplay"),
           getResultsForRound(roundId),
-          getGroup(),
+          getGroup(appUser?.groupId),
         ]);
         if (!r) {
           setRound(null);

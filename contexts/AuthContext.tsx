@@ -32,7 +32,12 @@ interface AuthContextType {
   appUser: AppUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signUp: (
+    email: string,
+    password: string,
+    displayName: string,
+    options?: { groupId?: string; inviteId?: string }
+  ) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   enterPreviewMode: () => void;
@@ -77,14 +82,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithEmailAndPassword(auth, email, password);
   };
 
-  const signUp = async (email: string, password: string, displayName: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    displayName: string,
+    options?: { groupId?: string; inviteId?: string }
+  ) => {
     const { user } = await createUserWithEmailAndPassword(auth, email, password);
     await createUser(user.uid, {
       email,
       displayName,
       role: "member",
       status: "pending",
-      groupId: "fourplay",
+      groupId: options?.groupId ?? "fourplay",
+      ...(options?.inviteId ? { inviteId: options.inviteId } : {}),
       avatarUrl: null,
       fcmToken: null,
     });

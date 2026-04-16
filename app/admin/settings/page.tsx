@@ -2,12 +2,20 @@
 
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { getGroup, updateGroupSettings } from "@/lib/firestore";
+import {
+  getGroup,
+  updateGroupProfile,
+  updateGroupSettings,
+} from "@/lib/firestore";
 import { normaliseGroupSettings } from "@/lib/settings";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Group, GroupSettings, HandicapMode } from "@/types";
 
 export default function AdminSettingsPage() {
+  const { appUser } = useAuth();
   const [group, setGroup] = useState<Group | null>(null);
+  const [groupName, setGroupName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const [settings, setSettings] = useState<GroupSettings>(
     normaliseGroupSettings()
   );
@@ -17,14 +25,16 @@ export default function AdminSettingsPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    getGroup()
+    getGroup(appUser?.groupId)
       .then((groupRecord) => {
         setGroup(groupRecord);
+        setGroupName(groupRecord?.name ?? "");
+        setLogoUrl(groupRecord?.logoUrl ?? "");
         setSettings(normaliseGroupSettings(groupRecord?.settings));
       })
       .catch(() => setError("Failed to load settings."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [appUser?.groupId]);
 
   const updatePoints = (position: number, value: string) => {
     const points = Number(value);
@@ -43,8 +53,26 @@ export default function AdminSettingsPage() {
     setError("");
     setSuccess("");
     try {
+      const nextName = groupName.trim();
+      if (!nextName) {
+        setError("Group name is required.");
+        return;
+      }
       const nextSettings = normaliseGroupSettings(settings);
-      await updateGroupSettings(group.id, nextSettings);
+      await Promise.all([
+        updateGroupProfile({
+          groupId: group.id,
+          name: nextName,
+          logoUrl: logoUrl.trim() || null,
+        }),
+        updateGroupSettings(group.id, nextSettings),
+      ]);
+      setGroup({
+        ...group,
+        name: nextName,
+        logoUrl: logoUrl.trim() || null,
+        settings: nextSettings,
+      });
       setSettings(nextSettings);
       setSuccess("Settings saved.");
     } catch {
@@ -82,6 +110,59 @@ export default function AdminSettingsPage() {
           {success}
         </div>
       )}
+
+      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <h2 className="font-semibold text-gray-800">Group Identity</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          This is the name and emblem used for this social group.
+        </p>
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-600">
+              Group name
+            </span>
+            <input
+              type="text"
+              value={groupName}
+              onChange={(event) => setGroupName(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Your Social Golf Group"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-600">
+              Logo or emblem URL
+            </span>
+            <input
+              type="url"
+              value={logoUrl}
+              onChange={(event) => setLogoUrl(event.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="https://example.com/group-logo.png"
+            />
+          </label>
+          <div className="rounded-xl bg-gray-50 px-3 py-3">
+            <p className="text-xs font-semibold text-gray-600">Preview</p>
+            <div className="mt-2 flex items-center gap-3">
+              {logoUrl.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoUrl.trim()}
+                  alt=""
+                  className="h-10 w-10 rounded-lg object-cover"
+                />
+              ) : (
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-lg">
+                  ⛳
+                </span>
+              )}
+              <span className="text-sm font-semibold text-gray-800">
+                {groupName.trim() || "Your group name"}
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <h2 className="font-semibold text-gray-800">Ladder Points</h2>
