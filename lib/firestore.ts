@@ -37,6 +37,7 @@ import type {
   RoundRsvpStatus,
   SideClaim,
   SidePrizeType,
+  GroupSettings,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -46,6 +47,7 @@ import {
   getSeasonStandingId,
 } from "./season";
 import { withSeededCourseData } from "./courseData";
+import { normaliseGroupSettings } from "./settings";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -189,7 +191,25 @@ export const getGroup = async (): Promise<Group | null> => {
   const snap = await getDoc(doc(db, "groups", FOURPLAY_GROUP_ID));
   if (!snap.exists()) return null;
   const data = snap.data();
-  return { id: snap.id, ...data } as Group;
+  return {
+    id: snap.id,
+    ...data,
+    settings: normaliseGroupSettings(data.settings),
+  } as Group;
+};
+
+export const updateGroupSettings = async (
+  groupId: string,
+  settings: GroupSettings
+) => {
+  await setDoc(
+    doc(db, "groups", groupId),
+    {
+      settings: normaliseGroupSettings(settings),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
 };
 
 // ─── Members ─────────────────────────────────────────────────────────────────
@@ -620,13 +640,14 @@ export const deleteRoundCascade = async (roundId: string) => {
     ),
   ]);
   const shouldRebuildSeason = resultsSnap.exists();
-  const [seasonResults, previousStandings, groupMembers] = shouldRebuildSeason
+  const [seasonResults, previousStandings, groupMembers, group] = shouldRebuildSeason
     ? await Promise.all([
         getResultsForSeason(round.groupId, round.season),
         getSeasonStandings(round.groupId, round.season),
         getMembersForGroup(round.groupId),
+        getGroup(),
       ])
-    : [[], [], []];
+    : [[], [], [], null];
   const remainingSeasonResults = seasonResults.filter(
     (result) => result.roundId !== round.id
   );
@@ -644,6 +665,7 @@ export const deleteRoundCascade = async (roundId: string) => {
         roundsById: new Map(remainingRoundEntries),
         previousStandings,
         updatedAt: new Date(),
+        settings: group?.settings,
       })
     : [];
   const standingsByMemberId = new Map(
@@ -1062,11 +1084,12 @@ export const publishRoundResultsWithStage3 = async ({
   publishedBy: AppUser | null;
 }) => {
   const publishedAt = results.publishedAt;
-  const [seasonResults, previousStandings, groupMembers] =
+  const [seasonResults, previousStandings, groupMembers, group] =
     await Promise.all([
       getResultsForSeason(round.groupId, round.season),
       getSeasonStandings(round.groupId, round.season),
       getMembersForGroup(round.groupId),
+      getGroup(),
     ]);
 
   const officialResults: Results = {
@@ -1093,6 +1116,7 @@ export const publishRoundResultsWithStage3 = async ({
     roundsById,
     previousStandings,
     updatedAt: publishedAt,
+    settings: group?.settings,
   });
   const usersById = new Map(activeUsers.map((user) => [user.uid, user]));
   const membersById = new Map(groupMembers.map((member) => [member.id, member]));
@@ -1151,7 +1175,8 @@ export const publishRoundResultsWithStage3 = async ({
       0;
     const { nextHandicap, reason } = calculateNextHandicap(
       currentHandicap,
-      standing.roundResults
+      standing.roundResults,
+      group?.settings.handicapRoundsWindow ?? 3
     );
     const memberRef = doc(db, "members", standing.memberId);
     const memberStats = {
@@ -1248,10 +1273,15 @@ const mapSeasonStanding = (
   return {
     id: d.id,
     ...data,
+    grossSeasonPoints:
+      typeof data.grossSeasonPoints === "number"
+        ? data.grossSeasonPoints
+        : data.totalPoints ?? 0,
     roundResults: (data.roundResults ?? []).map(
       (roundResult: DocumentData) => ({
         ...roundResult,
         date: toDate(roundResult.date),
+        countsForSeason: roundResult.countsForSeason ?? true,
       })
     ),
     updatedAt: toDate(data.updatedAt),

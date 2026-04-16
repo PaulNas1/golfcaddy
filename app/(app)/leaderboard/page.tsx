@@ -140,6 +140,11 @@ function StandingCard({
             {standing.totalPoints}
           </p>
           <p className="text-[11px] text-gray-400">points</p>
+          {standing.grossSeasonPoints !== standing.totalPoints && (
+            <p className="text-[11px] text-gray-400">
+              {standing.grossSeasonPoints} raw
+            </p>
+          )}
         </div>
       </div>
 

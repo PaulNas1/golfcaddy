@@ -282,6 +282,11 @@ export default function RoundDetailPage() {
                   <span>
                     #{ranking.rank} {ranking.playerName}
                   </span>
+                  {ranking.countbackDetail && (
+                    <p className="text-[11px] text-green-700">
+                      {ranking.countbackDetail}
+                    </p>
+                  )}
                   {ranking.playerId === appUser?.uid && (
                     <span className="ml-2 text-xs font-semibold text-green-700">
                       You

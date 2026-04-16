@@ -3,6 +3,7 @@
 export type UserRole = "member" | "admin";
 export type UserStatus = "pending" | "active" | "suspended";
 export type UserGender = "male" | "female";
+export type HandicapMode = "local" | "slope_adjusted";
 
 export interface AppUser {
   uid: string;
@@ -28,7 +29,9 @@ export interface AppUser {
 
 export interface GroupSettings {
   pointsTable: Record<string, number>; // "1" → 10, "2" → 9, etc.
-  handicapRoundsWindow: number;         // default 6
+  handicapRoundsWindow: number;         // default 3
+  minimumRoundsForPoints: number;       // default 3
+  handicapMode: HandicapMode;
   bestXofY: {
     enabled: boolean;
     bestX: number;
@@ -299,6 +302,7 @@ export interface RoundResult {
   finish: number;
   stableford: number;
   pointsAwarded: number;
+  countsForSeason: boolean;
 }
 
 export interface SeasonStanding {
@@ -308,6 +312,7 @@ export interface SeasonStanding {
   memberId: string;
   memberName: string;
   totalPoints: number;
+  grossSeasonPoints: number;
   roundsPlayed: number;
   currentRank: number;
   previousRank: number | null;

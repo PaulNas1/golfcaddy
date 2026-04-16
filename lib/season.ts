@@ -1,4 +1,11 @@
-import type { Results, Round, RoundResult, SeasonStanding } from "@/types";
+import type {
+  GroupSettings,
+  Results,
+  Round,
+  RoundResult,
+  SeasonStanding,
+} from "@/types";
+import { normaliseGroupSettings } from "./settings";
 
 export const getSeasonStandingId = (
   groupId: string,
@@ -13,6 +20,7 @@ type BuildSeasonStandingsInput = {
   roundsById: Map<string, Round>;
   previousStandings: SeasonStanding[];
   updatedAt: Date;
+  settings?: GroupSettings;
 };
 
 type StandingAccumulator = Omit<
@@ -29,7 +37,9 @@ export function buildSeasonStandings({
   roundsById,
   previousStandings,
   updatedAt,
+  settings,
 }: BuildSeasonStandingsInput): SeasonStanding[] {
+  const groupSettings = normaliseGroupSettings(settings);
   const previousRankByMember = new Map(
     previousStandings.map((standing) => [
       standing.memberId,
@@ -48,6 +58,7 @@ export function buildSeasonStandings({
       memberId,
       memberName,
       totalPoints: 0,
+      grossSeasonPoints: 0,
       roundsPlayed: 0,
       roundResults: [],
       ntpWinsSeason: 0,
@@ -67,6 +78,7 @@ export function buildSeasonStandings({
     result.rankings.forEach((ranking) => {
       const standing = getAccumulator(ranking.playerId, ranking.playerName);
       standing.totalPoints += ranking.pointsAwarded;
+      standing.grossSeasonPoints += ranking.pointsAwarded;
       standing.roundsPlayed += 1;
       standing.totalStableford += ranking.stablefordTotal;
       standing.roundResults.push({
@@ -76,6 +88,7 @@ export function buildSeasonStandings({
         finish: ranking.rank,
         stableford: ranking.stablefordTotal,
         pointsAwarded: ranking.pointsAwarded,
+        countsForSeason: true,
       });
     });
 
@@ -109,7 +122,11 @@ export function buildSeasonStandings({
     }
   });
 
-  const sorted = Array.from(accumulators.values()).sort((a, b) => {
+  const standingsWithSeasonPoints = Array.from(accumulators.values()).map(
+    applySeasonPointsRule(groupSettings)
+  );
+
+  const sorted = standingsWithSeasonPoints.sort((a, b) => {
     if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
     if (b.totalStableford !== a.totalStableford) {
       return b.totalStableford - a.totalStableford;
@@ -134,6 +151,7 @@ export function buildSeasonStandings({
       memberId: standing.memberId,
       memberName: standing.memberName,
       totalPoints: standing.totalPoints,
+      grossSeasonPoints: standing.grossSeasonPoints,
       roundsPlayed: standing.roundsPlayed,
       currentRank,
       previousRank: previousRankByMember.get(standing.memberId) ?? null,
@@ -147,6 +165,45 @@ export function buildSeasonStandings({
       updatedAt,
     };
   });
+}
+
+function applySeasonPointsRule(settings: GroupSettings) {
+  return (standing: StandingAccumulator): StandingAccumulator => {
+    if (!settings.bestXofY.enabled || settings.bestXofY.bestX <= 0) {
+      return standing;
+    }
+
+    const countedRoundIds = new Set(
+      standing.roundResults
+        .slice()
+        .sort((a, b) => {
+          if (b.pointsAwarded !== a.pointsAwarded) {
+            return b.pointsAwarded - a.pointsAwarded;
+          }
+          if (b.stableford !== a.stableford) return b.stableford - a.stableford;
+          return b.date.getTime() - a.date.getTime();
+        })
+        .slice(0, settings.bestXofY.bestX)
+        .map((roundResult) => roundResult.roundId)
+    );
+
+    const roundResults = standing.roundResults.map((roundResult) => ({
+      ...roundResult,
+      countsForSeason: countedRoundIds.has(roundResult.roundId),
+    }));
+
+    return {
+      ...standing,
+      totalPoints: roundResults.reduce(
+        (sum, roundResult) =>
+          roundResult.countsForSeason
+            ? sum + roundResult.pointsAwarded
+            : sum,
+        0
+      ),
+      roundResults,
+    };
+  };
 }
 
 export function getAverageStableford(roundResults: RoundResult[]) {
@@ -177,12 +234,15 @@ export function getBestStableford(roundResults: RoundResult[]) {
   };
 }
 
-export function getRecentStablefordAverage(roundResults: RoundResult[]) {
+export function getRecentStablefordAverage(
+  roundResults: RoundResult[],
+  window = 3
+) {
   const recent = roundResults
     .filter((roundResult) => roundResult.stableford > 0)
-    .slice(0, 3);
+    .slice(0, window);
 
-  if (recent.length < 3) return null;
+  if (recent.length < window) return null;
 
   const total = recent.reduce(
     (sum, roundResult) => sum + roundResult.stableford,
@@ -193,13 +253,14 @@ export function getRecentStablefordAverage(roundResults: RoundResult[]) {
 
 export function calculateNextHandicap(
   currentHandicap: number,
-  roundResults: RoundResult[]
+  roundResults: RoundResult[],
+  window = 3
 ) {
-  const recentAverage = getRecentStablefordAverage(roundResults);
+  const recentAverage = getRecentStablefordAverage(roundResults, window);
   if (recentAverage == null) {
     return {
       nextHandicap: currentHandicap,
-      reason: "Needs three Stableford rounds before automatic movement.",
+      reason: `Needs ${window} Stableford rounds before automatic movement.`,
     };
   }
 

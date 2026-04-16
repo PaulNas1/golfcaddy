@@ -387,6 +387,11 @@ export default function ProfilePage() {
                         <p className="font-semibold text-green-700">
                           {roundResult.pointsAwarded} pts
                         </p>
+                        {!roundResult.countsForSeason && (
+                          <p className="text-xs text-gray-400">
+                            not counted
+                          </p>
+                        )}
                         {roundResult.stableford > 0 && (
                           <p className="text-xs text-gray-400">
                             {roundResult.stableford} stb

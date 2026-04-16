@@ -195,6 +195,11 @@ export default function HomePage() {
                     {standing.totalPoints}
                   </p>
                   <p className="text-[11px] text-gray-400">ladder pts</p>
+                  {standing.grossSeasonPoints !== standing.totalPoints && (
+                    <p className="text-[11px] text-gray-400">
+                      {standing.grossSeasonPoints} raw
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import {
   getRound,
   getScorecardsForRound,
   getActiveMembers,
+  getGroup,
+  getHoleScores,
   updateScorecard,
   getResultsForRound,
   getSideClaimsForRound,
@@ -16,6 +18,7 @@ import {
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { getEffectiveSpecialHoles } from "@/lib/courseData";
+import { buildPlayerRankings } from "@/lib/results";
 import type {
   Round,
   Scorecard,
@@ -25,6 +28,8 @@ import type {
   PlayerRanking,
   SideClaim,
   SidePrizeType,
+  HoleScore,
+  Group,
 } from "@/types";
 
 export default function AdminRoundLeaderboardPage() {
@@ -32,7 +37,11 @@ export default function AdminRoundLeaderboardPage() {
   const { appUser } = useAuth();
   const [round, setRound] = useState<Round | null>(null);
   const [cards, setCards] = useState<Scorecard[]>([]);
+  const [holeScoresByCardId, setHoleScoresByCardId] = useState<
+    Record<string, HoleScore[]>
+  >({});
   const [members, setMembers] = useState<AppUser[]>([]);
+  const [group, setGroup] = useState<Group | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [sideWinnerIds, setSideWinnerIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -44,24 +53,32 @@ export default function AdminRoundLeaderboardPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [r, activeMembers, existingResults] = await Promise.all([
+        const [r, activeMembers, existingResults, groupRecord] = await Promise.all([
           getRound(roundId),
           getActiveMembers(appUser?.groupId ?? "fourplay"),
           getResultsForRound(roundId),
+          getGroup(),
         ]);
         if (!r) {
           setRound(null);
           setCards([]);
+          setHoleScoresByCardId({});
           setMembers([]);
+          setGroup(groupRecord);
         } else {
           setRound(r);
           const [c, claims] = await Promise.all([
             getScorecardsForRound(r.id),
             getSideClaimsForRound(r.id),
           ]);
+          const holeEntries = await Promise.all(
+            c.map(async (card) => [card.id, await getHoleScores(card.id)] as const)
+          );
           setCards(c);
+          setHoleScoresByCardId(Object.fromEntries(holeEntries));
           setSideWinnerIds(buildSideWinnerMap(claims));
           setMembers(activeMembers);
+          setGroup(groupRecord);
           setResults(existingResults);
         }
       } catch {
@@ -82,24 +99,23 @@ export default function AdminRoundLeaderboardPage() {
     );
   }, [roundId]);
 
-  const sorted = cards
-    .slice()
-    .filter((c) =>
-      round?.format === "stableford"
-        ? c.totalStableford != null
-        : c.totalGross != null
-    )
-    .sort((a, b) => {
-      if (!round) return 0;
-      if (round.format === "stableford") {
-        const as = a.totalStableford ?? -Infinity;
-        const bs = b.totalStableford ?? -Infinity;
-        return bs - as; // higher is better
-      }
-      const ag = a.totalGross ?? Infinity;
-      const bg = b.totalGross ?? Infinity;
-      return ag - bg; // lower is better
-    });
+  const rankings = useMemo(
+    () =>
+      round
+        ? buildPlayerRankings({
+            round,
+            scorecards: cards,
+            holeScoresByCardId,
+            members,
+            settings: group?.settings,
+          })
+        : [],
+    [cards, group?.settings, holeScoresByCardId, members, round]
+  );
+  const cardsByPlayerId = useMemo(
+    () => new Map(cards.map((card) => [card.playerId, card])),
+    [cards]
+  );
 
   const getPlayerName = (playerId: string) =>
     members.find((u) => u.uid === playerId)?.displayName ??
@@ -114,32 +130,7 @@ export default function AdminRoundLeaderboardPage() {
   const specialHoles = round ? getEffectiveSpecialHoles(round) : null;
 
   const buildRankings = (): PlayerRanking[] => {
-    const pointsByRank = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-    let previousValue: number | null = null;
-    let previousRank = 0;
-
-    return sorted.map((card, index) => {
-      const scoreValue =
-        round?.format === "stableford"
-          ? card.totalStableford ?? 0
-          : card.totalGross ?? 0;
-      const rank =
-        previousValue === scoreValue ? previousRank : index + 1;
-
-      previousValue = scoreValue;
-      previousRank = rank;
-
-      return {
-        rank,
-        playerId: card.playerId,
-        playerName: getPlayerName(card.playerId),
-        grossTotal: card.totalGross ?? 0,
-        stablefordTotal: card.totalStableford ?? 0,
-        handicap: card.handicapAtTime,
-        pointsAwarded: pointsByRank[rank - 1] ?? 0,
-        countbackDetail: null,
-      };
-    });
+    return rankings;
   };
 
   const buildSideResult = (
@@ -289,7 +280,7 @@ export default function AdminRoundLeaderboardPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold text-gray-800 text-sm">
-            {sorted.length === 0
+            {rankings.length === 0
               ? "No completed cards yet"
               : "Top 10 players"}
           </h2>
@@ -299,51 +290,58 @@ export default function AdminRoundLeaderboardPage() {
           </span>
         </div>
 
-        {sorted.length === 0 ? (
+        {rankings.length === 0 ? (
           <p className="text-xs text-gray-400">
             Once players submit scores, they&apos;ll appear here.
           </p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {sorted.slice(0, 10).map((c, idx) => (
+            {rankings.slice(0, 10).map((ranking) => {
+              const card = cardsByPlayerId.get(ranking.playerId);
+              return (
               <div
-                key={c.id}
+                key={ranking.playerId}
                 className="flex items-center justify-between py-2 text-sm"
               >
-                {(() => {
-                  const name = getPlayerName(c.playerId);
-                  return (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 text-xs text-gray-400">
-                          #{idx + 1}
-                        </span>
-                        <span className="text-gray-700">{name}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-gray-800">
-                          {round.format === "stableford"
-                            ? c.totalStableford
-                            : c.totalGross}
-                        </p>
-                        <p className="text-[11px] text-gray-400">
-                          Hcp {c.handicapAtTime}
-                        </p>
-                        {!round.resultsPublished && c.status !== "in_progress" && (
-                          <button
-                            type="button"
-                            onClick={() => handleReopenCard(c.id)}
-                            className="mt-1 text-[11px] text-green-700 underline"
-                          >
-                            Re-open card
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
+                <div className="flex items-center gap-2">
+                  <span className="w-6 text-xs text-gray-400">
+                    #{ranking.rank}
+                  </span>
+                  <div>
+                    <span className="text-gray-700">
+                      {ranking.playerName}
+                    </span>
+                    {ranking.countbackDetail && (
+                      <p className="text-[11px] text-gray-400">
+                        {ranking.countbackDetail}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-gray-800">
+                    {round.format === "stableford"
+                      ? ranking.stablefordTotal
+                      : ranking.grossTotal}
+                  </p>
+                  <p className="text-[11px] text-gray-400">
+                    Hcp {ranking.handicap}
+                  </p>
+                  {!round.resultsPublished &&
+                    card &&
+                    card.status !== "in_progress" && (
+                      <button
+                        type="button"
+                        onClick={() => handleReopenCard(card.id)}
+                        className="mt-1 text-[11px] text-green-700 underline"
+                      >
+                        Re-open card
+                      </button>
+                    )}
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -412,9 +410,16 @@ export default function AdminRoundLeaderboardPage() {
                 key={ranking.playerId}
                 className="flex items-center justify-between"
               >
-                <span>
-                  #{ranking.rank} {ranking.playerName}
-                </span>
+                <div>
+                  <span>
+                    #{ranking.rank} {ranking.playerName}
+                  </span>
+                  {ranking.countbackDetail && (
+                    <p className="text-[11px] text-green-700">
+                      {ranking.countbackDetail}
+                    </p>
+                  )}
+                </div>
                 <span className="font-semibold">
                   {round.format === "stableford"
                     ? `${ranking.stablefordTotal} pts`
@@ -434,7 +439,7 @@ export default function AdminRoundLeaderboardPage() {
         <button
           type="button"
           onClick={handlePublish}
-          disabled={publishing || round.resultsPublished || sorted.length === 0}
+          disabled={publishing || round.resultsPublished || rankings.length === 0}
           className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
         >
           {round.resultsPublished
