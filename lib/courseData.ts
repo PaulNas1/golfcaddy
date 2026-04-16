@@ -2,6 +2,8 @@ import type { CourseHole, CourseTeeSet, HoleType, Round, SpecialHoles } from "@/
 
 export type SeededCourse = {
   id: string;
+  apiId?: number;
+  catalogueSource?: "seeded" | "golfcourseapi";
   name: string;
   location: string;
   aliases: string[];

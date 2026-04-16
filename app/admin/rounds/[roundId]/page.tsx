@@ -5,6 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
 import {
+  getGolfCourseCatalogueCourse,
+  searchGolfCourseCatalogue,
+} from "@/lib/courseCatalogueClient";
+import {
   deleteRoundCascade,
   getRound,
   updateRound,
@@ -45,6 +49,9 @@ export default function AdminRoundDetailPage() {
   const [editingOverride, setEditingOverride] = useState<HoleOverride | null>(
     null
   );
+  const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
+  const [apiCourseLoading, setApiCourseLoading] = useState(false);
+  const [apiCourseError, setApiCourseError] = useState("");
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
@@ -59,23 +66,44 @@ export default function AdminRoundDetailPage() {
   const [teeTimes, setTeeTimes] = useState<Array<{ time: string; notes: string }>>([
     { time: "", notes: "" },
   ]);
-  const selectedCourse = useMemo(
-    () =>
+  const selectedCourse = useMemo(() => {
+    const apiCourseById = apiCourses.find((course) => course.id === courseId);
+    const apiCourseByName = apiCourses.find(
+      (course) => course.name === courseName
+    );
+
+    return (
       (courseId ? findSeededCourseByName(courseId) : null) ??
-      findSeededCourseByName(courseName),
-    [courseId, courseName]
-  );
-  const selectedTeeSet = courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null;
+      apiCourseById ??
+      findSeededCourseByName(courseName) ??
+      apiCourseByName ??
+      null
+    );
+  }, [apiCourses, courseId, courseName]);
+  const selectedTeeSet =
+    selectedCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ??
+    (courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null);
   const courseSuggestions = useMemo(
     () => searchSeededCourses(courseName),
     [courseName]
+  );
+  const apiCourseSuggestions = useMemo(
+    () =>
+      apiCourses.filter(
+        (course) =>
+          course.id !== selectedCourse?.id &&
+          !courseSuggestions.some(
+            (seededCourse) => seededCourse.name === course.name
+          )
+      ),
+    [apiCourses, courseSuggestions, selectedCourse?.id]
   );
   const resolvedCourseFromInput = useMemo(
     () => findSeededCourseByName(courseName),
     [courseName]
   );
   const showCourseSuggestions =
-    courseSuggestions.length > 0 &&
+    (courseSuggestions.length > 0 || apiCourseSuggestions.length > 0) &&
     !(selectedCourse && resolvedCourseFromInput?.id === selectedCourse.id);
   const holeOptions =
     selectedTeeSet?.holes ??
@@ -84,16 +112,50 @@ export default function AdminRoundDetailPage() {
       : getFallbackCourseHoles());
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
   const refreshableTeeSet =
-    selectedTeeSet ?? (selectedCourse ? getDefaultTeeSet(selectedCourse.id) : null);
+    selectedTeeSet ??
+    (selectedCourse
+      ? getDefaultTeeSet(selectedCourse.id) ?? selectedCourse.teeSets[0] ?? null
+      : null);
 
-  const applySeededCourse = (course: SeededCourse) => {
-    const defaultTeeSet = getDefaultTeeSet(course.id);
+  const applyCourse = (course: SeededCourse) => {
+    const defaultTeeSet = getDefaultTeeSet(course.id) ?? course.teeSets[0] ?? null;
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
     setLdHole("");
     setT2Hole("");
     setT3Hole("");
+  };
+
+  const applyApiCourse = async (course: SeededCourse) => {
+    let courseToApply = course;
+
+    if (course.apiId && course.teeSets.length === 0) {
+      setApiCourseLoading(true);
+      setApiCourseError("");
+      const result = await getGolfCourseCatalogueCourse(course.apiId);
+      setApiCourseLoading(false);
+
+      if (result.course) {
+        courseToApply = result.course;
+        setApiCourses((current) => [
+          result.course!,
+          ...current.filter((item) => item.id !== course.id),
+        ]);
+      } else {
+        setApiCourseError(
+          result.error ?? "Could not load tee data for that course."
+        );
+        return;
+      }
+    }
+
+    if (courseToApply.teeSets.length === 0) {
+      setApiCourseError("That course does not include 18-hole tee data.");
+      return;
+    }
+
+    applyCourse(courseToApply);
   };
 
   const handleCourseNameChange = (value: string) => {
@@ -108,6 +170,38 @@ export default function AdminRoundDetailPage() {
     setCourseId("");
     setTeeSetId("");
   };
+
+  useEffect(() => {
+    const query = courseName.trim();
+
+    if (query.length < 3) {
+      setApiCourses([]);
+      setApiCourseError("");
+      setApiCourseLoading(false);
+      return;
+    }
+    if (selectedCourse?.name === query) {
+      setApiCourseError("");
+      setApiCourseLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setApiCourseLoading(true);
+    const timeout = window.setTimeout(async () => {
+      const result = await searchGolfCourseCatalogue(query);
+      if (cancelled) return;
+
+      setApiCourses(result.courses.slice(0, 6));
+      setApiCourseError(result.configured ? result.error ?? "" : "");
+      setApiCourseLoading(false);
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [courseName, selectedCourse?.name]);
 
   const loadScorecards = async (r: Round) => {
     const cards = await getScorecardsForRound(r.id);
@@ -163,6 +257,10 @@ export default function AdminRoundDetailPage() {
       parseInt(roundNumber, 10) || round.roundNumber;
     const newDate = new Date(date);
     const appliedTeeSet = selectedTeeSet;
+    const preserveExistingCourseData =
+      !appliedTeeSet &&
+      courseName.trim() === round.courseName &&
+      round.courseHoles.length === 18;
     const courseDetails = appliedTeeSet
       ? {
           teeSetId: appliedTeeSet.id,
@@ -172,6 +270,16 @@ export default function AdminRoundDetailPage() {
           slopeRating: appliedTeeSet.slopeRating,
           courseHoles: appliedTeeSet.holes,
           courseSource: appliedTeeSet.source,
+        }
+      : preserveExistingCourseData
+      ? {
+          teeSetId: round.teeSetId,
+          teeSetName: round.teeSetName,
+          coursePar: round.coursePar,
+          courseRating: round.courseRating,
+          slopeRating: round.slopeRating,
+          courseHoles: round.courseHoles,
+          courseSource: round.courseSource,
         }
       : {
           teeSetId: null,
@@ -199,9 +307,11 @@ export default function AdminRoundDetailPage() {
         playerIds: [],
         notes: t.notes?.trim() || null,
       }));
+    const savedCourseId =
+      selectedCourse?.id ?? (preserveExistingCourseData ? round.courseId : "");
 
     await updateRound(round.id, {
-      courseId: selectedCourse?.id ?? "",
+      courseId: savedCourseId,
       courseName: courseName.trim(),
       ...courseDetails,
       roundNumber: parsedRoundNumber,
@@ -214,7 +324,7 @@ export default function AdminRoundDetailPage() {
 
     setRound({
       ...round,
-      courseId: selectedCourse?.id ?? "",
+      courseId: savedCourseId,
       courseName: courseName.trim(),
       ...courseDetails,
       roundNumber: parsedRoundNumber,
@@ -423,7 +533,7 @@ export default function AdminRoundDetailPage() {
                   <button
                     key={course.id}
                     type="button"
-                    onClick={() => applySeededCourse(course)}
+                    onClick={() => applyCourse(course)}
                     className="block w-full rounded-lg px-3 py-2 text-left text-xs text-gray-700 hover:bg-white"
                   >
                     <span className="font-medium text-gray-900">
@@ -434,7 +544,38 @@ export default function AdminRoundDetailPage() {
                     </span>
                   </button>
                 ))}
+                {apiCourseSuggestions.map((course) => (
+                  <button
+                    key={course.id}
+                    type="button"
+                    onClick={() => applyApiCourse(course)}
+                    disabled={apiCourseLoading}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-gray-700 hover:bg-white disabled:text-gray-400"
+                  >
+                    <span className="font-medium text-gray-900">
+                      {course.name}
+                    </span>
+                    <span className="block text-[11px] text-gray-500">
+                      GolfCourseAPI · {getCourseSearchLabel(course)}
+                      {course.teeSets.length > 0
+                        ? ` · ${course.teeSets.length} tee set${
+                            course.teeSets.length === 1 ? "" : "s"
+                          }`
+                        : " · tap to load tee data"}
+                    </span>
+                  </button>
+                ))}
               </div>
+            )}
+            {apiCourseLoading && (
+              <p className="text-[11px] text-gray-400 mt-1">
+                Searching GolfCourseAPI...
+              </p>
+            )}
+            {apiCourseError && (
+              <p className="text-[11px] text-amber-600 mt-1">
+                {apiCourseError}
+              </p>
             )}
           </div>
 

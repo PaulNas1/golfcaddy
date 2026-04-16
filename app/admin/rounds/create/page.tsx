@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  getGolfCourseCatalogueCourse,
+  searchGolfCourseCatalogue,
+} from "@/lib/courseCatalogueClient";
 import { createRound } from "@/lib/firestore";
 import {
   type SeededCourse,
@@ -34,6 +38,9 @@ export default function CreateRoundPage() {
   const [t3Hole, setT3Hole] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
+  const [apiCourseLoading, setApiCourseLoading] = useState(false);
+  const [apiCourseError, setApiCourseError] = useState("");
 
   // Tee times state
   const [teeTimes, setTeeTimes] = useState([{ time: "", notes: "" }]);
@@ -45,30 +52,86 @@ export default function CreateRoundPage() {
     () => (courseId ? findSeededCourseByName(courseId) : null),
     [courseId]
   );
-  const activeCourse = selectedCourseById ?? selectedCourse;
-  const selectedTeeSet = courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null;
+  const selectedApiCourseById = useMemo(
+    () => apiCourses.find((course) => course.id === courseId) ?? null,
+    [apiCourses, courseId]
+  );
+  const selectedApiCourseByName = useMemo(
+    () => apiCourses.find((course) => course.name === courseName) ?? null,
+    [apiCourses, courseName]
+  );
+  const activeCourse =
+    selectedCourseById ??
+    selectedApiCourseById ??
+    selectedCourse ??
+    selectedApiCourseByName;
+  const selectedTeeSet =
+    activeCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ??
+    (courseId && teeSetId ? getTeeSet(courseId, teeSetId) : null);
   const holeOptions = selectedTeeSet?.holes ?? getFallbackCourseHoles();
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
   const courseSuggestions = useMemo(
     () => searchSeededCourses(courseName),
     [courseName]
   );
+  const apiCourseSuggestions = useMemo(
+    () =>
+      apiCourses.filter(
+        (course) =>
+          course.id !== activeCourse?.id &&
+          !courseSuggestions.some(
+            (seededCourse) => seededCourse.name === course.name
+          )
+      ),
+    [activeCourse?.id, apiCourses, courseSuggestions]
+  );
   const resolvedCourseFromInput = useMemo(
     () => findSeededCourseByName(courseName),
     [courseName]
   );
   const showCourseSuggestions =
-    courseSuggestions.length > 0 &&
+    (courseSuggestions.length > 0 || apiCourseSuggestions.length > 0) &&
     !(activeCourse && resolvedCourseFromInput?.id === activeCourse.id);
 
-  const applySeededCourse = (course: SeededCourse) => {
-    const defaultTeeSet = getDefaultTeeSet(course.id);
+  const applyCourse = (course: SeededCourse) => {
+    const defaultTeeSet = getDefaultTeeSet(course.id) ?? course.teeSets[0] ?? null;
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
     setLdHole("");
     setT2Hole("");
     setT3Hole("");
+  };
+
+  const applyApiCourse = async (course: SeededCourse) => {
+    let courseToApply = course;
+
+    if (course.apiId && course.teeSets.length === 0) {
+      setApiCourseLoading(true);
+      setApiCourseError("");
+      const result = await getGolfCourseCatalogueCourse(course.apiId);
+      setApiCourseLoading(false);
+
+      if (result.course) {
+        courseToApply = result.course;
+        setApiCourses((current) => [
+          result.course!,
+          ...current.filter((item) => item.id !== course.id),
+        ]);
+      } else {
+        setApiCourseError(
+          result.error ?? "Could not load tee data for that course."
+        );
+        return;
+      }
+    }
+
+    if (courseToApply.teeSets.length === 0) {
+      setApiCourseError("That course does not include 18-hole tee data.");
+      return;
+    }
+
+    applyCourse(courseToApply);
   };
 
   const handleCourseNameChange = (value: string) => {
@@ -83,6 +146,38 @@ export default function CreateRoundPage() {
     setCourseId("");
     setTeeSetId("");
   };
+
+  useEffect(() => {
+    const query = courseName.trim();
+
+    if (query.length < 3) {
+      setApiCourses([]);
+      setApiCourseError("");
+      setApiCourseLoading(false);
+      return;
+    }
+    if (activeCourse?.name === query) {
+      setApiCourseError("");
+      setApiCourseLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setApiCourseLoading(true);
+    const timeout = window.setTimeout(async () => {
+      const result = await searchGolfCourseCatalogue(query);
+      if (cancelled) return;
+
+      setApiCourses(result.courses.slice(0, 6));
+      setApiCourseError(result.configured ? result.error ?? "" : "");
+      setApiCourseLoading(false);
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [activeCourse?.name, courseName]);
 
   useEffect(() => {
     if (!courseId || teeSetId) return;
@@ -133,7 +228,7 @@ export default function CreateRoundPage() {
 
       await createRound({
         groupId: "fourplay",
-        courseId: selectedCourse?.id ?? "",
+        courseId: activeCourse?.id ?? "",
         courseName: courseName.trim(),
         teeSetId: selectedTeeSet?.id ?? null,
         teeSetName: selectedTeeSet?.name ?? null,
@@ -189,7 +284,7 @@ export default function CreateRoundPage() {
                   <button
                     key={course.id}
                     type="button"
-                    onClick={() => applySeededCourse(course)}
+                    onClick={() => applyCourse(course)}
                     className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-white"
                   >
                     <span className="font-medium text-gray-900">
@@ -201,7 +296,36 @@ export default function CreateRoundPage() {
                     </span>
                   </button>
                 ))}
+                {apiCourseSuggestions.map((course) => (
+                  <button
+                    key={course.id}
+                    type="button"
+                    onClick={() => applyApiCourse(course)}
+                    disabled={apiCourseLoading}
+                    className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-white disabled:text-gray-400"
+                  >
+                    <span className="font-medium text-gray-900">
+                      {course.name}
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      GolfCourseAPI · {getCourseSearchLabel(course)}
+                      {course.teeSets.length > 0
+                        ? ` · ${course.teeSets.length} tee set${
+                            course.teeSets.length === 1 ? "" : "s"
+                          }`
+                        : " · tap to load tee data"}
+                    </span>
+                  </button>
+                ))}
               </div>
+            )}
+            {apiCourseLoading && (
+              <p className="text-xs text-gray-400 mt-1">
+                Searching GolfCourseAPI...
+              </p>
+            )}
+            {apiCourseError && (
+              <p className="text-xs text-amber-600 mt-1">{apiCourseError}</p>
             )}
             <p className="text-xs text-gray-400 mt-1">
               Select a prediction to auto-fill tee data, par, stroke indexes,
