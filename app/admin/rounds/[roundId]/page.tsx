@@ -150,6 +150,7 @@ export default function AdminRoundDetailPage() {
 
   const applyCourse = (course: SeededCourse) => {
     const defaultTeeSet = course.teeSets[0] ?? null;
+    setApiCourses([course]);
     setCourseId(course.id);
     setTeeSetId(defaultTeeSet?.id ?? "");
     setCourseName(course.name);
