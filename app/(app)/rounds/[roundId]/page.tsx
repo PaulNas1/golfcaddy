@@ -6,15 +6,29 @@ import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   getLiveRound,
+  getActiveMembers,
   getResultsForRound,
   getRound,
   getRoundRsvp,
+  getSideClaimsForRound,
+  setSideClaim,
   setRoundRsvp,
+  subscribeSideClaimsForRound,
 } from "@/lib/firestore";
-import { withSeededCourseData } from "@/lib/courseData";
+import {
+  getEffectiveSpecialHoles,
+  withSeededCourseData,
+} from "@/lib/courseData";
 import { formatTeeTime, getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Results, Round, RoundRsvp } from "@/types";
+import type {
+  AppUser,
+  Results,
+  Round,
+  RoundRsvp,
+  SideClaim,
+  SidePrizeType,
+} from "@/types";
 
 export default function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -22,7 +36,10 @@ export default function RoundDetailPage() {
   const [round, setRound] = useState<Round | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [myRsvp, setMyRsvp] = useState<RoundRsvp | null>(null);
+  const [members, setMembers] = useState<AppUser[]>([]);
+  const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
   const [savingRsvp, setSavingRsvp] = useState(false);
+  const [savingClaim, setSavingClaim] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { appUser, isAdmin } = useAuth();
@@ -35,11 +52,15 @@ export default function RoundDetailPage() {
         getRound(roundId),
         getResultsForRound(roundId),
         appUser?.uid ? getRoundRsvp(roundId, appUser.uid) : Promise.resolve(null),
+        getActiveMembers(appUser?.groupId ?? "fourplay"),
+        getSideClaimsForRound(roundId),
       ])
-        .then(([r, res, rsvp]) => {
+        .then(([r, res, rsvp, activeMembers, claims]) => {
           setRound(r ? withSeededCourseData(r) : null);
           setResults(res);
           setMyRsvp(rsvp);
+          setMembers(activeMembers);
+          setSideClaims(claims);
           if (!r) {
             getLiveRound("fourplay")
               .then((live) => {
@@ -64,7 +85,16 @@ export default function RoundDetailPage() {
         })
         .finally(() => setLoading(false));
     }
-  }, [appUser?.uid, roundId, router]);
+  }, [appUser?.groupId, appUser?.uid, roundId, router]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeSideClaimsForRound(
+      roundId,
+      setSideClaims,
+      (err) => console.warn("Unable to subscribe to side claims", err)
+    );
+  }, [roundId]);
 
   if (loading) {
     return (
@@ -131,6 +161,34 @@ export default function RoundDetailPage() {
       setMyRsvp(updated);
     } finally {
       setSavingRsvp(false);
+    }
+  };
+  const specialHoles = getEffectiveSpecialHoles(round);
+  const getClaim = (prizeType: SidePrizeType, holeNumber: number) =>
+    sideClaims.find(
+      (claim) =>
+        claim.prizeType === prizeType && claim.holeNumber === holeNumber
+    ) ?? null;
+  const handleClaim = async (
+    prizeType: SidePrizeType,
+    holeNumber: number,
+    winnerId: string
+  ) => {
+    if (!round || !appUser) return;
+    const claimId = prizeType === "ntp" ? `ntp-${holeNumber}` : prizeType;
+    setSavingClaim(claimId);
+    try {
+      await setSideClaim({
+        round,
+        prizeType,
+        holeNumber,
+        winnerId,
+        updatedBy: appUser,
+        members,
+      });
+      setSideClaims(await getSideClaimsForRound(round.id));
+    } finally {
+      setSavingClaim("");
     }
   };
 
@@ -312,50 +370,53 @@ export default function RoundDetailPage() {
       )}
 
       {/* Special holes */}
-      {(round.specialHoles.ntp.length > 0 ||
-        round.specialHoles.ld ||
-        round.specialHoles.t2 ||
-        round.specialHoles.t3) && (
+      {(specialHoles.ntp.length > 0 ||
+        specialHoles.ld ||
+        specialHoles.t2 ||
+        specialHoles.t3) && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <h2 className="font-semibold text-gray-800 mb-3">Special Holes</h2>
-          <div className="space-y-2">
-            {round.specialHoles.ntp.length > 0 && (
-              <div className="flex items-center gap-3 bg-yellow-50 rounded-xl px-3 py-2">
-                <span className="text-lg">🎯</span>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">NTP</p>
-                  <p className="text-xs text-gray-500">
-                    Holes {round.specialHoles.ntp.join(", ")} (all par 3s)
-                  </p>
-                </div>
-              </div>
+          <div className="space-y-3">
+            {specialHoles.ntp.map((holeNumber) => (
+              <SideClaimSelect
+                key={`ntp-${holeNumber}`}
+                label={`NTP - Hole ${holeNumber}`}
+                claim={getClaim("ntp", holeNumber)}
+                members={members}
+                disabled={round.status !== "live" || round.resultsPublished}
+                saving={savingClaim === `ntp-${holeNumber}`}
+                onChange={(winnerId) => handleClaim("ntp", holeNumber, winnerId)}
+              />
+            ))}
+            {specialHoles.ld && (
+              <SideClaimSelect
+                label={`Longest Drive - Hole ${specialHoles.ld}`}
+                claim={getClaim("ld", specialHoles.ld)}
+                members={members}
+                disabled={round.status !== "live" || round.resultsPublished}
+                saving={savingClaim === "ld"}
+                onChange={(winnerId) => handleClaim("ld", specialHoles.ld!, winnerId)}
+              />
             )}
-            {round.specialHoles.ld && (
-              <div className="flex items-center gap-3 bg-blue-50 rounded-xl px-3 py-2">
-                <span className="text-lg">💪</span>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Longest Drive</p>
-                  <p className="text-xs text-gray-500">Hole {round.specialHoles.ld}</p>
-                </div>
-              </div>
+            {specialHoles.t2 && (
+              <SideClaimSelect
+                label={`T2 - Hole ${specialHoles.t2}`}
+                claim={getClaim("t2", specialHoles.t2)}
+                members={members}
+                disabled={round.status !== "live" || round.resultsPublished}
+                saving={savingClaim === "t2"}
+                onChange={(winnerId) => handleClaim("t2", specialHoles.t2!, winnerId)}
+              />
             )}
-            {round.specialHoles.t2 && (
-              <div className="flex items-center gap-3 bg-purple-50 rounded-xl px-3 py-2">
-                <span className="text-lg">⭐</span>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">T2</p>
-                  <p className="text-xs text-gray-500">Hole {round.specialHoles.t2}</p>
-                </div>
-              </div>
-            )}
-            {round.specialHoles.t3 && (
-              <div className="flex items-center gap-3 bg-orange-50 rounded-xl px-3 py-2">
-                <span className="text-lg">⭐</span>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">T3</p>
-                  <p className="text-xs text-gray-500">Hole {round.specialHoles.t3}</p>
-                </div>
-              </div>
+            {specialHoles.t3 && (
+              <SideClaimSelect
+                label={`T3 - Hole ${specialHoles.t3}`}
+                claim={getClaim("t3", specialHoles.t3)}
+                members={members}
+                disabled={round.status !== "live" || round.resultsPublished}
+                saving={savingClaim === "t3"}
+                onChange={(winnerId) => handleClaim("t3", specialHoles.t3!, winnerId)}
+              />
             )}
           </div>
         </div>
@@ -399,6 +460,44 @@ export default function RoundDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function SideClaimSelect({
+  label,
+  claim,
+  members,
+  disabled,
+  saving,
+  onChange,
+}: {
+  label: string;
+  claim: SideClaim | null;
+  members: AppUser[];
+  disabled: boolean;
+  saving: boolean;
+  onChange: (winnerId: string) => void;
+}) {
+  return (
+    <label className="block rounded-xl bg-gray-50 px-3 py-2">
+      <span className="block text-sm font-medium text-gray-800">{label}</span>
+      <span className="block text-[11px] text-gray-500 mb-1">
+        Current holder: {claim?.winnerName ?? "Not set"}
+      </span>
+      <select
+        value={claim?.winnerId ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled || saving}
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+      >
+        <option value="">No winner selected</option>
+        {members.map((member) => (
+          <option key={member.uid} value={member.uid}>
+            {member.displayName}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

@@ -14,7 +14,11 @@ import {
   setHoleScore,
   updateScorecard,
 } from "@/lib/firestore";
-import { getFallbackCourseHoles } from "@/lib/courseData";
+import {
+  getEffectiveCourseHoles,
+  getEffectiveSpecialHoles,
+  getFallbackCourseHoles,
+} from "@/lib/courseData";
 import { getEligibleScorecardMembers } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Round, Scorecard, HoleScore, AppUser } from "@/types";
@@ -541,7 +545,7 @@ export default function ScorecardPage() {
               <span>Strokes</span>
               <span>Stableford</span>
             </div>
-            {holesForNine(holes, courseLayout, 1, 9).map((h) => (
+            {holesForNine(holes, courseLayout, 1, 9, round).map((h) => (
               <HoleRow
                 key={h.holeNumber}
                 hole={h}
@@ -562,7 +566,7 @@ export default function ScorecardPage() {
               <span>Strokes</span>
               <span>Stableford</span>
             </div>
-            {holesForNine(holes, courseLayout, 10, 18).map((h) => (
+            {holesForNine(holes, courseLayout, 10, 18, round).map((h) => (
               <HoleRow
                 key={h.holeNumber}
                 hole={h}
@@ -615,10 +619,7 @@ export default function ScorecardPage() {
 }
 
 function buildCourseLayout(round?: Round | null): CourseHoleLite[] {
-  const courseHoles =
-    round?.courseHoles && round.courseHoles.length === 18
-      ? round.courseHoles
-      : getFallbackCourseHoles();
+  const courseHoles = round ? getEffectiveCourseHoles(round) : getFallbackCourseHoles();
 
   return courseHoles.map((hole) => ({
     number: hole.number,
@@ -630,6 +631,7 @@ function buildCourseLayout(round?: Round | null): CourseHoleLite[] {
 
 function buildInitialHoles(round: Round, handicap: number): HoleScore[] {
   const layout = buildCourseLayout(round);
+  const specialHoles = getEffectiveSpecialHoles(round);
   return layout.map((h) => ({
     holeNumber: h.number,
     par: h.par,
@@ -639,10 +641,10 @@ function buildInitialHoles(round: Round, handicap: number): HoleScore[] {
     grossScore: null,
     netScore: null,
     stablefordPoints: null,
-    isNTP: round.specialHoles.ntp.includes(h.number),
-    isLD: round.specialHoles.ld === h.number,
-    isT2: round.specialHoles.t2 === h.number,
-    isT3: round.specialHoles.t3 === h.number,
+    isNTP: specialHoles.ntp.includes(h.number),
+    isLD: specialHoles.ld === h.number,
+    isT2: specialHoles.t2 === h.number,
+    isT3: specialHoles.t3 === h.number,
     savedAt: null,
   }));
 }
@@ -651,9 +653,11 @@ function holesForNine(
   holes: HoleScore[],
   layout: CourseHoleLite[],
   start: number,
-  end: number
+  end: number,
+  round: Round
 ): HoleScore[] {
   const byNumber: Record<number, HoleScore> = {};
+  const specialHoles = getEffectiveSpecialHoles(round);
   holes.forEach((h) => {
     byNumber[h.holeNumber] = h;
   });
@@ -665,7 +669,13 @@ function holesForNine(
       base
         ? {
             ...base,
+            par: course.par,
+            strokeIndex: course.strokeIndex,
             distanceMeters: base.distanceMeters ?? course.distanceMeters,
+            isNTP: specialHoles.ntp.includes(n),
+            isLD: specialHoles.ld === n,
+            isT2: specialHoles.t2 === n,
+            isT3: specialHoles.t3 === n,
           }
         : ({
         holeNumber: n,
@@ -676,10 +686,10 @@ function holesForNine(
         grossScore: null,
         netScore: null,
         stablefordPoints: null,
-        isNTP: false,
-        isLD: false,
-        isT2: false,
-        isT3: false,
+        isNTP: specialHoles.ntp.includes(n),
+        isLD: specialHoles.ld === n,
+        isT2: specialHoles.t2 === n,
+        isT3: specialHoles.t3 === n,
         savedAt: null,
       } as HoleScore)
     );

@@ -9,10 +9,23 @@ import {
   getActiveMembers,
   updateScorecard,
   getResultsForRound,
+  getSideClaimsForRound,
+  setSideClaim,
+  subscribeSideClaimsForRound,
   publishRoundResultsWithStage3,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Round, Scorecard, AppUser, Results, SideResult, PlayerRanking } from "@/types";
+import { getEffectiveSpecialHoles } from "@/lib/courseData";
+import type {
+  Round,
+  Scorecard,
+  AppUser,
+  Results,
+  SideResult,
+  PlayerRanking,
+  SideClaim,
+  SidePrizeType,
+} from "@/types";
 
 export default function AdminRoundLeaderboardPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -42,8 +55,12 @@ export default function AdminRoundLeaderboardPage() {
           setMembers([]);
         } else {
           setRound(r);
-          const c = await getScorecardsForRound(r.id);
+          const [c, claims] = await Promise.all([
+            getScorecardsForRound(r.id),
+            getSideClaimsForRound(r.id),
+          ]);
           setCards(c);
+          setSideWinnerIds(buildSideWinnerMap(claims));
           setMembers(activeMembers);
           setResults(existingResults);
         }
@@ -55,6 +72,15 @@ export default function AdminRoundLeaderboardPage() {
     };
     load();
   }, [roundId, appUser?.groupId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeSideClaimsForRound(
+      roundId,
+      (claims) => setSideWinnerIds(buildSideWinnerMap(claims)),
+      (err) => console.warn("Unable to subscribe to side claims", err)
+    );
+  }, [roundId]);
 
   const sorted = cards
     .slice()
@@ -79,12 +105,13 @@ export default function AdminRoundLeaderboardPage() {
     members.find((u) => u.uid === playerId)?.displayName ??
     `Player ${playerId.slice(0, 6)}`;
 
-  const playerOptions = cards
-    .map((card) => ({
-      id: card.playerId,
-      name: getPlayerName(card.playerId),
+  const playerOptions = members
+    .map((member) => ({
+      id: member.uid,
+      name: member.displayName,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+  const specialHoles = round ? getEffectiveSpecialHoles(round) : null;
 
   const buildRankings = (): PlayerRanking[] => {
     const pointsByRank = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
@@ -140,12 +167,12 @@ export default function AdminRoundLeaderboardPage() {
         publishedAt,
         rankings: buildRankings(),
         sideResults: {
-          ntp: round.specialHoles.ntp.map((holeNumber) =>
+          ntp: (specialHoles?.ntp ?? []).map((holeNumber) =>
             buildSideResult(`ntp-${holeNumber}`, holeNumber)
           ),
-          ld: buildSideResult("ld", round.specialHoles.ld),
-          t2: buildSideResult("t2", round.specialHoles.t2),
-          t3: buildSideResult("t3", round.specialHoles.t3),
+          ld: buildSideResult("ld", specialHoles?.ld ?? null),
+          t2: buildSideResult("t2", specialHoles?.t2 ?? null),
+          t3: buildSideResult("t3", specialHoles?.t3 ?? null),
         },
       };
 
@@ -177,11 +204,25 @@ export default function AdminRoundLeaderboardPage() {
     }
   };
 
-  const updateSideWinner = (key: string, winnerId: string) => {
+  const updateSideWinner = async (
+    key: string,
+    prizeType: SidePrizeType,
+    holeNumber: number,
+    winnerId: string
+  ) => {
+    if (!round || !appUser) return;
     setSideWinnerIds((prev) => ({
       ...prev,
       [key]: winnerId,
     }));
+    await setSideClaim({
+      round,
+      prizeType,
+      holeNumber,
+      winnerId,
+      updatedBy: appUser,
+      members,
+    });
   };
 
   const handleReopenCard = async (cardId: string) => {
@@ -313,39 +354,45 @@ export default function AdminRoundLeaderboardPage() {
           <p className="text-xs text-gray-500">
             Select winners before publishing. Blank winners are allowed if a prize was not run.
           </p>
-          {round.specialHoles.ntp.map((holeNumber) => (
+          {(specialHoles?.ntp ?? []).map((holeNumber) => (
             <WinnerSelect
               key={holeNumber}
               label={`NTP - Hole ${holeNumber}`}
               value={sideWinnerIds[`ntp-${holeNumber}`] ?? ""}
               options={playerOptions}
               onChange={(winnerId) =>
-                updateSideWinner(`ntp-${holeNumber}`, winnerId)
+                updateSideWinner(`ntp-${holeNumber}`, "ntp", holeNumber, winnerId)
               }
             />
           ))}
-          {round.specialHoles.ld && (
+          {specialHoles?.ld && (
             <WinnerSelect
-              label={`Longest Drive - Hole ${round.specialHoles.ld}`}
+              label={`Longest Drive - Hole ${specialHoles.ld}`}
               value={sideWinnerIds.ld ?? ""}
               options={playerOptions}
-              onChange={(winnerId) => updateSideWinner("ld", winnerId)}
+              onChange={(winnerId) =>
+                updateSideWinner("ld", "ld", specialHoles.ld!, winnerId)
+              }
             />
           )}
-          {round.specialHoles.t2 && (
+          {specialHoles?.t2 && (
             <WinnerSelect
-              label={`T2 - Hole ${round.specialHoles.t2}`}
+              label={`T2 - Hole ${specialHoles.t2}`}
               value={sideWinnerIds.t2 ?? ""}
               options={playerOptions}
-              onChange={(winnerId) => updateSideWinner("t2", winnerId)}
+              onChange={(winnerId) =>
+                updateSideWinner("t2", "t2", specialHoles.t2!, winnerId)
+              }
             />
           )}
-          {round.specialHoles.t3 && (
+          {specialHoles?.t3 && (
             <WinnerSelect
-              label={`T3 - Hole ${round.specialHoles.t3}`}
+              label={`T3 - Hole ${specialHoles.t3}`}
               value={sideWinnerIds.t3 ?? ""}
               options={playerOptions}
-              onChange={(winnerId) => updateSideWinner("t3", winnerId)}
+              onChange={(winnerId) =>
+                updateSideWinner("t3", "t3", specialHoles.t3!, winnerId)
+              }
             />
           )}
         </div>
@@ -399,6 +446,17 @@ export default function AdminRoundLeaderboardPage() {
       </div>
     </div>
   );
+}
+
+function buildSideWinnerMap(claims: SideClaim[]) {
+  return claims.reduce<Record<string, string>>((claimMap, claim) => {
+    const key =
+      claim.prizeType === "ntp"
+        ? `ntp-${claim.holeNumber}`
+        : claim.prizeType;
+    if (claim.winnerId) claimMap[key] = claim.winnerId;
+    return claimMap;
+  }, {});
 }
 
 function WinnerSelect({

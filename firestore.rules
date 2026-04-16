@@ -102,6 +102,15 @@ service cloud.firestore {
         );
         allow delete: if isAdmin();
       }
+
+      match /sideClaims/{claimId} {
+        allow read: if isActiveUserOrAdmin();
+        allow create, update: if isActiveUserOrAdmin() &&
+          request.resource.data.updatedBy == request.auth.uid &&
+          request.resource.data.roundId == roundId &&
+          get(/databases/$(database)/documents/rounds/$(roundId)).data.resultsPublished != true;
+        allow delete: if isAdmin();
+      }
     }
 
     // ─── Scorecards ───────────────────────────────────────────────────────

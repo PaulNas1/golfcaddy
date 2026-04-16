@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { getFallbackCourseHoles } from "@/lib/courseData";
+import {
+  getEffectiveCourseHoles,
+  getEffectiveSpecialHoles,
+  getFallbackCourseHoles,
+} from "@/lib/courseData";
 import {
   getRound,
   getLiveRound,
@@ -238,10 +242,7 @@ export default function MyCardPage() {
 }
 
 function buildCourseLayout(round?: Round | null): CourseHoleLite[] {
-  const courseHoles =
-    round?.courseHoles && round.courseHoles.length === 18
-      ? round.courseHoles
-      : getFallbackCourseHoles();
+  const courseHoles = round ? getEffectiveCourseHoles(round) : getFallbackCourseHoles();
 
   return courseHoles.map((hole) => ({
     number: hole.number,
@@ -259,6 +260,7 @@ function holesForNine(
   round: Round
 ): HoleScore[] {
   const byNumber: Record<number, HoleScore> = {};
+  const specialHoles = getEffectiveSpecialHoles(round);
   holes.forEach((h) => {
     byNumber[h.holeNumber] = h;
   });
@@ -270,7 +272,13 @@ function holesForNine(
       base
         ? {
             ...base,
+            par: course.par,
+            strokeIndex: course.strokeIndex,
             distanceMeters: base.distanceMeters ?? course.distanceMeters,
+            isNTP: specialHoles.ntp.includes(n),
+            isLD: specialHoles.ld === n,
+            isT2: specialHoles.t2 === n,
+            isT3: specialHoles.t3 === n,
           }
         : ({
         holeNumber: n,
@@ -281,10 +289,10 @@ function holesForNine(
         grossScore: null,
         netScore: null,
         stablefordPoints: null,
-        isNTP: round.specialHoles.ntp.includes(n),
-        isLD: round.specialHoles.ld === n,
-        isT2: round.specialHoles.t2 === n,
-        isT3: round.specialHoles.t3 === n,
+        isNTP: specialHoles.ntp.includes(n),
+        isLD: specialHoles.ld === n,
+        isT2: specialHoles.t2 === n,
+        isT3: specialHoles.t3 === n,
         savedAt: null,
       } as HoleScore)
     );

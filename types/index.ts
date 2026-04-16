@@ -241,6 +241,22 @@ export interface SideResult {
   winnerName: string | null;
 }
 
+export type SidePrizeType = "ntp" | "ld" | "t2" | "t3";
+
+export interface SideClaim {
+  id: string;
+  roundId: string;
+  groupId: string;
+  prizeType: SidePrizeType;
+  holeNumber: number;
+  winnerId: string | null;
+  winnerName: string | null;
+  updatedBy: string;
+  updatedByName: string;
+  updatedAt: Date;
+  createdAt: Date;
+}
+
 export interface Results {
   id: string;
   roundId: string;

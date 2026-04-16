@@ -29,6 +29,24 @@ export default function LeaderboardPage() {
     };
     load();
   }, [appUser?.groupId]);
+  const sideLeaderboards = [
+    {
+      label: "NTP leaders",
+      key: "ntpWinsSeason" as const,
+    },
+    {
+      label: "LD leaders",
+      key: "ldWinsSeason" as const,
+    },
+    {
+      label: "T2 leaders",
+      key: "t2WinsSeason" as const,
+    },
+    {
+      label: "T3 leaders",
+      key: "t3WinsSeason" as const,
+    },
+  ];
 
   return (
     <div className="px-4 py-6 pb-8">
@@ -52,61 +70,138 @@ export default function LeaderboardPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {standings.map((standing) => (
-            <div
-              key={standing.id}
-              className={`bg-white rounded-2xl shadow-sm border p-4 ${
-                standing.memberId === appUser?.uid
-                  ? "border-green-200"
-                  : "border-gray-100"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 text-center">
-                  <p className="text-xl font-bold text-gray-800">
-                    #{standing.currentRank}
-                  </p>
-                  <p className="text-[11px] text-gray-400">
-                    {getRankMovement(standing)}
-                  </p>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">
-                    {standing.memberName}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {standing.roundsPlayed} rounds ·{" "}
-                    {standing.roundResults[0]?.stableford ?? 0} last
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-green-700">
-                    {standing.totalPoints}
-                  </p>
-                  <p className="text-[11px] text-gray-400">points</p>
-                </div>
-              </div>
+        <div className="space-y-5">
+          <div className="space-y-3">
+            {standings.map((standing) => (
+              <StandingCard
+                key={standing.id}
+                standing={standing}
+                currentUserId={appUser?.uid ?? ""}
+              />
+            ))}
+          </div>
 
-              {(standing.ntpWinsSeason > 0 ||
-                standing.ldWinsSeason > 0 ||
-                standing.t2WinsSeason > 0 ||
-                standing.t3WinsSeason > 0) && (
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {standing.ntpWinsSeason > 0 && (
-                    <Badge label={`NTP ${standing.ntpWinsSeason}`} />
-                  )}
-                  {standing.ldWinsSeason > 0 && (
-                    <Badge label={`LD ${standing.ldWinsSeason}`} />
-                  )}
-                  {standing.t2WinsSeason > 0 && (
-                    <Badge label={`T2 ${standing.t2WinsSeason}`} />
-                  )}
-                  {standing.t3WinsSeason > 0 && (
-                    <Badge label={`T3 ${standing.t3WinsSeason}`} />
-                  )}
-                </div>
-              )}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <h2 className="font-semibold text-gray-800 mb-3">
+              Side Prize Leaders
+            </h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {sideLeaderboards.map(({ label, key }) => (
+                <SidePrizeBoard
+                  key={key}
+                  label={label}
+                  standings={standings}
+                  statKey={key}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StandingCard({
+  standing,
+  currentUserId,
+}: {
+  standing: SeasonStanding;
+  currentUserId: string;
+}) {
+  return (
+    <div
+      className={`bg-white rounded-2xl shadow-sm border p-4 ${
+        standing.memberId === currentUserId
+          ? "border-green-200"
+          : "border-gray-100"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 text-center">
+          <p className="text-xl font-bold text-gray-800">
+            #{standing.currentRank}
+          </p>
+          <p className="text-[11px] text-gray-400">
+            {getRankMovement(standing)}
+          </p>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-gray-800 truncate">
+            {standing.memberName}
+          </p>
+          <p className="text-xs text-gray-500">
+            {standing.roundsPlayed} rounds ·{" "}
+            {standing.roundResults[0]?.stableford ?? 0} last
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-lg font-bold text-green-700">
+            {standing.totalPoints}
+          </p>
+          <p className="text-[11px] text-gray-400">points</p>
+        </div>
+      </div>
+
+      {(standing.ntpWinsSeason > 0 ||
+        standing.ldWinsSeason > 0 ||
+        standing.t2WinsSeason > 0 ||
+        standing.t3WinsSeason > 0) && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {standing.ntpWinsSeason > 0 && (
+            <Badge label={`NTP ${standing.ntpWinsSeason}`} />
+          )}
+          {standing.ldWinsSeason > 0 && (
+            <Badge label={`LD ${standing.ldWinsSeason}`} />
+          )}
+          {standing.t2WinsSeason > 0 && (
+            <Badge label={`T2 ${standing.t2WinsSeason}`} />
+          )}
+          {standing.t3WinsSeason > 0 && (
+            <Badge label={`T3 ${standing.t3WinsSeason}`} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SidePrizeBoard({
+  label,
+  standings,
+  statKey,
+}: {
+  label: string;
+  standings: SeasonStanding[];
+  statKey:
+    | "ntpWinsSeason"
+    | "ldWinsSeason"
+    | "t2WinsSeason"
+    | "t3WinsSeason";
+}) {
+  const leaders = standings
+    .filter((standing) => standing[statKey] > 0)
+    .sort((a, b) => b[statKey] - a[statKey] || a.memberName.localeCompare(b.memberName))
+    .slice(0, 5);
+
+  return (
+    <div className="rounded-xl bg-gray-50 px-3 py-3">
+      <p className="text-sm font-semibold text-gray-800">{label}</p>
+      {leaders.length === 0 ? (
+        <p className="mt-2 text-xs text-gray-400">No winners yet</p>
+      ) : (
+        <div className="mt-2 space-y-1">
+          {leaders.map((standing, index) => (
+            <div
+              key={standing.memberId}
+              className="flex items-center justify-between text-xs"
+            >
+              <span className="truncate text-gray-600">
+                #{index + 1} {standing.memberName}
+              </span>
+              <span className="font-semibold text-green-700">
+                {standing[statKey]}
+              </span>
             </div>
           ))}
         </div>

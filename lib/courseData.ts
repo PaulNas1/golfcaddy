@@ -1,4 +1,11 @@
-import type { CourseHole, CourseTeeSet, HoleType, Round, SpecialHoles } from "@/types";
+import type {
+  CourseHole,
+  CourseTeeSet,
+  HoleOverride,
+  HoleType,
+  Round,
+  SpecialHoles,
+} from "@/types";
 
 export type SeededCourse = {
   id: string;
@@ -45,6 +52,45 @@ export function getDriveHoleOptions(holes: CourseHole[]) {
   return holes.filter((hole) => hole.par >= 4);
 }
 
+export function applyHoleOverrides(
+  holes: CourseHole[],
+  overrides: HoleOverride[] = []
+) {
+  if (overrides.length === 0) return holes;
+  const overridesByHole = new Map(
+    overrides.map((override) => [override.holeNumber, override])
+  );
+
+  return holes.map((hole) => {
+    const override = overridesByHole.get(hole.number);
+    if (!override) return hole;
+
+    return {
+      ...hole,
+      par: override.overridePar,
+      type: holeType(override.overridePar),
+    };
+  });
+}
+
+export function getEffectiveCourseHoles(round: Round) {
+  const baseHoles =
+    round.courseHoles && round.courseHoles.length === 18
+      ? round.courseHoles
+      : getFallbackCourseHoles();
+
+  return applyHoleOverrides(baseHoles, round.holeOverrides);
+}
+
+export function getEffectiveSpecialHoles(round: Round): SpecialHoles {
+  return {
+    ...round.specialHoles,
+    ntp: getEffectiveCourseHoles(round)
+      .filter((hole) => hole.par === 3)
+      .map((hole) => hole.number),
+  };
+}
+
 function arraysEqual(a: number[], b: number[]) {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -79,11 +125,18 @@ export function withSeededCourseData(round: Round): Round {
     round.courseHoles && round.courseHoles.length === 18
       ? round.courseHoles
       : [];
-
-  return {
+  const roundWithCourseHoles = {
     ...round,
     courseHoles,
-    specialHoles: normalizeSpecialHoles(round.specialHoles, courseHoles),
+  };
+
+  return {
+    ...roundWithCourseHoles,
+    courseHoles,
+    specialHoles:
+      round.holeOverrides && round.holeOverrides.length > 0
+        ? getEffectiveSpecialHoles(roundWithCourseHoles)
+        : normalizeSpecialHoles(round.specialHoles, courseHoles),
   };
 }
 

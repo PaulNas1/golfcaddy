@@ -117,6 +117,30 @@ export default function ProfilePage() {
               />
             </div>
 
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 mb-2">
+                Side Prizes
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                <SidePrizePill
+                  label="NTP"
+                  value={standing?.ntpWinsSeason ?? member?.ntpWins ?? 0}
+                />
+                <SidePrizePill
+                  label="LD"
+                  value={standing?.ldWinsSeason ?? member?.ldWins ?? 0}
+                />
+                <SidePrizePill
+                  label="T2"
+                  value={standing?.t2WinsSeason ?? member?.t2Wins ?? 0}
+                />
+                <SidePrizePill
+                  label="T3"
+                  value={standing?.t3WinsSeason ?? member?.t3Wins ?? 0}
+                />
+              </div>
+            </div>
+
             {standing && standing.roundResults.length > 0 && (
               <div>
                 <h4 className="text-sm font-semibold text-gray-800 mb-2">
@@ -163,6 +187,14 @@ export default function ProfilePage() {
         Sign out
       </button>
     </div>
+  );
+}
+
+function SidePrizePill({ label, value }: { label: string; value: number }) {
+  return (
+    <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+      {label} {value}
+    </span>
   );
 }
 

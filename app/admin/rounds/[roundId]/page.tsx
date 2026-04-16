@@ -21,6 +21,7 @@ import {
   type SeededCourse,
   getCourseSearchLabel,
   getDriveHoleOptions,
+  getEffectiveSpecialHoles,
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
@@ -534,8 +535,10 @@ export default function AdminRoundDetailPage() {
         override,
       ].sort((a, b) => a.holeNumber - b.holeNumber);
 
-      await updateRound(round.id, { holeOverrides: updated });
-      setRound({ ...round, holeOverrides: updated });
+      const updatedRound = { ...round, holeOverrides: updated };
+      const specialHoles = getEffectiveSpecialHoles(updatedRound);
+      await updateRound(round.id, { holeOverrides: updated, specialHoles });
+      setRound({ ...updatedRound, specialHoles });
       setEditingOverride(null);
       setSuccess("Hole par updated. Members will be notified.");
       setTimeout(() => setSuccess(""), 3000);
@@ -560,8 +563,10 @@ export default function AdminRoundDetailPage() {
         (_override, index) => index !== overrideIndex
       );
 
-      await updateRound(round.id, { holeOverrides: updated });
-      setRound({ ...round, holeOverrides: updated });
+      const updatedRound = { ...round, holeOverrides: updated };
+      const specialHoles = getEffectiveSpecialHoles(updatedRound);
+      await updateRound(round.id, { holeOverrides: updated, specialHoles });
+      setRound({ ...updatedRound, specialHoles });
       if (
         editingOverride?.holeNumber === overrideToDelete.holeNumber &&
         editingOverride?.overridePar === overrideToDelete.overridePar &&

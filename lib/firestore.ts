@@ -15,6 +15,7 @@ import {
   limit,
   serverTimestamp,
   Timestamp,
+  onSnapshot,
   QueryDocumentSnapshot,
   DocumentSnapshot,
   DocumentData,
@@ -34,6 +35,8 @@ import type {
   Post,
   RoundRsvp,
   RoundRsvpStatus,
+  SideClaim,
+  SidePrizeType,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -479,6 +482,80 @@ export const notifyRoundPlayers = async ({
   await batch.commit();
 };
 
+const mapSideClaim = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): SideClaim => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    updatedAt: toDate(data.updatedAt),
+    createdAt: toDate(data.createdAt),
+  } as SideClaim;
+};
+
+export const getSideClaimsForRound = async (
+  roundId: string
+): Promise<SideClaim[]> => {
+  const snap = await getDocs(collection(db, "rounds", roundId, "sideClaims"));
+  return snap.docs.map(mapSideClaim);
+};
+
+export const subscribeSideClaimsForRound = (
+  roundId: string,
+  onChange: (claims: SideClaim[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    collection(db, "rounds", roundId, "sideClaims"),
+    (snap) => onChange(snap.docs.map(mapSideClaim)),
+    onError
+  );
+
+export const setSideClaim = async ({
+  round,
+  prizeType,
+  holeNumber,
+  winnerId,
+  updatedBy,
+  members,
+}: {
+  round: Round;
+  prizeType: SidePrizeType;
+  holeNumber: number;
+  winnerId: string;
+  updatedBy: AppUser;
+  members: AppUser[];
+}) => {
+  if (round.resultsPublished) {
+    throw new Error("Side prize claims are locked after results are published.");
+  }
+
+  const claimId = prizeType === "ntp" ? `ntp-${holeNumber}` : prizeType;
+  const ref = doc(db, "rounds", round.id, "sideClaims", claimId);
+  const existing = await getDoc(ref);
+  const winner = members.find((member) => member.uid === winnerId) ?? null;
+
+  await setDoc(
+    ref,
+    {
+      roundId: round.id,
+      groupId: round.groupId,
+      prizeType,
+      holeNumber,
+      winnerId: winner?.uid ?? null,
+      winnerName: winner?.displayName ?? null,
+      updatedBy: updatedBy.uid,
+      updatedByName: updatedBy.displayName,
+      updatedAt: serverTimestamp(),
+      createdAt: existing.exists()
+        ? existing.data().createdAt ?? serverTimestamp()
+        : serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
 export const deleteRoundCascade = async (roundId: string) => {
   const round = await getRound(roundId);
   if (!round) {
@@ -490,6 +567,7 @@ export const deleteRoundCascade = async (roundId: string) => {
       feedPostsDeleted: 0,
       notificationsDeleted: 0,
       rsvpsDeleted: 0,
+      sideClaimsDeleted: 0,
       handicapHistoryDeleted: 0,
       standingsRebuilt: 0,
     };
@@ -501,6 +579,7 @@ export const deleteRoundCascade = async (roundId: string) => {
     postsSnap,
     notificationsSnap,
     rsvpsSnap,
+    sideClaimsSnap,
     handicapHistorySnap,
   ] = await Promise.all([
     getDocs(query(collection(db, "scorecards"), where("roundId", "==", round.id))),
@@ -510,6 +589,7 @@ export const deleteRoundCascade = async (roundId: string) => {
       query(collection(db, "notifications"), where("roundId", "==", round.id))
     ),
     getDocs(collection(db, "rounds", round.id, "rsvps")),
+    getDocs(collection(db, "rounds", round.id, "sideClaims")),
     getDocs(
       query(collection(db, "handicapHistory"), where("roundId", "==", round.id))
     ),
@@ -597,6 +677,10 @@ export const deleteRoundCascade = async (roundId: string) => {
 
   for (const rsvpDoc of rsvpsSnap.docs) {
     await writer.queue((batch) => batch.delete(rsvpDoc.ref));
+  }
+
+  for (const sideClaimDoc of sideClaimsSnap.docs) {
+    await writer.queue((batch) => batch.delete(sideClaimDoc.ref));
   }
 
   for (const historyDoc of handicapHistorySnap.docs) {
@@ -718,6 +802,7 @@ export const deleteRoundCascade = async (roundId: string) => {
     feedPostsDeleted,
     notificationsDeleted: notificationsSnap.size,
     rsvpsDeleted: rsvpsSnap.size,
+    sideClaimsDeleted: sideClaimsSnap.size,
     handicapHistoryDeleted: handicapHistorySnap.size,
     standingsRebuilt: standings.length,
   };
