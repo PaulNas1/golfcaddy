@@ -1202,19 +1202,20 @@ export const getNotifications = async (
 ): Promise<AppNotification[]> => {
   const q = query(
     collection(db, "notifications"),
-    where("recipientId", "==", userId),
-    orderBy("createdAt", "desc"),
-    limit(limitCount)
+    where("recipientId", "==", userId)
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      id: d.id,
-      ...data,
-      createdAt: toDate(data.createdAt),
-    } as AppNotification;
-  });
+  return snap.docs
+    .map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        createdAt: toDate(data.createdAt),
+      } as AppNotification;
+    })
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, limitCount);
 };
 
 export const markNotificationRead = async (notificationId: string) => {
