@@ -99,24 +99,30 @@ export function resolveMemberIdsFromText(text: string, members: AppUser[]) {
 export function getEligibleScorecardMembers(
   round: Pick<Round, "teeTimes">,
   members: AppUser[],
-  currentUserId: string
+  currentUserId: string,
+  acceptedMemberIds?: string[]
 ) {
+  const acceptedIdSet = acceptedMemberIds
+    ? new Set(acceptedMemberIds)
+    : null;
+  const baseMembers = acceptedIdSet
+    ? members.filter((member) => acceptedIdSet.has(member.uid))
+    : members;
   const teeTimesWithPlayers = round.teeTimes.filter(
     (teeTime) => teeTime.playerIds.length > 0
   );
 
-  if (teeTimesWithPlayers.length === 0) return members;
+  if (teeTimesWithPlayers.length === 0) return baseMembers;
 
   const currentUserTeeTime = teeTimesWithPlayers.find((teeTime) =>
     teeTime.playerIds.includes(currentUserId)
   );
-  const eligibleIds = new Set(
-    currentUserTeeTime
-      ? currentUserTeeTime.playerIds
-      : teeTimesWithPlayers.flatMap((teeTime) => teeTime.playerIds)
-  );
 
-  return members.filter((member) => eligibleIds.has(member.uid));
+  if (!currentUserTeeTime) return [];
+
+  const eligibleIds = new Set(currentUserTeeTime.playerIds);
+
+  return baseMembers.filter((member) => eligibleIds.has(member.uid));
 }
 
 export function normaliseTeeTimePlayerIds(

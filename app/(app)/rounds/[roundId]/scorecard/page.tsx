@@ -7,6 +7,7 @@ import {
   getLiveRound,
   getMember,
   getActiveMembers,
+  getRoundRsvps,
   getScorecardForPlayer,
   getScorecardForMarker,
   createScorecard,
@@ -22,7 +23,7 @@ import {
 } from "@/lib/courseData";
 import { getEligibleScorecardMembers } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Round, Scorecard, HoleScore, AppUser } from "@/types";
+import type { Round, Scorecard, HoleScore, AppUser, RoundRsvp } from "@/types";
 import { calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
 
 interface CourseHoleLite {
@@ -41,6 +42,7 @@ export default function ScorecardPage() {
   const [scorecard, setScorecard] = useState<Scorecard | null>(null);
   const [holes, setHoles] = useState<HoleScore[]>([]);
   const [members, setMembers] = useState<AppUser[]>([]);
+  const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [playerToMarkId, setPlayerToMarkId] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingHole, setSavingHole] = useState<number | null>(null);
@@ -54,10 +56,11 @@ export default function ScorecardPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const [r, existing, activeMembers] = await Promise.all([
+        const [r, existing, activeMembers, roundRsvps] = await Promise.all([
           getRound(roundId),
           getScorecardForMarker(roundId, appUser.uid, appUser.groupId),
           getActiveMembers(appUser.groupId),
+          getRoundRsvps(roundId),
         ]);
 
         if (!r) {
@@ -76,6 +79,7 @@ export default function ScorecardPage() {
             ? activeMembers
             : [appUser, ...activeMembers]
         );
+        setRsvps(roundRsvps);
 
         if (!existing) {
           // No card yet — wait for user to pick who they are marking
@@ -132,7 +136,8 @@ export default function ScorecardPage() {
     const eligiblePlayers = getEligibleScorecardMembers(
       round,
       members,
-      appUser.uid
+      appUser.uid,
+      getAcceptedMemberIds(round, rsvps)
     );
     if (!eligiblePlayers.some((member) => member.uid === playerToMarkId)) {
       setError("Please select a player from your tee-time group.");
@@ -457,8 +462,16 @@ export default function ScorecardPage() {
   const markerName = appUser?.displayName;
   const eligibleMembers =
     round && appUser
-      ? getEligibleScorecardMembers(round, members, appUser.uid)
+      ? getEligibleScorecardMembers(
+          round,
+          members,
+          appUser.uid,
+          getAcceptedMemberIds(round, rsvps)
+        )
       : members;
+  const teeTimesWithPlayers = round.teeTimes.some(
+    (teeTime) => teeTime.playerIds.length > 0
+  );
 
   return (
     <div className="px-4 py-6 space-y-4 pb-20">
@@ -483,26 +496,34 @@ export default function ScorecardPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
           <h2 className="font-semibold text-gray-800">Who are you marking?</h2>
           <p className="text-xs text-gray-500">
-            Select yourself to start your own card, or choose another player if
-            you are marking them today.
+            Select an accepted player from your tee-time group. Guests are
+            tee-group only and are not scored in GolfCaddy.
           </p>
-          <select
-            value={playerToMarkId}
-            onChange={(e) => setPlayerToMarkId(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="">Select player</option>
-            {eligibleMembers.map((m) => (
-              <option key={m.uid} value={m.uid}>
-                {m.uid === appUser?.uid
-                  ? `${m.displayName} (my own card)`
-                  : m.displayName}
-              </option>
-            ))}
-          </select>
-          {eligibleMembers.length < members.length && (
+          {eligibleMembers.length > 0 ? (
+            <select
+              value={playerToMarkId}
+              onChange={(e) => setPlayerToMarkId(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">Select player</option>
+              {eligibleMembers.map((m) => (
+                <option key={m.uid} value={m.uid}>
+                  {m.uid === appUser?.uid
+                    ? `${m.displayName} (my own card)`
+                    : m.displayName}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              {teeTimesWithPlayers
+                ? "You are not assigned to a tee-time group with accepted players. Ask admin to update the groups."
+                : "No accepted players are available for scorecards yet."}
+            </div>
+          )}
+          {eligibleMembers.length > 0 && teeTimesWithPlayers && (
             <p className="text-[11px] text-gray-400">
-              Showing players assigned to your tee-time group.
+              Showing accepted members assigned to your tee-time group.
             </p>
           )}
           <button
@@ -664,6 +685,13 @@ function mapCourseHoles(courseHoles: CourseHoleLite[]): CourseHoleLite[] {
     strokeIndex: hole.strokeIndex,
     distanceMeters: hole.distanceMeters,
   }));
+}
+
+function getAcceptedMemberIds(round: Round, rsvps: RoundRsvp[]) {
+  if (!round.rsvpOpen && rsvps.length === 0) return undefined;
+  return rsvps
+    .filter((rsvp) => rsvp.status === "accepted")
+    .map((rsvp) => rsvp.memberId);
 }
 
 function buildInitialHoles(
