@@ -328,6 +328,8 @@ export default function CreateRoundPage() {
         courseRating: selectedTeeSet?.courseRating ?? null,
         slopeRating: selectedTeeSet?.slopeRating ?? null,
         courseHoles: savedCourseHoles,
+        availableTeeSets: activeCourse?.teeSets ?? [],
+        playerTeeAssignments: {},
         courseSource: selectedTeeSet?.source ?? {
           provider: "Admin custom",
           url: "",

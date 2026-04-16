@@ -71,7 +71,7 @@ export default function MyCardPage() {
             setCard(c);
             setMarkedCard(mCard ?? null);
             const hs = await getHoleScores(c.id);
-            const layout = buildCourseLayout(r);
+            const layout = buildCourseLayout(r, c);
             setHoles(
               hs.length > 0
                 ? hs
@@ -128,7 +128,7 @@ export default function MyCardPage() {
     );
   }
 
-  const layout = buildCourseLayout(round);
+  const layout = buildCourseLayout(round, card);
   const markerName =
     card &&
     members.find((m) => m.uid === card.markerId)?.displayName;
@@ -241,8 +241,16 @@ export default function MyCardPage() {
   );
 }
 
-function buildCourseLayout(round?: Round | null): CourseHoleLite[] {
-  const courseHoles = round ? getEffectiveCourseHoles(round) : getFallbackCourseHoles();
+function buildCourseLayout(
+  round?: Round | null,
+  scorecard?: Scorecard | null
+): CourseHoleLite[] {
+  const courseHoles =
+    scorecard?.courseHoles && scorecard.courseHoles.length === 18
+      ? scorecard.courseHoles
+      : round
+      ? getEffectiveCourseHoles(round, scorecard?.playerId)
+      : getFallbackCourseHoles();
 
   return courseHoles.map((hole) => ({
     number: hole.number,

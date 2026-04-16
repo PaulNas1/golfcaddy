@@ -25,6 +25,7 @@ import {
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
+  getRoundTeeSets,
 } from "@/lib/courseData";
 import {
   formatShortMemberName,
@@ -82,6 +83,10 @@ export default function AdminRoundDetailPage() {
   const [ldHole, setLdHole] = useState("");
   const [t2Hole, setT2Hole] = useState("");
   const [t3Hole, setT3Hole] = useState("");
+  const [playerTeeAssignments, setPlayerTeeAssignments] = useState<
+    Record<string, string>
+  >({});
+  const [showTeeAssignments, setShowTeeAssignments] = useState(false);
   const [teeTimes, setTeeTimes] = useState<TeeTimeDraft[]>([
     { time: "", notes: "", playerIds: [] },
   ]);
@@ -93,8 +98,10 @@ export default function AdminRoundDetailPage() {
 
     return apiCourseById ?? apiCourseByName ?? null;
   }, [apiCourses, courseId, courseName]);
+  const courseTeeSets =
+    selectedCourse?.teeSets ?? (round ? getRoundTeeSets(round) : []);
   const selectedTeeSet =
-    selectedCourse?.teeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
+    courseTeeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
   const apiCourseSuggestions = useMemo(
     () =>
       apiCourses.filter(
@@ -120,6 +127,22 @@ export default function AdminRoundDetailPage() {
     );
     return members.filter((member) => acceptedIds.has(member.uid));
   }, [members, round?.rsvpOpen, rsvps]);
+  const acceptedRsvpMembers = useMemo(() => {
+    const acceptedIds = new Set(
+      rsvps
+        .filter((rsvp) => rsvp.status === "accepted")
+        .map((rsvp) => rsvp.memberId)
+    );
+    return members.filter((member) => acceptedIds.has(member.uid));
+  }, [members, rsvps]);
+  const assignmentTeeSets = courseTeeSets;
+  const teeReviewMembers = acceptedRsvpMembers.filter(
+    (member) =>
+      needsTeeReview(member) &&
+      !playerTeeAssignments[member.uid]
+  );
+  const teeOverrideCount = Object.values(playerTeeAssignments).filter(Boolean)
+    .length;
   const getScorecardPlayerName = (playerId: string) => {
     const member = members.find((item) => item.uid === playerId);
     return member ? formatShortMemberName(member) : "Player";
@@ -231,6 +254,7 @@ export default function AdminRoundDetailPage() {
           setLdHole(r.specialHoles.ld ? String(r.specialHoles.ld) : "");
           setT2Hole(r.specialHoles.t2 ? String(r.specialHoles.t2) : "");
           setT3Hole(r.specialHoles.t3 ? String(r.specialHoles.t3) : "");
+          setPlayerTeeAssignments(r.playerTeeAssignments ?? {});
           setTeeTimes(
             r.teeTimes && r.teeTimes.length > 0
               ? r.teeTimes.map((t) => ({
@@ -321,12 +345,31 @@ export default function AdminRoundDetailPage() {
       }));
     const savedCourseId =
       selectedCourse?.id ?? (preserveExistingCourseData ? round.courseId : "");
+    const savedAvailableTeeSets =
+      selectedCourse?.teeSets ??
+      (preserveExistingCourseData ? getRoundTeeSets(round) : []);
+    const validTeeSetIds = new Set(
+      savedAvailableTeeSets.map((teeSet) => teeSet.id)
+    );
+    const savedDefaultTeeSetId =
+      courseDetails.teeSetId ??
+      (preserveExistingCourseData ? round.teeSetId : null);
+    const savedPlayerTeeAssignments = Object.fromEntries(
+      Object.entries(playerTeeAssignments).filter(
+        ([, teeId]) =>
+          teeId &&
+          teeId !== savedDefaultTeeSetId &&
+          validTeeSetIds.has(teeId)
+      )
+    );
 
     const updatedRound: Round = {
       ...round,
       courseId: savedCourseId,
       courseName: courseName.trim(),
       ...courseDetails,
+      availableTeeSets: savedAvailableTeeSets,
+      playerTeeAssignments: savedPlayerTeeAssignments,
       roundNumber: parsedRoundNumber,
       date: newDate,
       format: formatChoice,
@@ -341,6 +384,8 @@ export default function AdminRoundDetailPage() {
       courseId: savedCourseId,
       courseName: courseName.trim(),
       ...courseDetails,
+      availableTeeSets: savedAvailableTeeSets,
+      playerTeeAssignments: savedPlayerTeeAssignments,
       roundNumber: parsedRoundNumber,
       date: newDate,
       format: formatChoice,
@@ -362,6 +407,7 @@ export default function AdminRoundDetailPage() {
     }
 
     setRound(updatedRound);
+    setPlayerTeeAssignments(savedPlayerTeeAssignments);
 
     setSuccess(
       notifyPlayers
@@ -392,6 +438,8 @@ export default function AdminRoundDetailPage() {
       courseRating: refreshableTeeSet.courseRating,
       slopeRating: refreshableTeeSet.slopeRating,
       courseHoles: refreshableTeeSet.holes,
+      availableTeeSets: selectedCourse.teeSets,
+      playerTeeAssignments: {},
       courseSource: refreshableTeeSet.source,
       specialHoles: refreshedSpecialHoles,
     };
@@ -400,6 +448,7 @@ export default function AdminRoundDetailPage() {
     setCourseId(selectedCourse.id);
     setCourseName(selectedCourse.name);
     setTeeSetId(refreshableTeeSet.id);
+    setPlayerTeeAssignments({});
     setRound({
       ...round,
       ...refreshedCourseDetails,
@@ -672,17 +721,30 @@ export default function AdminRoundDetailPage() {
             )}
           </div>
 
-          {selectedCourse && (
+          {assignmentTeeSets.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Tee set
-              </label>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <label className="block text-xs font-medium text-gray-700">
+                  Tee set
+                </label>
+                {teeReviewMembers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTeeAssignments(true)}
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700"
+                    aria-label={`${teeReviewMembers.length} accepted player tee assignment needs review`}
+                    title={`${teeReviewMembers.length} accepted player tee assignment needs review`}
+                  >
+                    !
+                  </button>
+                )}
+              </div>
               <select
                 value={teeSetId}
                 onChange={(e) => setTeeSetId(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                {selectedCourse.teeSets.map((teeSet) => (
+                {assignmentTeeSets.map((teeSet) => (
                   <option key={teeSet.id} value={teeSet.id}>
                     {teeSet.name} - Par {teeSet.par}
                     {teeSet.slopeRating ? ` / Slope ${teeSet.slopeRating}` : ""}
@@ -694,21 +756,105 @@ export default function AdminRoundDetailPage() {
                   NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
                 </p>
               )}
-              <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
-                <p className="text-[11px] text-green-700">
-                  Refresh pars, stroke indexes, distances, tee metadata, and NTP
-                  holes from GolfCourseAPI. LD, T2, and T3 stay as
-                  currently selected below.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleRefreshCourseData}
-                  disabled={saving || !refreshableTeeSet}
-                  className="w-full rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-300"
-                >
-                  {saving ? "Refreshing..." : "Refresh API course data"}
-                </button>
+              <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-700">
+                      Player tee assignments
+                    </p>
+                    <p className="text-[11px] text-gray-400">
+                      {acceptedRsvpMembers.length} accepted ·{" "}
+                      {Math.max(
+                        acceptedRsvpMembers.length - teeOverrideCount,
+                        0
+                      )}{" "}
+                      default ·{" "}
+                      {teeOverrideCount} override
+                      {teeReviewMembers.length > 0
+                        ? ` · ${teeReviewMembers.length} review`
+                        : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowTeeAssignments((value) => !value)}
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-700"
+                  >
+                    {showTeeAssignments ? "Hide" : "Manage"}
+                  </button>
+                </div>
+                {showTeeAssignments && (
+                  <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                    {acceptedRsvpMembers.length === 0 ? (
+                      <p className="text-[11px] text-gray-400">
+                        Accepted players will appear here after they RSVP.
+                      </p>
+                    ) : (
+                      acceptedRsvpMembers.map((member) => {
+                        const suggestedReview = needsTeeReview(member);
+                        return (
+                          <div
+                            key={member.uid}
+                            className="grid grid-cols-[5.5rem_1fr] items-center gap-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-xs font-semibold text-gray-700">
+                                {formatShortMemberName(member)}
+                              </p>
+                              {suggestedReview &&
+                                !playerTeeAssignments[member.uid] && (
+                                  <p className="text-[10px] font-medium text-amber-600">
+                                    Review
+                                  </p>
+                                )}
+                            </div>
+                            <select
+                              value={playerTeeAssignments[member.uid] ?? ""}
+                              onChange={(event) =>
+                                setPlayerTeeAssignments((current) => ({
+                                  ...current,
+                                  [member.uid]: event.target.value,
+                                }))
+                              }
+                              className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              aria-label={`Tee set for ${member.displayName}`}
+                            >
+                              <option value="">
+                                Default
+                                {selectedTeeSet
+                                  ? ` (${selectedTeeSet.name})`
+                                  : ""}
+                              </option>
+                              {assignmentTeeSets.map((teeSet) => (
+                                <option key={teeSet.id} value={teeSet.id}>
+                                  {teeSet.name} - Par {teeSet.par}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
               </div>
+              {selectedCourse && (
+                <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
+                  <p className="text-[11px] text-green-700">
+                    Refresh pars, stroke indexes, distances, tee metadata, and
+                    NTP holes from GolfCourseAPI. LD, T2, and T3 stay as
+                    currently selected below.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleRefreshCourseData}
+                    disabled={saving || !refreshableTeeSet}
+                    className="w-full rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-300"
+                  >
+                    {saving ? "Refreshing..." : "Refresh API course data"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1169,6 +1315,14 @@ function TrashIcon() {
         d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .563c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916A2.25 2.25 0 0 0 13.5 2.25h-3A2.25 2.25 0 0 0 8.25 4.5v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
       />
     </svg>
+  );
+}
+
+function needsTeeReview(member: AppUser) {
+  return (
+    member.gender === "female" ||
+    member.usesSeniorTees === true ||
+    member.usesProBackTees === true
   );
 }
 

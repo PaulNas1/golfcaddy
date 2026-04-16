@@ -104,6 +104,14 @@ const mapRound = (
     courseRating: data.courseRating ?? null,
     slopeRating: data.slopeRating ?? null,
     courseHoles: Array.isArray(data.courseHoles) ? data.courseHoles : [],
+    availableTeeSets: Array.isArray(data.availableTeeSets)
+      ? data.availableTeeSets
+      : [],
+    playerTeeAssignments:
+      data.playerTeeAssignments &&
+      typeof data.playerTeeAssignments === "object"
+        ? data.playerTeeAssignments
+        : {},
     courseSource: data.courseSource ?? null,
     rsvpOpen: data.rsvpOpen ?? false,
     rsvpNotifiedAt: data.rsvpNotifiedAt
@@ -154,6 +162,20 @@ export const updateUser = async (uid: string, data: Partial<AppUser>) => {
     ...data,
     updatedAt: serverTimestamp(),
   });
+
+  if ("displayName" in data || "avatarUrl" in data) {
+    const memberRef = doc(db, "members", uid);
+    const memberSnap = await getDoc(memberRef);
+    if (memberSnap.exists()) {
+      await updateDoc(memberRef, {
+        ...(data.displayName !== undefined
+          ? { displayName: data.displayName }
+          : {}),
+        ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
+        updatedAt: serverTimestamp(),
+      });
+    }
+  }
 };
 
 // ─── Group ───────────────────────────────────────────────────────────────────
@@ -860,6 +882,12 @@ const mapScorecard = (
   return {
     id: d.id,
     ...data,
+    teeSetId: data.teeSetId ?? null,
+    teeSetName: data.teeSetName ?? null,
+    coursePar: data.coursePar ?? null,
+    courseRating: data.courseRating ?? null,
+    slopeRating: data.slopeRating ?? null,
+    courseHoles: Array.isArray(data.courseHoles) ? data.courseHoles : [],
     submittedAt: data.submittedAt ? toDate(data.submittedAt) : null,
     adminEditedAt: data.adminEditedAt ? toDate(data.adminEditedAt) : null,
     createdAt: toDate(data.createdAt),

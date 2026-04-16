@@ -2,11 +2,19 @@
 
 export type UserRole = "member" | "admin";
 export type UserStatus = "pending" | "active" | "suspended";
+export type UserGender = "male" | "female";
 
 export interface AppUser {
   uid: string;
   email: string;
   displayName: string;
+  nickname?: string | null;
+  address?: string | null;
+  mobileNumber?: string | null;
+  dateOfBirth?: string | null;
+  gender?: UserGender | null;
+  usesSeniorTees?: boolean;
+  usesProBackTees?: boolean;
   role: UserRole;
   status: UserStatus;
   groupId: string;
@@ -150,6 +158,8 @@ export interface Round {
   courseRating: number | null;
   slopeRating: number | null;
   courseHoles: CourseHole[];
+  availableTeeSets: CourseTeeSet[];
+  playerTeeAssignments: Record<string, string>;
   courseSource: CourseDataSource | null;
   date: Date;
   season: number;
@@ -194,6 +204,12 @@ export interface Scorecard {
   playerId: string;
   markerId: string;
   handicapAtTime: number;
+  teeSetId: string | null;
+  teeSetName: string | null;
+  coursePar: number | null;
+  courseRating: number | null;
+  slopeRating: number | null;
+  courseHoles: CourseHole[];
   status: ScorecardStatus;
   submittedAt: Date | null;
   signedOff: boolean;

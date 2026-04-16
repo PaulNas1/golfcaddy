@@ -52,6 +52,62 @@ export function getDriveHoleOptions(holes: CourseHole[]) {
   return holes.filter((hole) => hole.par >= 4);
 }
 
+export function getRoundTeeSets(round: Round): CourseTeeSet[] {
+  if (round.availableTeeSets && round.availableTeeSets.length > 0) {
+    return round.availableTeeSets;
+  }
+
+  if (round.courseHoles && round.courseHoles.length === 18) {
+    return [
+      {
+        id: round.teeSetId ?? "round-default",
+        name: round.teeSetName ?? "Round default",
+        gender: "mixed",
+        par:
+          round.coursePar ??
+          round.courseHoles.reduce((total, hole) => total + hole.par, 0),
+        distanceMeters: round.courseHoles.reduce(
+          (total, hole) => total + (hole.distanceMeters ?? 0),
+          0
+        ),
+        courseRating: round.courseRating,
+        slopeRating: round.slopeRating,
+        holes: round.courseHoles,
+        source:
+          round.courseSource ?? {
+            provider: "Round data",
+            url: "",
+            lastVerified: new Date().toISOString().slice(0, 10),
+            confidence: "admin_verified",
+          },
+      },
+    ];
+  }
+
+  return [];
+}
+
+export function getRoundDefaultTeeSet(round: Round) {
+  const teeSets = getRoundTeeSets(round);
+  return (
+    teeSets.find((teeSet) => teeSet.id === round.teeSetId) ??
+    teeSets[0] ??
+    null
+  );
+}
+
+export function getPlayerTeeSet(round: Round, playerId?: string | null) {
+  const teeSets = getRoundTeeSets(round);
+  const assignedTeeSetId = playerId
+    ? round.playerTeeAssignments?.[playerId]
+    : null;
+
+  return (
+    teeSets.find((teeSet) => teeSet.id === assignedTeeSetId) ??
+    getRoundDefaultTeeSet(round)
+  );
+}
+
 export function applyHoleOverrides(
   holes: CourseHole[],
   overrides: HoleOverride[] = []
@@ -73,9 +129,15 @@ export function applyHoleOverrides(
   });
 }
 
-export function getEffectiveCourseHoles(round: Round) {
+export function getEffectiveCourseHoles(
+  round: Round,
+  playerId?: string | null
+) {
+  const playerTeeSet = getPlayerTeeSet(round, playerId);
   const baseHoles =
-    round.courseHoles && round.courseHoles.length === 18
+    playerTeeSet?.holes && playerTeeSet.holes.length === 18
+      ? playerTeeSet.holes
+      : round.courseHoles && round.courseHoles.length === 18
       ? round.courseHoles
       : getFallbackCourseHoles();
 
