@@ -682,6 +682,18 @@ export const getRoundRsvp = async (
   return mapRoundRsvp(snap);
 };
 
+export const subscribeRoundRsvp = (
+  roundId: string,
+  memberId: string,
+  onChange: (rsvp: RoundRsvp | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "rounds", roundId, "rsvps", memberId),
+    (snap) => onChange(snap.exists() ? mapRoundRsvp(snap) : null),
+    onError
+  );
+
 export const setRoundRsvp = async ({
   round,
   member,

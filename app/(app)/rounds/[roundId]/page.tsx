@@ -13,6 +13,7 @@ import {
   getSideClaimsForRound,
   setSideClaim,
   setRoundRsvp,
+  subscribeRoundRsvp,
   subscribeResultsForRound,
   subscribeRound,
   subscribeSideClaimsForRound,
@@ -109,14 +110,12 @@ export default function RoundDetailPage() {
 
   useEffect(() => {
     if (!roundId || !appUser?.uid) return;
-    const loadRsvp = async () => {
-      try {
-        setMyRsvp(await getRoundRsvp(roundId, appUser.uid));
-      } catch (err) {
-        console.warn("Unable to refresh RSVP", err);
-      }
-    };
-    loadRsvp();
+    return subscribeRoundRsvp(
+      roundId,
+      appUser.uid,
+      setMyRsvp,
+      (err) => console.warn("Unable to subscribe to RSVP updates", err)
+    );
   }, [appUser?.uid, roundId]);
 
   useEffect(() => {
@@ -187,10 +186,28 @@ export default function RoundDetailPage() {
   const handleRsvp = async (status: "accepted" | "declined") => {
     if (!round || !appUser) return;
     setSavingRsvp(true);
+    setMyRsvp((current) =>
+      current
+        ? {
+            ...current,
+            status,
+            respondedAt: new Date(),
+            updatedAt: new Date(),
+          }
+        : {
+            id: appUser.uid,
+            roundId: round.id,
+            groupId: round.groupId,
+            memberId: appUser.uid,
+            memberName: appUser.displayName,
+            status,
+            respondedAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }
+    );
     try {
       await setRoundRsvp({ round, member: appUser, status });
-      const updated = await getRoundRsvp(round.id, appUser.uid);
-      setMyRsvp(updated);
     } finally {
       setSavingRsvp(false);
     }
