@@ -87,11 +87,58 @@ export function getRoundTeeSets(round: Round): CourseTeeSet[] {
   return [];
 }
 
+function getTeeSetLabelScore(teeSet: CourseTeeSet) {
+  const name = teeSet.name.toLowerCase();
+  let score = 0;
+
+  if (/\b(standard|regular|member|members|medal)\b/.test(name)) score += 40;
+  if (/\bblue\b/.test(name)) score += 20;
+  if (/\bwhite\b/.test(name)) score -= 5;
+  if (/\b(senior|forward|front)\b/.test(name)) score -= 30;
+  if (/\b(pro|back|champ|championship|black|gold)\b/.test(name)) score -= 35;
+
+  return score;
+}
+
+export function getPreferredDefaultTeeSet(teeSets: CourseTeeSet[]) {
+  if (teeSets.length === 0) return null;
+
+  const menTeeSets = teeSets.filter((teeSet) => teeSet.gender === "men");
+  const mixedTeeSets = teeSets.filter((teeSet) => teeSet.gender === "mixed");
+  const relevantTeeSets =
+    menTeeSets.length > 0
+      ? menTeeSets
+      : mixedTeeSets.length > 0
+      ? mixedTeeSets
+      : teeSets;
+
+  if (relevantTeeSets.length === 1) return relevantTeeSets[0];
+
+  const sortedDistances = relevantTeeSets
+    .map((teeSet) => teeSet.distanceMeters)
+    .sort((a, b) => a - b);
+  const medianDistance =
+    sortedDistances[Math.floor(sortedDistances.length / 2)] ?? 0;
+
+  return [...relevantTeeSets].sort((a, b) => {
+    const scoreDifference =
+      getTeeSetLabelScore(b) - getTeeSetLabelScore(a);
+    if (scoreDifference !== 0) return scoreDifference;
+
+    const medianDistanceDifference =
+      Math.abs(a.distanceMeters - medianDistance) -
+      Math.abs(b.distanceMeters - medianDistance);
+    if (medianDistanceDifference !== 0) return medianDistanceDifference;
+
+    return b.distanceMeters - a.distanceMeters;
+  })[0];
+}
+
 export function getRoundDefaultTeeSet(round: Round) {
   const teeSets = getRoundTeeSets(round);
   return (
     teeSets.find((teeSet) => teeSet.id === round.teeSetId) ??
-    teeSets[0] ??
+    getPreferredDefaultTeeSet(teeSets) ??
     null
   );
 }

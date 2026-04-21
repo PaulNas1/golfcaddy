@@ -21,6 +21,7 @@ import {
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
+  getPreferredDefaultTeeSet,
 } from "@/lib/courseData";
 import {
   getTeeTimeGroupLabel,
@@ -56,6 +57,7 @@ export default function CreateRoundPage() {
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
   const [courseSearchActive, setCourseSearchActive] = useState(false);
+  const [showCustomCourseSetup, setShowCustomCourseSetup] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [activeSeason, setActiveSeason] = useState<number | null>(null);
 
@@ -92,6 +94,9 @@ export default function CreateRoundPage() {
     (total, hole) => total + hole.par,
     0
   );
+  const customCourseDistanceCount = customHoles.filter(
+    (hole) => typeof hole.distanceMeters === "number"
+  ).length;
 
   useEffect(() => {
     getActiveMembers(appUser?.groupId ?? "fourplay")
@@ -114,7 +119,7 @@ export default function CreateRoundPage() {
   }, [appUser?.groupId]);
 
   const applyCourse = (course: SeededCourse) => {
-    const defaultTeeSet = course.teeSets[0] ?? null;
+    const defaultTeeSet = getPreferredDefaultTeeSet(course.teeSets);
     setApiCourses([course]);
     setCourseSearchActive(false);
     setCourseId(course.id);
@@ -556,74 +561,105 @@ export default function CreateRoundPage() {
 
           {!activeCourse && (
             <div className="border-t border-gray-100 pt-3">
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold text-gray-800">
-                  Custom course setup
-                </h3>
-                <p className="text-xs text-gray-400 mt-1">
-                  Use this when GolfCourseAPI does not have the course. The
-                  hole data is saved to this round.
-                </p>
-                <p className="text-xs font-medium text-gray-600 mt-2">
-                  Custom par total: {customCoursePar}
-                </p>
-              </div>
-              <div className="space-y-2">
-                {customHoles.map((hole) => (
-                  <div
-                    key={hole.number}
-                    className="grid grid-cols-[44px_1fr_1fr_1fr] items-center gap-2 text-xs"
-                  >
-                    <span className="font-semibold text-gray-700">
-                      H{hole.number}
-                    </span>
-                    <select
-                      value={hole.par}
-                      onChange={(e) =>
-                        updateCustomHole(hole.number, "par", e.target.value)
-                      }
-                      className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      aria-label={`Hole ${hole.number} par`}
-                    >
-                      {[3, 4, 5].map((par) => (
-                        <option key={par} value={par}>
-                          Par {par}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min={1}
-                      max={18}
-                      value={hole.strokeIndex}
-                      onChange={(e) =>
-                        updateCustomHole(
-                          hole.number,
-                          "strokeIndex",
-                          e.target.value
-                        )
-                      }
-                      className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      aria-label={`Hole ${hole.number} stroke index`}
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      value={hole.distanceMeters ?? ""}
-                      onChange={(e) =>
-                        updateCustomHole(
-                          hole.number,
-                          "distanceMeters",
-                          e.target.value
-                        )
-                      }
-                      placeholder="m"
-                      className="min-w-0 rounded-lg border border-gray-200 px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                      aria-label={`Hole ${hole.number} distance metres`}
-                    />
+              <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">
+                      Custom course setup
+                    </h3>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Use this when GolfCourseAPI does not return 18-hole round
+                      data. The hole data is saved to this round only.
+                    </p>
                   </div>
-                ))}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowCustomCourseSetup((current) => !current)
+                    }
+                    className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50"
+                    aria-expanded={showCustomCourseSetup}
+                  >
+                    {showCustomCourseSetup ? "Hide holes" : "Set up holes"}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs font-medium text-gray-600">
+                  Custom par total: {customCoursePar} · {customHoles.length}{" "}
+                  holes · {customCourseDistanceCount} distances entered
+                </p>
               </div>
+              {showCustomCourseSetup && (
+                <div className="mt-3 overflow-x-auto">
+                  <div className="min-w-[420px]">
+                    <div className="grid grid-cols-[44px_110px_88px_120px] items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                      <span>Hole</span>
+                      <span>Par</span>
+                      <span>Index</span>
+                      <span>Distance (m)</span>
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {customHoles.map((hole) => (
+                        <div
+                          key={hole.number}
+                          className="grid grid-cols-[44px_110px_88px_120px] items-center gap-2 text-xs"
+                        >
+                          <span className="font-semibold text-gray-700">
+                            H{hole.number}
+                          </span>
+                          <select
+                            value={hole.par}
+                            onChange={(e) =>
+                              updateCustomHole(
+                                hole.number,
+                                "par",
+                                e.target.value
+                              )
+                            }
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            aria-label={`Hole ${hole.number} par`}
+                          >
+                            {[3, 4, 5].map((par) => (
+                              <option key={par} value={par}>
+                                Par {par}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            min={1}
+                            max={18}
+                            value={hole.strokeIndex}
+                            onChange={(e) =>
+                              updateCustomHole(
+                                hole.number,
+                                "strokeIndex",
+                                e.target.value
+                              )
+                            }
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            aria-label={`Hole ${hole.number} stroke index`}
+                          />
+                          <input
+                            type="number"
+                            min={1}
+                            value={hole.distanceMeters ?? ""}
+                            onChange={(e) =>
+                              updateCustomHole(
+                                hole.number,
+                                "distanceMeters",
+                                e.target.value
+                              )
+                            }
+                            placeholder="m"
+                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            aria-label={`Hole ${hole.number} distance metres`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
+  createRound,
   getRound,
   getScorecardsForRound,
   getActiveMembers,
@@ -13,6 +14,7 @@ import {
   getResultsForRound,
   getSideClaimsForRound,
   setSideClaim,
+  subscribeRoundsForGroup,
   subscribeHoleScores,
   subscribeResultsForRound,
   subscribeRound,
@@ -36,10 +38,29 @@ import type {
   Group,
 } from "@/types";
 
+function getSuggestedRoundNumberForSeason(
+  rounds: Round[],
+  seasonValue: string
+) {
+  const parsedSeason = parseInt(seasonValue, 10);
+  if (!Number.isFinite(parsedSeason)) return "1";
+
+  const highestRoundNumber = rounds
+    .filter((groupRound) => groupRound.season === parsedSeason)
+    .reduce(
+      (highest, groupRound) => Math.max(highest, groupRound.roundNumber),
+      0
+    );
+
+  return String(highestRoundNumber + 1);
+}
+
 export default function AdminRoundLeaderboardPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const { appUser } = useAuth();
+  const router = useRouter();
   const [round, setRound] = useState<Round | null>(null);
+  const [groupRounds, setGroupRounds] = useState<Round[]>([]);
   const [cards, setCards] = useState<Scorecard[]>([]);
   const [holeScoresByCardId, setHoleScoresByCardId] = useState<
     Record<string, HoleScore[]>
@@ -50,6 +71,12 @@ export default function AdminRoundLeaderboardPage() {
   const [sideWinnerIds, setSideWinnerIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [rebooking, setRebooking] = useState(false);
+  const [showRebookForm, setShowRebookForm] = useState(false);
+  const [rebookDate, setRebookDate] = useState("");
+  const [rebookSeason, setRebookSeason] = useState("");
+  const [rebookRoundNumber, setRebookRoundNumber] = useState("");
+  const [rebookRoundNumberEdited, setRebookRoundNumberEdited] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -167,6 +194,15 @@ export default function AdminRoundLeaderboardPage() {
     );
   }, [roundId]);
 
+  useEffect(() => {
+    if (!appUser?.groupId) return;
+    return subscribeRoundsForGroup(
+      appUser.groupId,
+      setGroupRounds,
+      (err) => console.warn("Unable to subscribe to group rounds", err)
+    );
+  }, [appUser?.groupId]);
+
   const rankings = useMemo(
     () =>
       round
@@ -180,6 +216,26 @@ export default function AdminRoundLeaderboardPage() {
         : [],
     [cards, group?.settings, holeScoresByCardId, members, round]
   );
+  const suggestedRebookSeason = useMemo(() => {
+    if (!round) return String(group?.currentSeason ?? new Date().getFullYear());
+
+    return String(
+      Math.max(round.season + 1, group?.currentSeason ?? round.season)
+    );
+  }, [group?.currentSeason, round]);
+  const suggestedRebookDate = useMemo(() => {
+    if (!round) return "";
+
+    const nextDate = new Date(round.date);
+    nextDate.setFullYear(nextDate.getFullYear() + 1);
+    return format(nextDate, "yyyy-MM-dd");
+  }, [round]);
+  const suggestedRoundNumberForSeason = useMemo(() => {
+    return getSuggestedRoundNumberForSeason(
+      groupRounds,
+      rebookSeason || suggestedRebookSeason
+    );
+  }, [groupRounds, rebookSeason, suggestedRebookSeason]);
   const cardsByPlayerId = useMemo(
     () => new Map(cards.map((card) => [card.playerId, card])),
     [cards]
@@ -199,6 +255,17 @@ export default function AdminRoundLeaderboardPage() {
 
   const buildRankings = (): PlayerRanking[] => {
     return rankings;
+  };
+
+  const openRebookForm = () => {
+    setShowRebookForm(true);
+    setRebookDate(suggestedRebookDate);
+    setRebookSeason(suggestedRebookSeason);
+    setRebookRoundNumber(
+      getSuggestedRoundNumberForSeason(groupRounds, suggestedRebookSeason)
+    );
+    setRebookRoundNumberEdited(false);
+    setError("");
   };
 
   const buildSideResult = (
@@ -256,10 +323,75 @@ export default function AdminRoundLeaderboardPage() {
           signedOff: true,
         }))
       );
+      openRebookForm();
     } catch {
       setError("Failed to publish results. Please try again.");
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const handleRebook = async () => {
+    if (!round || !appUser) return;
+
+    const parsedSeason = parseInt(rebookSeason, 10);
+    const parsedRoundNumber = parseInt(rebookRoundNumber, 10);
+    const activeSeason = group?.currentSeason ?? round.season;
+
+    if (!rebookDate) {
+      setError("Select the new booking date.");
+      return;
+    }
+
+    if (!Number.isInteger(parsedSeason) || parsedSeason < activeSeason) {
+      setError(`Season must be ${activeSeason} or later.`);
+      return;
+    }
+
+    if (!Number.isInteger(parsedRoundNumber) || parsedRoundNumber <= 0) {
+      setError("Round number must be a positive number.");
+      return;
+    }
+
+    setRebooking(true);
+    setError("");
+
+    try {
+      const nextRound: Omit<Round, "id" | "createdAt" | "updatedAt"> = {
+        groupId: round.groupId,
+        courseId: round.courseId,
+        courseName: round.courseName,
+        teeSetId: round.teeSetId,
+        teeSetName: round.teeSetName,
+        coursePar: round.coursePar,
+        courseRating: round.courseRating,
+        slopeRating: round.slopeRating,
+        courseHoles: round.courseHoles,
+        availableTeeSets: round.availableTeeSets,
+        playerTeeAssignments: {},
+        courseSource: round.courseSource,
+        date: new Date(rebookDate),
+        season: parsedSeason,
+        roundNumber: parsedRoundNumber,
+        format: round.format,
+        status: "upcoming",
+        notes: null,
+        teeTimes: [],
+        rsvpOpen: false,
+        rsvpNotifiedAt: null,
+        holeOverrides: [],
+        specialHoles: round.specialHoles,
+        resultsPublished: false,
+        resultsPublishedAt: null,
+        createdBy: appUser.uid,
+      };
+
+      const nextRoundId = await createRound(nextRound);
+      router.push(`/admin/rounds/${nextRoundId}`);
+    } catch {
+      setError("Failed to create the re-booked round. Please try again.");
+    } finally {
+      setRebooking(false);
     }
   };
 
@@ -496,6 +628,125 @@ export default function AdminRoundLeaderboardPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {round.resultsPublished && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-gray-800 text-sm">
+                Re-book This Course
+              </h2>
+              <p className="text-xs text-gray-500">
+                Create a new upcoming round from this course setup for a future
+                season or the following year.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                showRebookForm ? setShowRebookForm(false) : openRebookForm()
+              }
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50"
+            >
+              {showRebookForm ? "Hide" : "Re-book course"}
+            </button>
+          </div>
+
+          {showRebookForm && (
+            <div className="space-y-3 border-t border-gray-100 pt-3">
+              <div className="rounded-xl border border-green-100 bg-green-50 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+                  Season handling
+                </p>
+                <p className="mt-1 text-xs text-green-900">
+                  Active season: {group?.currentSeason ?? round.season}. This
+                  booking can still be created in Season{" "}
+                  {rebookSeason || suggestedRebookSeason} without changing the
+                  active season first.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-700">
+                    Date
+                  </span>
+                  <input
+                    type="date"
+                    value={rebookDate}
+                    onChange={(event) => setRebookDate(event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-700">
+                    Season
+                  </span>
+                  <input
+                    type="number"
+                    min={group?.currentSeason ?? round.season}
+                    value={rebookSeason}
+                    onChange={(event) => {
+                      const nextSeason = event.target.value;
+                      setRebookSeason(nextSeason);
+                      if (!rebookRoundNumberEdited) {
+                        setRebookRoundNumber(
+                          getSuggestedRoundNumberForSeason(
+                            groupRounds,
+                            nextSeason
+                          )
+                        );
+                      }
+                    }}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium text-gray-700">
+                    Round number
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={rebookRoundNumber}
+                    onChange={(event) => {
+                      setRebookRoundNumber(event.target.value);
+                      setRebookRoundNumberEdited(true);
+                    }}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </label>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Date and round number are editable. The round number shown here
+                is only a suggestion.
+              </p>
+
+              <p className="text-xs text-gray-500">
+                Suggested round number for Season{" "}
+                {rebookSeason || suggestedRebookSeason}:{" "}
+                {suggestedRoundNumberForSeason}. Course data, tee set, pars,
+                distances, and prize holes will be copied. Tee times, player
+                assignments, overrides, and results will not.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleRebook}
+                disabled={rebooking}
+                className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-green-300"
+              >
+                {rebooking
+                  ? "Creating re-booked round..."
+                  : "Create re-booked round"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

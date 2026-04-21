@@ -27,6 +27,7 @@ import {
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
+  getPreferredDefaultTeeSet,
   getRoundTeeSets,
 } from "@/lib/courseData";
 import {
@@ -46,6 +47,19 @@ import type {
   ScoringFormat,
   TeeTime,
 } from "@/types";
+
+function extractGolfCourseApiId(
+  courseId: string | null | undefined,
+  teeSetId: string | null | undefined
+) {
+  const courseMatch = courseId?.match(/^golfcourseapi-(\d+)$/);
+  if (courseMatch) return Number(courseMatch[1]);
+
+  const teeSetMatch = teeSetId?.match(/^golfcourseapi-(\d+)-/);
+  if (teeSetMatch) return Number(teeSetMatch[1]);
+
+  return null;
+}
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -115,7 +129,7 @@ export default function AdminRoundDetailPage() {
       : getFallbackCourseHoles());
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
   const refreshableTeeSet =
-    selectedTeeSet ?? selectedCourse?.teeSets[0] ?? null;
+    selectedTeeSet ?? getPreferredDefaultTeeSet(selectedCourse?.teeSets ?? []) ?? null;
   const acceptedMembers = useMemo(() => {
     if (!round?.rsvpOpen) return members;
     const acceptedIds = new Set(
@@ -147,7 +161,7 @@ export default function AdminRoundDetailPage() {
   };
 
   const applyCourse = (course: SeededCourse) => {
-    const defaultTeeSet = course.teeSets[0] ?? null;
+    const defaultTeeSet = getPreferredDefaultTeeSet(course.teeSets);
     setApiCourses([course]);
     setCourseSearchActive(false);
     setCourseId(course.id);
@@ -277,6 +291,46 @@ export default function AdminRoundDetailPage() {
       });
     }
   }, [appUser?.groupId, roundId]);
+
+  useEffect(() => {
+    if (!round) return;
+
+    const existingTeeSets = getRoundTeeSets(round);
+    if (existingTeeSets.length > 1) return;
+
+    const apiId = extractGolfCourseApiId(round.courseId, round.teeSetId);
+    if (!apiId) return;
+
+    let cancelled = false;
+    setApiCourseLoading(true);
+
+    getGolfCourseCatalogueCourse(apiId)
+      .then((result) => {
+        if (cancelled) return;
+
+        if (result.course && result.course.teeSets.length > 0) {
+          setApiCourses((current) => [
+            result.course!,
+            ...current.filter((course) => course.id !== result.course!.id),
+          ]);
+          setApiCourseError("");
+        } else if (result.error) {
+          setApiCourseError(result.error);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setApiCourseError("Could not load tee data for that course.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setApiCourseLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [round]);
 
   const setStatus = async (status: RoundStatus) => {
     if (!round) return;
