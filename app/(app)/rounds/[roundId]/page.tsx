@@ -14,6 +14,7 @@ import {
   setSideClaim,
   setRoundRsvp,
   subscribeRoundRsvp,
+  subscribeRoundRsvps,
   subscribeResultsForRound,
   subscribeRound,
   subscribeSideClaimsForRound,
@@ -22,7 +23,11 @@ import {
   getEffectiveSpecialHoles,
   withSeededCourseData,
 } from "@/lib/courseData";
-import { formatTeeTime, getFirstTeeTimeLabel } from "@/lib/teeTimes";
+import {
+  formatTeeTime,
+  getFirstTeeTimeLabel,
+  getTeeTimeGroupLabel,
+} from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   AppUser,
@@ -39,6 +44,7 @@ export default function RoundDetailPage() {
   const [round, setRound] = useState<Round | null>(null);
   const [results, setResults] = useState<Results | null>(null);
   const [myRsvp, setMyRsvp] = useState<RoundRsvp | null>(null);
+  const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
   const [savingRsvp, setSavingRsvp] = useState(false);
@@ -117,6 +123,15 @@ export default function RoundDetailPage() {
       (err) => console.warn("Unable to subscribe to RSVP updates", err)
     );
   }, [appUser?.uid, roundId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeRoundRsvps(
+      roundId,
+      setRsvps,
+      (err) => console.warn("Unable to subscribe to round RSVPs", err)
+    );
+  }, [roundId]);
 
   useEffect(() => {
     if (!roundId) return;
@@ -213,6 +228,22 @@ export default function RoundDetailPage() {
     }
   };
   const specialHoles = getEffectiveSpecialHoles(round);
+  const acceptedMemberIds = new Set(
+    rsvps
+      .filter((rsvp) => rsvp.status === "accepted")
+      .map((rsvp) => rsvp.memberId)
+  );
+  const getTeeTimeLabel = (playerIds: string[], guestNames: string[]) => {
+    const visiblePlayerIds =
+      round.rsvpOpen || rsvps.length > 0
+        ? playerIds.filter((playerId) => acceptedMemberIds.has(playerId))
+        : playerIds;
+
+    return (
+      getTeeTimeGroupLabel(visiblePlayerIds, guestNames, members) ||
+      "Group details TBC"
+    );
+  };
   const getClaim = (prizeType: SidePrizeType, holeNumber: number) =>
     sideClaims.find(
       (claim) =>
@@ -414,7 +445,7 @@ export default function RoundDetailPage() {
                   {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
                 </span>
                 <span className="text-gray-500 text-right">
-                  {teeTime.notes || "Group details TBC"}
+                  {getTeeTimeLabel(teeTime.playerIds, teeTime.guestNames ?? [])}
                 </span>
               </div>
             ))}

@@ -51,7 +51,6 @@ import {
 } from "./season";
 import { withSeededCourseData } from "./courseData";
 import { normaliseGroupSettings } from "./settings";
-import { getTeeTimeGroupLabel } from "./teeTimes";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -705,9 +704,7 @@ export const setRoundRsvp = async ({
 }) => {
   const ref = doc(db, "rounds", round.id, "rsvps", member.uid);
   const existing = await getDoc(ref);
-  const batch = writeBatch(db);
-
-  batch.set(
+  await setDoc(
     ref,
     {
       roundId: round.id,
@@ -723,49 +720,6 @@ export const setRoundRsvp = async ({
     },
     { merge: true }
   );
-
-  if (status === "declined") {
-    const [latestRound, existingRsvps, activeMembers] = await Promise.all([
-      getRound(round.id),
-      getRoundRsvps(round.id),
-      getActiveMembers(round.groupId),
-    ]);
-    const appliedRound = latestRound ?? round;
-    const acceptedMemberIds = new Set(
-      existingRsvps
-        .filter(
-          (rsvp) => rsvp.memberId !== member.uid && rsvp.status === "accepted"
-        )
-        .map((rsvp) => rsvp.memberId)
-    );
-    const nextTeeTimes = appliedRound.teeTimes.map((teeTime) => {
-      const playerIds = teeTime.playerIds.filter((playerId) =>
-        acceptedMemberIds.has(playerId)
-      );
-      return {
-        ...teeTime,
-        playerIds,
-        notes: getTeeTimeGroupLabel(
-          playerIds,
-          teeTime.guestNames ?? [],
-          activeMembers
-        ) || null,
-      };
-    });
-    const nextPlayerTeeAssignments = Object.fromEntries(
-      Object.entries(appliedRound.playerTeeAssignments ?? {}).filter(([uid]) =>
-        acceptedMemberIds.has(uid)
-      )
-    );
-
-    batch.update(doc(db, "rounds", round.id), {
-      teeTimes: nextTeeTimes,
-      playerTeeAssignments: nextPlayerTeeAssignments,
-      updatedAt: serverTimestamp(),
-    });
-  }
-
-  await batch.commit();
 };
 
 export const notifyRoundPlayers = async ({
