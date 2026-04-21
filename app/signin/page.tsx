@@ -1,29 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignInPage() {
-  const { signIn, enterPreviewMode } = useAuth();
+  const { signIn, appUser, loading } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (appUser?.status === "active") {
+      router.replace("/home");
+      return;
+    }
+
+    if (appUser?.status === "pending") {
+      router.replace("/pending");
+    }
+  }, [appUser, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setLoading(true);
+    setSubmitting(true);
     try {
-      await signIn(email, password);
-      router.replace("/home");
+      await signIn(email.trim(), password);
     } catch {
       setError("Invalid email or password. Please try again.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -80,10 +92,10 @@ export default function SignInPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={submitting}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {submitting ? "Signing in..." : "Sign in"}
             </button>
           </form>
 
@@ -103,18 +115,6 @@ export default function SignInPage() {
                 Request access
               </Link>
             </p>
-          </div>
-
-          {/* Preview mode — local dev only */}
-          <div className="mt-4 pt-4 border-t border-dashed border-gray-200 text-center">
-            <p className="text-gray-400 text-xs mb-2">Local preview</p>
-            <button
-              type="button"
-              onClick={() => { enterPreviewMode(); router.replace("/home"); }}
-              className="w-full border border-gray-200 text-gray-500 text-sm py-2.5 rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              👀 Enter as Admin (preview only)
-            </button>
           </div>
         </div>
       </div>

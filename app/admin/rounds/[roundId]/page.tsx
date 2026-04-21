@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
+import TeeTimesEditor, { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
 import {
   getGolfCourseCatalogueCourse,
   searchGolfCourseCatalogue,
@@ -46,13 +47,6 @@ import type {
   TeeTime,
 } from "@/types";
 
-type TeeTimeDraft = {
-  time: string;
-  notes: string;
-  playerIds: string[];
-  guestNames: string[];
-};
-
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const router = useRouter();
@@ -90,7 +84,7 @@ export default function AdminRoundDetailPage() {
     Record<string, string>
   >({});
   const [showTeeAssignments, setShowTeeAssignments] = useState(false);
-  const [teeTimes, setTeeTimes] = useState<TeeTimeDraft[]>([
+  const [teeTimes, setTeeTimes] = useState<TeeTimeDraftValue[]>([
     { time: "", notes: "", playerIds: [], guestNames: [] },
   ]);
   const selectedCourse = useMemo(() => {
@@ -514,32 +508,26 @@ export default function AdminRoundDetailPage() {
   const removeTeeTime = (index: number) =>
     setTeeTimes(teeTimes.filter((_, i) => i !== index));
 
-  const updateTeeTime = (
-    index: number,
-    field: "time" | "notes",
-    value: string
-  ) =>
+  const updateTeeTimeTime = (index: number, value: string) =>
     setTeeTimes(
       teeTimes.map((teeTime, i) => {
         if (i !== index) return teeTime;
-        const updated = { ...teeTime, [field]: value };
-        return field === "notes"
-          ? {
-              ...updated,
-              playerIds: resolveMemberIdsFromText(value, members),
-            }
-          : updated;
+        return { ...teeTime, time: value };
       })
     );
 
-  const toggleTeeTimePlayer = (teeTimeIndex: number, member: AppUser) => {
+  const assignPlayerToTeeTime = (teeTimeIndex: number, member: AppUser) => {
     setTeeTimes((current) =>
       current.map((teeTime, index) => {
-        if (index !== teeTimeIndex) return teeTime;
-
-        const playerIds = teeTime.playerIds.includes(member.uid)
-          ? teeTime.playerIds.filter((playerId) => playerId !== member.uid)
-          : [...teeTime.playerIds, member.uid];
+        const existingPlayerIds = teeTime.playerIds.filter(
+          (playerId) => playerId !== member.uid
+        );
+        const shouldAssignToThisTeeTime =
+          index === teeTimeIndex &&
+          !current[teeTimeIndex]?.playerIds.includes(member.uid);
+        const playerIds = shouldAssignToThisTeeTime
+          ? [...existingPlayerIds, member.uid]
+          : existingPlayerIds;
         const notes = getTeeTimeGroupLabel(
           playerIds,
           teeTime.guestNames,
@@ -995,119 +983,28 @@ export default function AdminRoundDetailPage() {
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-medium text-gray-700">
-                Tee times
-              </label>
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={randomiseGroups}
-                  className="text-xs font-medium text-green-700 underline"
-                >
-                  Randomise groups
-                </button>
-                <button
-                  type="button"
-                  onClick={addTeeTime}
-                  className="text-xs font-medium text-green-700 underline"
-                >
-                  + Add tee time
-                </button>
-              </div>
-            </div>
-            <p className="text-[11px] text-gray-400">
-              Add accepted players to each tee time. Guests are shown in the
-              group but cannot start a scorecard.
-            </p>
-            {round.rsvpOpen && (
-              <p className="text-[11px] text-green-700">
-                Showing accepted players only: {acceptedMembers.length}
-              </p>
-            )}
-            {teeTimes.map((teeTime, index) => (
-              <div
-                key={index}
-                className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2"
-              >
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="time"
-                    value={teeTime.time}
-                    onChange={(e) =>
-                      updateTeeTime(index, "time", e.target.value)
-                    }
-                    className="w-28 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                  <input
-                    type="text"
-                    value={getTeeTimeGroupLabel(
-                      teeTime.playerIds,
-                      teeTime.guestNames,
-                      members
-                    )}
-                    readOnly
-                    placeholder="No players assigned"
-                    className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addGuestToTeeTime(index)}
-                    className="text-xs text-green-700 underline"
-                  >
-                    Add guest
-                  </button>
-                  {teeTimes.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeTeeTime(index)}
-                      className="text-xs text-red-500 underline"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {acceptedMembers.length === 0 && (
-                    <p className="text-[11px] text-gray-400">
-                      No accepted players yet. Tee-time groups can be filled
-                      after players RSVP.
-                    </p>
-                  )}
-                  {acceptedMembers.length > 0 &&
-                    acceptedMembers.map((member) => {
-                      const selected = teeTime.playerIds.includes(member.uid);
-                      return (
-                        <button
-                          key={member.uid}
-                          type="button"
-                          onClick={() => toggleTeeTimePlayer(index, member)}
-                          className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                            selected
-                              ? "border-green-600 bg-green-50 text-green-700"
-                              : "border-gray-200 bg-white text-gray-500"
-                          }`}
-                        >
-                          {formatShortMemberName(member)}
-                        </button>
-                      );
-                    })}
-                  {teeTime.guestNames.map((guestName) => (
-                    <button
-                      key={guestName}
-                      type="button"
-                      onClick={() => removeGuestFromTeeTime(index, guestName)}
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
-                      aria-label={`Remove guest ${guestName}`}
-                    >
-                      {guestName} x
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <TeeTimesEditor
+            teeTimes={teeTimes}
+            members={members}
+            assignableMembers={acceptedMembers}
+            playersSummary={
+              round.rsvpOpen
+                ? `Showing accepted players only: ${acceptedMembers.length}`
+                : undefined
+            }
+            emptyPlayersMessage={
+              round.rsvpOpen
+                ? "No accepted players yet. Tee-time groups can be filled after players RSVP."
+                : "No active players are available yet."
+            }
+            onRandomise={randomiseGroups}
+            onAddTeeTime={addTeeTime}
+            onRemoveTeeTime={removeTeeTime}
+            onUpdateTeeTimeTime={updateTeeTimeTime}
+            onAssignPlayer={assignPlayerToTeeTime}
+            onAddGuest={addGuestToTeeTime}
+            onRemoveGuest={removeGuestFromTeeTime}
+          />
         </div>
 
         <div className="border-t border-gray-100 pt-3 mt-2 space-y-3">

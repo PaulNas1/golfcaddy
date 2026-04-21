@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getGroup,
-  getMember,
-  getSeasonStandingForMember,
+  subscribeGroup,
+  subscribeMember,
+  subscribeSeasonStandingForMember,
   updateUser,
 } from "@/lib/firestore";
 import type { Member, SeasonStanding, UserGender } from "@/types";
@@ -36,27 +36,46 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    const load = async () => {
-      if (!appUser?.uid || !appUser.groupId) return;
-      try {
-        const group = await getGroup(appUser.groupId);
+    if (!appUser?.uid || !appUser.groupId) return;
+    let standingsUnsubscribe: (() => void) | null = null;
+
+    const groupUnsubscribe = subscribeGroup(
+      appUser.groupId,
+      (group) => {
         const currentSeason = group?.currentSeason ?? new Date().getFullYear();
-        const [memberRecord, seasonStanding] = await Promise.all([
-          getMember(appUser.uid),
-          getSeasonStandingForMember(
-            appUser.groupId,
-            currentSeason,
-            appUser.uid
-          ),
-        ]);
         setSeason(currentSeason);
-        setMember(memberRecord);
-        setStanding(seasonStanding);
-      } finally {
+        standingsUnsubscribe?.();
+        standingsUnsubscribe = subscribeSeasonStandingForMember(
+          appUser.groupId,
+          currentSeason,
+          appUser.uid,
+          (seasonStanding) => {
+            setStanding(seasonStanding);
+            setLoadingStats(false);
+          },
+          (err) => {
+            console.warn("Unable to subscribe to season standing", err);
+            setLoadingStats(false);
+          }
+        );
+      },
+      (err) => {
+        console.warn("Unable to subscribe to group", err);
         setLoadingStats(false);
       }
+    );
+
+    const memberUnsubscribe = subscribeMember(
+      appUser.uid,
+      setMember,
+      (err) => console.warn("Unable to subscribe to member stats", err)
+    );
+
+    return () => {
+      groupUnsubscribe();
+      memberUnsubscribe();
+      standingsUnsubscribe?.();
     };
-    load();
   }, [appUser?.groupId, appUser?.uid]);
 
   useEffect(() => {
@@ -72,6 +91,20 @@ export default function ProfilePage() {
       usesProBackTees: appUser?.usesProBackTees ?? false,
     });
   }, [appUser]);
+
+  const memberSeasonMatches = member?.seasonYear === season;
+  const fallbackSeasonPoints = memberSeasonMatches ? member?.seasonPoints ?? 0 : 0;
+  const fallbackRoundsPlayed = memberSeasonMatches ? member?.roundsPlayed ?? 0 : 0;
+  const fallbackAverageStableford = memberSeasonMatches
+    ? member?.avgStableford ?? "—"
+    : "—";
+  const fallbackBestStableford = memberSeasonMatches
+    ? member?.bestStableford ?? "—"
+    : "—";
+  const fallbackNtpWins = memberSeasonMatches ? member?.ntpWins ?? 0 : 0;
+  const fallbackLdWins = memberSeasonMatches ? member?.ldWins ?? 0 : 0;
+  const fallbackT2Wins = memberSeasonMatches ? member?.t2Wins ?? 0 : 0;
+  const fallbackT3Wins = memberSeasonMatches ? member?.t3Wins ?? 0 : 0;
 
   const handleSignOut = async () => {
     await signOut();
@@ -319,7 +352,7 @@ export default function ProfilePage() {
               />
               <StatCard
                 label="Points"
-                value={String(standing?.totalPoints ?? member?.seasonPoints ?? 0)}
+                value={String(standing?.totalPoints ?? fallbackSeasonPoints)}
               />
               <StatCard
                 label="Handicap"
@@ -327,15 +360,15 @@ export default function ProfilePage() {
               />
               <StatCard
                 label="Rounds"
-                value={String(standing?.roundsPlayed ?? member?.roundsPlayed ?? 0)}
+                value={String(standing?.roundsPlayed ?? fallbackRoundsPlayed)}
               />
               <StatCard
                 label="Avg Stableford"
-                value={String(member?.avgStableford ?? "—")}
+                value={String(fallbackAverageStableford)}
               />
               <StatCard
                 label="Best Stableford"
-                value={String(member?.bestStableford ?? "—")}
+                value={String(fallbackBestStableford)}
               />
             </div>
 
@@ -346,19 +379,19 @@ export default function ProfilePage() {
               <div className="flex flex-wrap gap-2">
                 <SidePrizePill
                   label="NTP"
-                  value={standing?.ntpWinsSeason ?? member?.ntpWins ?? 0}
+                  value={standing?.ntpWinsSeason ?? fallbackNtpWins}
                 />
                 <SidePrizePill
                   label="LD"
-                  value={standing?.ldWinsSeason ?? member?.ldWins ?? 0}
+                  value={standing?.ldWinsSeason ?? fallbackLdWins}
                 />
                 <SidePrizePill
                   label="T2"
-                  value={standing?.t2WinsSeason ?? member?.t2Wins ?? 0}
+                  value={standing?.t2WinsSeason ?? fallbackT2Wins}
                 />
                 <SidePrizePill
                   label="T3"
-                  value={standing?.t3WinsSeason ?? member?.t3Wins ?? 0}
+                  value={standing?.t3WinsSeason ?? fallbackT3Wins}
                 />
               </div>
             </div>

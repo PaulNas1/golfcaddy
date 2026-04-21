@@ -13,6 +13,9 @@ import {
   createScorecard,
   getHoleScores,
   setHoleScore,
+  subscribeHoleScores,
+  subscribeRound,
+  subscribeScorecardForMarker,
   updateScorecard,
 } from "@/lib/firestore";
 import {
@@ -49,6 +52,20 @@ export default function ScorecardPage() {
   const [signing, setSigning] = useState(false);
   const [reopening, setReopening] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!roundId || !appUser || !isActive) return;
+
+    return subscribeRound(
+      roundId,
+      (nextRound) => {
+        if (nextRound) {
+          setRound(nextRound);
+        }
+      },
+      (err) => console.warn("Unable to subscribe to round updates", err)
+    );
+  }, [appUser, isActive, roundId]);
 
   useEffect(() => {
     if (!roundId || !appUser || !isActive) return;
@@ -113,6 +130,39 @@ export default function ScorecardPage() {
 
     load();
   }, [roundId, appUser, isActive, router]);
+
+  useEffect(() => {
+    if (!roundId || !appUser || !isActive) return;
+
+    return subscribeScorecardForMarker(
+      roundId,
+      appUser.uid,
+      (nextScorecard) => {
+        setScorecard(nextScorecard);
+        if (!nextScorecard) {
+          setHoles([]);
+        }
+      },
+      {
+        groupId: appUser.groupId,
+        onError: (err) => console.warn("Unable to subscribe to scorecard", err),
+      }
+    );
+  }, [appUser, isActive, roundId]);
+
+  useEffect(() => {
+    if (!scorecard?.id) return;
+
+    return subscribeHoleScores(
+      scorecard.id,
+      (nextHoles) => {
+        if (nextHoles.length > 0) {
+          setHoles(nextHoles);
+        }
+      },
+      (err) => console.warn("Unable to subscribe to hole scores", err)
+    );
+  }, [scorecard?.id]);
 
   const canEdit = useMemo(
     () =>

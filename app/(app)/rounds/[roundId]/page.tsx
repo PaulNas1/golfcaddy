@@ -13,6 +13,8 @@ import {
   getSideClaimsForRound,
   setSideClaim,
   setRoundRsvp,
+  subscribeResultsForRound,
+  subscribeRound,
   subscribeSideClaimsForRound,
 } from "@/lib/firestore";
 import {
@@ -86,6 +88,36 @@ export default function RoundDetailPage() {
         .finally(() => setLoading(false));
     }
   }, [appUser?.groupId, appUser?.uid, roundId, router]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeRound(
+      roundId,
+      (nextRound) => setRound(nextRound ? withSeededCourseData(nextRound) : null),
+      (err) => console.warn("Unable to subscribe to round updates", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeResultsForRound(
+      roundId,
+      setResults,
+      (err) => console.warn("Unable to subscribe to results", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (!roundId || !appUser?.uid) return;
+    const loadRsvp = async () => {
+      try {
+        setMyRsvp(await getRoundRsvp(roundId, appUser.uid));
+      } catch (err) {
+        console.warn("Unable to refresh RSVP", err);
+      }
+    };
+    loadRsvp();
+  }, [appUser?.uid, roundId]);
 
   useEffect(() => {
     if (!roundId) return;
@@ -186,7 +218,6 @@ export default function RoundDetailPage() {
         updatedBy: appUser,
         members,
       });
-      setSideClaims(await getSideClaimsForRound(round.id));
     } finally {
       setSavingClaim("");
     }

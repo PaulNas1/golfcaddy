@@ -75,7 +75,9 @@ export default function AdminDashboard() {
           <div className="text-xs text-gray-500 mt-1">Pending</div>
         </div>
         <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
-          <div className="text-2xl font-bold text-blue-500">2026</div>
+          <div className="text-2xl font-bold text-blue-500">
+            {loading ? "—" : group?.currentSeason ?? new Date().getFullYear()}
+          </div>
           <div className="text-xs text-gray-500 mt-1">Season</div>
         </div>
       </div>

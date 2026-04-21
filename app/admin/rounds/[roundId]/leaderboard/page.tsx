@@ -13,6 +13,10 @@ import {
   getResultsForRound,
   getSideClaimsForRound,
   setSideClaim,
+  subscribeHoleScores,
+  subscribeResultsForRound,
+  subscribeRound,
+  subscribeScorecardsForRound,
   subscribeSideClaimsForRound,
   publishRoundResultsWithStage3,
 } from "@/lib/firestore";
@@ -47,6 +51,70 @@ export default function AdminRoundLeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeRound(
+      roundId,
+      (nextRound) => {
+        setRound(nextRound);
+        if (!nextRound) {
+          setCards([]);
+          setHoleScoresByCardId({});
+        }
+      },
+      (err) => console.warn("Unable to subscribe to round updates", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeResultsForRound(
+      roundId,
+      setResults,
+      (err) => console.warn("Unable to subscribe to results", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeScorecardsForRound(
+      roundId,
+      setCards,
+      (err) => console.warn("Unable to subscribe to scorecards", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (cards.length === 0) {
+      setHoleScoresByCardId({});
+      return;
+    }
+
+    const activeCardIds = new Set(cards.map((card) => card.id));
+    setHoleScoresByCardId((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([cardId]) => activeCardIds.has(cardId))
+      )
+    );
+
+    const unsubscribers = cards.map((card) =>
+      subscribeHoleScores(
+        card.id,
+        (scores) =>
+          setHoleScoresByCardId((current) => ({
+            ...current,
+            [card.id]: scores,
+          })),
+        (err) =>
+          console.warn(`Unable to subscribe to hole scores for ${card.id}`, err)
+      )
+    );
+
+    return () => {
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+    };
+  }, [cards]);
 
   useEffect(() => {
     if (!roundId) return;

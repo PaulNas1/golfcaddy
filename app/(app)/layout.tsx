@@ -21,8 +21,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [group, setGroup] = useState<Group | null>(null);
 
-  const isPreview = appUser?.uid === "preview-user";
-
   useEffect(() => {
     if (!appUser?.groupId || appUser.status !== "active") return;
     getGroup(appUser.groupId)
@@ -32,7 +30,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (loading) return;
-    if (!firebaseUser && !isPreview) {
+
+    if (!firebaseUser) {
       router.replace("/signin");
       return;
     }
@@ -43,7 +42,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (appUser?.status !== "active") {
       router.replace("/signin");
     }
-  }, [loading, firebaseUser, appUser, router, isPreview]);
+  }, [loading, firebaseUser, appUser, router]);
 
   if (loading || !appUser || appUser.status !== "active") {
     return (

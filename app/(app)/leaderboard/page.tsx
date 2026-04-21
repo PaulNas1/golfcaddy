@@ -1,34 +1,79 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getGroup, getSeasonStandings } from "@/lib/firestore";
+import { useEffect, useMemo, useState } from "react";
+import {
+  subscribeGroup,
+  subscribeRoundsForGroup,
+  subscribeSeasonStandings,
+} from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import type { SeasonStanding } from "@/types";
 
 export default function LeaderboardPage() {
   const { appUser } = useAuth();
-  const [season, setSeason] = useState(new Date().getFullYear());
+  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
   const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      if (!appUser?.groupId) return;
-      try {
-        const group = await getGroup(appUser.groupId);
-        const currentSeason = group?.currentSeason ?? new Date().getFullYear();
-        setSeason(currentSeason);
-        const seasonStandings = await getSeasonStandings(
-          appUser.groupId,
-          currentSeason
-        );
-        setStandings(seasonStandings);
-      } finally {
+    if (!appUser?.groupId) return;
+
+    const groupUnsubscribe = subscribeGroup(
+      appUser.groupId,
+      (group) => {
+        const nextCurrentSeason =
+          group?.currentSeason ?? new Date().getFullYear();
+        setCurrentSeason(nextCurrentSeason);
+        setSelectedSeason((current) => current ?? nextCurrentSeason);
+      },
+      (err) => {
+        console.warn("Unable to subscribe to group", err);
         setLoading(false);
       }
+    );
+
+    const roundsUnsubscribe = subscribeRoundsForGroup(
+      appUser.groupId,
+      (rounds) => {
+        const seasons = Array.from(new Set(rounds.map((round) => round.season))).sort(
+          (a, b) => b - a
+        );
+        setAvailableSeasons(seasons);
+      },
+      (err) => console.warn("Unable to subscribe to rounds", err)
+    );
+
+    return () => {
+      groupUnsubscribe();
+      roundsUnsubscribe();
     };
-    load();
   }, [appUser?.groupId]);
+
+  useEffect(() => {
+    if (!appUser?.groupId || selectedSeason == null) return;
+
+    setLoading(true);
+    return subscribeSeasonStandings(
+      appUser.groupId,
+      selectedSeason,
+      (seasonStandings) => {
+        setStandings(seasonStandings);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn("Unable to subscribe to season standings", err);
+        setLoading(false);
+      }
+    );
+  }, [appUser?.groupId, selectedSeason]);
+
+  const seasonOptions = useMemo(() => {
+    const seasons = availableSeasons.length > 0 ? availableSeasons : [currentSeason];
+    return Array.from(new Set(seasons)).sort((a, b) => b - a);
+  }, [availableSeasons, currentSeason]);
+
   const sideLeaderboards = [
     {
       label: "NTP leaders",
@@ -51,8 +96,32 @@ export default function LeaderboardPage() {
   return (
     <div className="px-4 py-6 pb-8">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-800">Season Ladder</h1>
-        <p className="text-gray-500 text-sm">{season}</p>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Season Ladder</h1>
+            <p className="text-gray-500 text-sm">
+              Season {selectedSeason ?? currentSeason}
+              {selectedSeason === currentSeason ? " · active" : ""}
+            </p>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-right text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              Season
+            </span>
+            <select
+              value={selectedSeason ?? currentSeason}
+              onChange={(event) => setSelectedSeason(Number(event.target.value))}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {seasonOptions.map((season) => (
+                <option key={season} value={season}>
+                  {season}
+                  {season === currentSeason ? " (Active)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </div>
 
       {loading ? (

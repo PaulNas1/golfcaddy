@@ -163,6 +163,30 @@ export const getUser = async (uid: string): Promise<AppUser | null> => {
   } as AppUser;
 };
 
+export const subscribeUser = (
+  uid: string,
+  onChange: (user: AppUser | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "users", uid),
+    (snap) => {
+      if (!snap.exists()) {
+        onChange(null);
+        return;
+      }
+
+      const data = snap.data();
+      onChange({
+        uid: snap.id,
+        ...data,
+        createdAt: toDate(data.createdAt),
+        updatedAt: toDate(data.updatedAt),
+      } as AppUser);
+    },
+    onError
+  );
+
 export const updateUser = async (uid: string, data: Partial<AppUser>) => {
   await updateDoc(doc(db, "users", uid), {
     ...data,
@@ -202,6 +226,22 @@ export const getGroup = async (
   } as Group;
 };
 
+export const subscribeGroup = (
+  groupId: string,
+  onChange: (group: Group | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "groups", groupId),
+    (snap) => onChange(snap.exists() ? ({
+      id: snap.id,
+      ...snap.data(),
+      logoUrl: snap.data()?.logoUrl ?? null,
+      settings: normaliseGroupSettings(snap.data()?.settings),
+    } as Group) : null),
+    onError
+  );
+
 export const updateGroupProfile = async ({
   groupId,
   name,
@@ -236,6 +276,20 @@ export const updateGroupSettings = async (
   );
 };
 
+export const updateGroupCurrentSeason = async (
+  groupId: string,
+  currentSeason: number
+) => {
+  await setDoc(
+    doc(db, "groups", groupId),
+    {
+      currentSeason,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+};
+
 // ─── Members ─────────────────────────────────────────────────────────────────
 
 const mapMember = (
@@ -255,6 +309,17 @@ export const getMember = async (userId: string): Promise<Member | null> => {
   if (!snap.exists()) return null;
   return mapMember(snap);
 };
+
+export const subscribeMember = (
+  userId: string,
+  onChange: (member: Member | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "members", userId),
+    (snap) => onChange(snap.exists() ? mapMember(snap) : null),
+    onError
+  );
 
 export const getMembersForGroup = async (
   groupId: string
@@ -468,6 +533,29 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
       }
       return b.date.getTime() - a.date.getTime();
     });
+};
+
+export const subscribeRoundsForGroup = (
+  groupId: string,
+  onChange: (rounds: Round[]) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(collection(db, "rounds"), where("groupId", "==", groupId));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapRound)
+          .sort((a, b) => {
+            if (a.roundNumber !== b.roundNumber) {
+              return b.roundNumber - a.roundNumber;
+            }
+            return b.date.getTime() - a.date.getTime();
+          })
+      ),
+    onError
+  );
 };
 
 export const getRound = async (roundId: string): Promise<Round | null> => {
@@ -998,9 +1086,9 @@ export const createScorecard = async (
 };
 
 const mapScorecard = (
-  d: QueryDocumentSnapshot<DocumentData>
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
 ): Scorecard => {
-  const data = d.data();
+  const data = d.data() ?? {};
   return {
     id: d.id,
     ...data,
@@ -1015,6 +1103,29 @@ const mapScorecard = (
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as Scorecard;
+};
+
+const mapHoleScore = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): HoleScore => {
+  const data = d.data() ?? {};
+  return {
+    holeNumber: data.holeNumber,
+    par: data.par,
+    strokeIndex: data.strokeIndex,
+    distanceMeters:
+      typeof data.distanceMeters === "number" ? data.distanceMeters : undefined,
+    strokesReceived: data.strokesReceived,
+    grossScore: typeof data.grossScore === "number" ? data.grossScore : null,
+    netScore: typeof data.netScore === "number" ? data.netScore : null,
+    stablefordPoints:
+      typeof data.stablefordPoints === "number" ? data.stablefordPoints : null,
+    isNTP: !!data.isNTP,
+    isLD: !!data.isLD,
+    isT2: !!data.isT2,
+    isT3: !!data.isT3,
+    savedAt: data.savedAt ? toDate(data.savedAt) : null,
+  } as HoleScore;
 };
 
 export const getScorecardForPlayer = async (
@@ -1053,12 +1164,53 @@ export const getScorecardForMarker = async (
   return mapScorecard(d);
 };
 
+export const subscribeRound = (
+  roundId: string,
+  onChange: (round: Round | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "rounds", roundId),
+    (snap) => onChange(snap.exists() ? mapRound(snap) : null),
+    onError
+  );
+
+export const subscribeScorecardForMarker = (
+  roundId: string,
+  markerId: string,
+  onChange: (scorecard: Scorecard | null) => void,
+  options?: { groupId?: string; onError?: (error: Error) => void }
+) => {
+  const q = query(
+    collection(db, "scorecards"),
+    where("roundId", "==", roundId),
+    where("markerId", "==", markerId),
+    ...(options?.groupId ? [where("groupId", "==", options.groupId)] : []),
+    limit(1)
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.empty ? null : mapScorecard(snap.docs[0])),
+    options?.onError
+  );
+};
+
 export const getScorecardsForRound = async (
   roundId: string
 ): Promise<Scorecard[]> => {
   const q = query(collection(db, "scorecards"), where("roundId", "==", roundId));
   const snap = await getDocs(q);
   return snap.docs.map(mapScorecard);
+};
+
+export const subscribeScorecardsForRound = (
+  roundId: string,
+  onChange: (scorecards: Scorecard[]) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(collection(db, "scorecards"), where("roundId", "==", roundId));
+  return onSnapshot(q, (snap) => onChange(snap.docs.map(mapScorecard)), onError);
 };
 
 export const updateScorecard = async (
@@ -1079,29 +1231,19 @@ export const getHoleScores = async (
     orderBy("holeNumber", "asc")
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      holeNumber: data.holeNumber,
-      par: data.par,
-      strokeIndex: data.strokeIndex,
-      distanceMeters:
-        typeof data.distanceMeters === "number" ? data.distanceMeters : undefined,
-      strokesReceived: data.strokesReceived,
-      grossScore:
-        typeof data.grossScore === "number" ? data.grossScore : null,
-      netScore: typeof data.netScore === "number" ? data.netScore : null,
-      stablefordPoints:
-        typeof data.stablefordPoints === "number"
-          ? data.stablefordPoints
-          : null,
-      isNTP: !!data.isNTP,
-      isLD: !!data.isLD,
-      isT2: !!data.isT2,
-      isT3: !!data.isT3,
-      savedAt: data.savedAt ? toDate(data.savedAt) : null,
-    } as HoleScore;
-  });
+  return snap.docs.map(mapHoleScore);
+};
+
+export const subscribeHoleScores = (
+  scorecardId: string,
+  onChange: (scores: HoleScore[]) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(
+    collection(db, "scorecards", scorecardId, "holeScores"),
+    orderBy("holeNumber", "asc")
+  );
+  return onSnapshot(q, (snap) => onChange(snap.docs.map(mapHoleScore)), onError);
 };
 
 export const setHoleScore = async (
@@ -1141,6 +1283,17 @@ export const getResultsForRound = async (
   if (!snap.exists()) return null;
   return mapResults(snap);
 };
+
+export const subscribeResultsForRound = (
+  roundId: string,
+  onChange: (results: Results | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "results", roundId),
+    (snap) => onChange(snap.exists() ? mapResults(snap) : null),
+    onError
+  );
 
 export const getResultsForSeason = async (
   groupId: string,
@@ -1400,6 +1553,27 @@ export const getSeasonStandings = async (
     .sort((a, b) => a.currentRank - b.currentRank);
 };
 
+export const subscribeSeasonStandings = (
+  groupId: string,
+  season: number,
+  onChange: (standings: SeasonStanding[]) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(
+    collection(db, "seasonStandings"),
+    where("groupId", "==", groupId),
+    where("season", "==", season)
+  );
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs.map(mapSeasonStanding).sort((a, b) => a.currentRank - b.currentRank)
+      ),
+    onError
+  );
+};
+
 export const getSeasonStandingForMember = async (
   groupId: string,
   season: number,
@@ -1411,6 +1585,19 @@ export const getSeasonStandingForMember = async (
   if (!snap.exists()) return null;
   return mapSeasonStanding(snap);
 };
+
+export const subscribeSeasonStandingForMember = (
+  groupId: string,
+  season: number,
+  memberId: string,
+  onChange: (standing: SeasonStanding | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "seasonStandings", getSeasonStandingId(groupId, season, memberId)),
+    (snap) => onChange(snap.exists() ? mapSeasonStanding(snap) : null),
+    onError
+  );
 
 // ─── Posts & Feed ───────────────────────────────────────────────────────────
 
@@ -1441,7 +1628,37 @@ export const getFeedPosts = async (
     .slice(0, limitCount);
 };
 
+export const subscribeFeedPosts = (
+  groupId: string,
+  onChange: (posts: Post[]) => void,
+  options?: { limitCount?: number; onError?: (error: Error) => void }
+) => {
+  const q = query(collection(db, "posts"), where("groupId", "==", groupId));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapPost)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, options?.limitCount ?? 20)
+      ),
+    options?.onError
+  );
+};
+
 // ─── Notifications ───────────────────────────────────────────────────────────
+
+const mapNotification = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): AppNotification => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    createdAt: toDate(data.createdAt),
+  } as AppNotification;
+};
 
 export const getNotifications = async (
   userId: string,
@@ -1453,16 +1670,31 @@ export const getNotifications = async (
   );
   const snap = await getDocs(q);
   return snap.docs
-    .map((d) => {
-      const data = d.data();
-      return {
-        id: d.id,
-        ...data,
-        createdAt: toDate(data.createdAt),
-      } as AppNotification;
-    })
+    .map(mapNotification)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, limitCount);
+};
+
+export const subscribeNotifications = (
+  userId: string,
+  onChange: (notifications: AppNotification[]) => void,
+  options?: { limitCount?: number; onError?: (error: Error) => void }
+) => {
+  const q = query(
+    collection(db, "notifications"),
+    where("recipientId", "==", userId)
+  );
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapNotification)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, options?.limitCount ?? 20)
+      ),
+    options?.onError
+  );
 };
 
 export const markNotificationRead = async (notificationId: string) => {

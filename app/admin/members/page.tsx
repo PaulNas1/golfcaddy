@@ -28,6 +28,7 @@ export default function AdminMembersPage() {
   const [editingHandicapFor, setEditingHandicapFor] = useState<string | null>(null);
   const [handicapInput, setHandicapInput] = useState("");
   const [inviteName, setInviteName] = useState("");
+  const [inviteCountryCode, setInviteCountryCode] = useState("+61");
   const [inviteContact, setInviteContact] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [error, setError] = useState("");
@@ -115,8 +116,15 @@ export default function AdminMembersPage() {
   };
 
   const handleCreateInvite = async () => {
-    if (!appUser || !group) return;
+    if (!appUser || !group) {
+      setError("Group details are still loading. Please try again.");
+      return;
+    }
     const trimmedName = inviteName.trim();
+    const trimmedContact = normaliseInviteContact(
+      inviteContact,
+      inviteCountryCode
+    );
     if (!trimmedName) {
       setError("Enter the player's name before creating an invite.");
       return;
@@ -126,20 +134,48 @@ export default function AdminMembersPage() {
     setError("");
     setSuccess("");
     try {
-      const invite = await createMemberInvite({
-        group,
+      let link = buildInviteLink({
+        groupId: group.id,
+        groupName: group.name,
         inviteeName: trimmedName,
-        contact: inviteContact.trim() || null,
-        createdBy: appUser,
+        contact: trimmedContact || null,
       });
-      const link = buildInviteLink(invite);
+      let savedInvite = false;
+
+      try {
+        const invite = await createMemberInvite({
+          group,
+          inviteeName: trimmedName,
+          contact: trimmedContact || null,
+          createdBy: appUser,
+        });
+        link = buildInviteLink(invite);
+        savedInvite = true;
+      } catch (error) {
+        console.error("Could not persist member invite", error);
+      }
+
       setInviteLink(link);
       setInviteName("");
       setInviteContact("");
-      await navigator.clipboard?.writeText(link).catch(() => {});
-      setSuccess("Invite link created. Share it with the player to sign up.");
-      await load();
-    } catch {
+      const copied = await copyToClipboard(link);
+      setSuccess(
+        savedInvite
+          ? copied
+            ? "Invite link created and copied. Share it with the player to sign up."
+            : "Invite link created. Copy it below and share it with the player to sign up."
+          : copied
+            ? "Invite link created and copied, but it could not be saved to Recent invites. The signup link will still work."
+            : "Invite link created, but it could not be saved to Recent invites. Copy it below. The signup link will still work."
+      );
+
+      if (savedInvite) {
+        await load().catch((error) => {
+          console.warn("Invite was created but members refresh failed", error);
+        });
+      }
+    } catch (error) {
+      console.error("Could not create invite link", error);
       setError("Could not create invite. Please try again.");
     } finally {
       setActioning(null);
@@ -182,13 +218,36 @@ export default function AdminMembersPage() {
             className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="Player name"
           />
-          <input
-            type="text"
-            value={inviteContact}
-            onChange={(event) => setInviteContact(event.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="Mobile or email optional"
-          />
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-gray-600">
+              Email or mobile
+            </label>
+            <div className="flex gap-2">
+              <select
+                value={inviteCountryCode}
+                onChange={(event) => setInviteCountryCode(event.target.value)}
+                className="w-28 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                aria-label="Country code"
+              >
+                {COUNTRY_CODE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={inviteContact}
+                onChange={(event) => setInviteContact(event.target.value)}
+                className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="Mobile or email optional"
+                autoComplete="email tel"
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              Emails are used as entered. Mobile numbers use the selected country code unless you type a full international number.
+            </p>
+          </div>
           <button
             type="button"
             onClick={handleCreateInvite}
@@ -207,7 +266,14 @@ export default function AdminMembersPage() {
               </p>
               <button
                 type="button"
-                onClick={() => navigator.clipboard?.writeText(inviteLink)}
+                onClick={async () => {
+                  const copied = await copyToClipboard(inviteLink);
+                  setSuccess(
+                    copied
+                      ? "Invite link copied."
+                      : "Copy is not available in this browser. You can still select and share the link below."
+                  );
+                }}
                 className="mt-2 text-xs font-semibold text-green-700 underline"
               >
                 Copy link
@@ -393,21 +459,80 @@ export default function AdminMembersPage() {
   );
 }
 
+const COUNTRY_CODE_OPTIONS = [
+  { value: "+61", label: "AU +61" },
+  { value: "+64", label: "NZ +64" },
+  { value: "+44", label: "UK +44" },
+  { value: "+1", label: "US +1" },
+  { value: "+1", label: "CA +1" },
+];
+
 function formatRoleLabel(role: AppUser["role"]) {
   return role === "admin" ? "Admin" : "Member";
 }
 
-function buildInviteLink(invite: MemberInvite) {
+async function copyToClipboard(text: string) {
+  if (
+    typeof navigator === "undefined" ||
+    !navigator.clipboard ||
+    typeof navigator.clipboard.writeText !== "function"
+  ) {
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normaliseInviteContact(value: string, countryCode: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return null;
+
+  if (trimmedValue.includes("@")) {
+    return trimmedValue;
+  }
+
+  if (trimmedValue.startsWith("+")) {
+    return trimmedValue.replace(/\s+/g, "");
+  }
+
+  const digitsOnly = trimmedValue.replace(/[^\d]/g, "");
+  if (!digitsOnly) {
+    return trimmedValue;
+  }
+
+  return `${countryCode}${digitsOnly.replace(/^0+/, "")}`;
+}
+
+function buildInviteLink({
+  id,
+  token,
+  groupId,
+  groupName,
+  inviteeName,
+  contact,
+}: {
+  id?: string;
+  token?: string;
+  groupId: string;
+  groupName: string;
+  inviteeName: string;
+  contact: string | null;
+}) {
   const origin =
     typeof window !== "undefined" ? window.location.origin : "";
   const params = new URLSearchParams({
-    invite: invite.id,
-    token: invite.token,
-    groupId: invite.groupId,
-    groupName: invite.groupName,
-    name: invite.inviteeName,
+    groupId,
+    groupName,
+    name: inviteeName,
   });
-  if (invite.contact) params.set("contact", invite.contact);
+  if (id) params.set("invite", id);
+  if (token) params.set("token", token);
+  if (contact) params.set("contact", contact);
   return `${origin}/signup?${params.toString()}`;
 }
 

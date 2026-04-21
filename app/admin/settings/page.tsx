@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import {
   getGroup,
+  updateGroupCurrentSeason,
   updateGroupProfile,
   updateGroupSettings,
 } from "@/lib/firestore";
@@ -19,8 +20,10 @@ export default function AdminSettingsPage() {
   const [settings, setSettings] = useState<GroupSettings>(
     normaliseGroupSettings()
   );
+  const [seasonDraft, setSeasonDraft] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updatingSeason, setUpdatingSeason] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -31,6 +34,9 @@ export default function AdminSettingsPage() {
         setGroupName(groupRecord?.name ?? "");
         setLogoUrl(groupRecord?.logoUrl ?? "");
         setSettings(normaliseGroupSettings(groupRecord?.settings));
+        setSeasonDraft(
+          groupRecord?.currentSeason ?? new Date().getFullYear()
+        );
       })
       .catch(() => setError("Failed to load settings."))
       .finally(() => setLoading(false));
@@ -79,6 +85,47 @@ export default function AdminSettingsPage() {
       setError("Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSeasonUpdate = async () => {
+    if (!group) return;
+
+    if (!Number.isInteger(seasonDraft) || seasonDraft < 2000) {
+      setError("Enter a valid season year.");
+      setSuccess("");
+      return;
+    }
+
+    if (seasonDraft === group.currentSeason) {
+      setSuccess(`Season ${seasonDraft} is already active.`);
+      setError("");
+      return;
+    }
+
+    setUpdatingSeason(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      await updateGroupCurrentSeason(group.id, seasonDraft);
+      setGroup((current) =>
+        current
+          ? {
+              ...current,
+              currentSeason: seasonDraft,
+            }
+          : current
+      );
+      setSuccess(
+        seasonDraft > group.currentSeason
+          ? `Season ${group.currentSeason} finalised. Season ${seasonDraft} is now active.`
+          : `Active season changed to ${seasonDraft}.`
+      );
+    } catch {
+      setError("Failed to update the active season. Please try again.");
+    } finally {
+      setUpdatingSeason(false);
     }
   };
 
@@ -232,6 +279,48 @@ export default function AdminSettingsPage() {
       </section>
 
       <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <h2 className="font-semibold text-gray-800">Season Management</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Choose which season new rounds and ladder updates belong to. Past
+          season results stay in history, and handicaps continue from each
+          player&apos;s latest card.
+        </p>
+        <div className="mt-4 space-y-3">
+          <div className="rounded-xl bg-gray-50 px-3 py-3">
+            <p className="text-xs font-medium text-gray-500">Active season</p>
+            <p className="mt-1 text-2xl font-bold text-gray-800">
+              {group?.currentSeason ?? seasonDraft}
+            </p>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-600">
+              Change active season
+            </span>
+            <input
+              type="number"
+              min={2000}
+              step={1}
+              value={seasonDraft}
+              onChange={(event) =>
+                setSeasonDraft(Number(event.target.value) || new Date().getFullYear())
+              }
+              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={handleSeasonUpdate}
+            disabled={updatingSeason || !group}
+            className="w-full rounded-xl border border-green-200 bg-green-50 py-3 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:border-green-100 disabled:bg-green-50 disabled:text-green-400"
+          >
+            {updatingSeason
+              ? "Updating season..."
+              : getSeasonActionLabel(group?.currentSeason, seasonDraft)}
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <h2 className="font-semibold text-gray-800">Handicap Rules</h2>
         <p className="mt-1 text-xs text-gray-500">
           GolfCaddy handicap movement uses recent Stableford cards.
@@ -351,4 +440,15 @@ function ModeButton({
       <span className="block text-xs text-gray-500">{description}</span>
     </button>
   );
+}
+
+function getSeasonActionLabel(
+  currentSeason: number | undefined,
+  nextSeason: number
+) {
+  if (!currentSeason) return `Set active season to ${nextSeason}`;
+  if (nextSeason > currentSeason) {
+    return `Finalise ${currentSeason} and start ${nextSeason}`;
+  }
+  return `Set active season to ${nextSeason}`;
 }

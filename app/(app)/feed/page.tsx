@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { getFeedPosts } from "@/lib/firestore";
+import { subscribeFeedPosts } from "@/lib/firestore";
 import type { Post } from "@/types";
 
 const POST_LABELS: Record<Post["type"], string> = {
@@ -19,16 +19,20 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      if (!appUser?.groupId) return;
-      try {
-        const feedPosts = await getFeedPosts(appUser.groupId);
+    if (!appUser?.groupId) return;
+    return subscribeFeedPosts(
+      appUser.groupId,
+      (feedPosts) => {
         setPosts(feedPosts);
-      } finally {
         setLoading(false);
+      },
+      {
+        onError: (err) => {
+          console.warn("Unable to subscribe to feed posts", err);
+          setLoading(false);
+        },
       }
-    };
-    load();
+    );
   }, [appUser?.groupId]);
 
   return (

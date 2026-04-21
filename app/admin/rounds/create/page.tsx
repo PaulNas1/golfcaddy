@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import TeeTimesEditor, { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
 import {
   getGolfCourseCatalogueCourse,
   searchGolfCourseCatalogue,
@@ -11,6 +12,7 @@ import {
   createRound,
   getActiveMembers,
   notifyRoundPlayers,
+  subscribeGroup,
 } from "@/lib/firestore";
 import {
   type SeededCourse,
@@ -21,7 +23,6 @@ import {
   getParThreeHoles,
 } from "@/lib/courseData";
 import {
-  formatShortMemberName,
   getTeeTimeGroupLabel,
   randomiseMemberGroups,
   resolveMemberIdsFromText,
@@ -34,13 +35,6 @@ import type {
   SpecialHoles,
   TeeTime,
 } from "@/types";
-
-type TeeTimeDraft = {
-  time: string;
-  notes: string;
-  playerIds: string[];
-  guestNames: string[];
-};
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
@@ -63,9 +57,10 @@ export default function CreateRoundPage() {
   const [apiCourseError, setApiCourseError] = useState("");
   const [courseSearchActive, setCourseSearchActive] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
+  const [activeSeason, setActiveSeason] = useState<number | null>(null);
 
   // Tee times state
-  const [teeTimes, setTeeTimes] = useState<TeeTimeDraft[]>([
+  const [teeTimes, setTeeTimes] = useState<TeeTimeDraftValue[]>([
     { time: "", notes: "", playerIds: [], guestNames: [] },
   ]);
   const [customHoles, setCustomHoles] = useState<CourseHole[]>(
@@ -102,6 +97,20 @@ export default function CreateRoundPage() {
     getActiveMembers(appUser?.groupId ?? "fourplay")
       .then(setMembers)
       .catch(() => setMembers([]));
+  }, [appUser?.groupId]);
+
+  useEffect(() => {
+    if (!appUser?.groupId) return;
+
+    return subscribeGroup(
+      appUser.groupId,
+      (group) => {
+        setActiveSeason(group?.currentSeason ?? new Date().getFullYear());
+      },
+      () => {
+        setActiveSeason(new Date().getFullYear());
+      }
+    );
   }, [appUser?.groupId]);
 
   const applyCourse = (course: SeededCourse) => {
@@ -199,27 +208,26 @@ export default function CreateRoundPage() {
     ]);
   const removeTeeTime = (i: number) =>
     setTeeTimes(teeTimes.filter((_, idx) => idx !== i));
-  const updateTeeTime = (i: number, field: "time" | "notes", val: string) =>
+  const updateTeeTimeTime = (i: number, val: string) =>
     setTeeTimes(
       teeTimes.map((t, idx) => {
         if (idx !== i) return t;
-        const updated = { ...t, [field]: val };
-        return field === "notes"
-          ? {
-              ...updated,
-              playerIds: resolveMemberIdsFromText(val, members),
-            }
-          : updated;
+        return { ...t, time: val };
       })
     );
-  const toggleTeeTimePlayer = (teeTimeIndex: number, member: AppUser) => {
+
+  const assignPlayerToTeeTime = (teeTimeIndex: number, member: AppUser) => {
     setTeeTimes((current) =>
       current.map((teeTime, index) => {
-        if (index !== teeTimeIndex) return teeTime;
-
-        const playerIds = teeTime.playerIds.includes(member.uid)
-          ? teeTime.playerIds.filter((playerId) => playerId !== member.uid)
-          : [...teeTime.playerIds, member.uid];
+        const existingPlayerIds = teeTime.playerIds.filter(
+          (playerId) => playerId !== member.uid
+        );
+        const shouldAssignToThisTeeTime =
+          index === teeTimeIndex &&
+          !current[teeTimeIndex]?.playerIds.includes(member.uid);
+        const playerIds = shouldAssignToThisTeeTime
+          ? [...existingPlayerIds, member.uid]
+          : existingPlayerIds;
         const notes = getTeeTimeGroupLabel(
           playerIds,
           teeTime.guestNames,
@@ -349,6 +357,11 @@ export default function CreateRoundPage() {
       return;
     }
 
+    if (!activeSeason) {
+      setError("The active season is still loading. Please try again.");
+      return;
+    }
+
     const parsedRoundNumber = parseInt(roundNumber, 10);
     if (!parsedRoundNumber || parsedRoundNumber <= 0) {
       setError("Round number must be a positive number.");
@@ -412,7 +425,7 @@ export default function CreateRoundPage() {
           confidence: "admin_verified",
         },
         date: new Date(date),
-        season: new Date().getFullYear(),
+        season: activeSeason,
         roundNumber: parsedRoundNumber,
         format,
         status: "upcoming",
@@ -630,6 +643,20 @@ export default function CreateRoundPage() {
             />
           </div>
 
+          <div className="rounded-xl border border-green-100 bg-green-50 px-3 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+              Active season
+            </p>
+            <p className="mt-1 text-base font-semibold text-gray-800">
+              {activeSeason ?? "Loading..."}
+            </p>
+            <p className="mt-1 text-xs text-gray-600">
+              This round will count toward Season {activeSeason ?? "..."}. If
+              you are creating a new-year round for a new ladder, change the
+              active season in Admin Settings first.
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Round number
@@ -683,106 +710,18 @@ export default function CreateRoundPage() {
           </div>
         </div>
 
-        {/* Tee times */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">Tee Times</h2>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={randomiseGroups}
-                className="text-green-700 text-sm font-medium hover:underline"
-              >
-                Randomise groups
-              </button>
-              <button
-                type="button"
-                onClick={addTeeTime}
-                className="text-green-600 text-sm font-medium hover:underline"
-              >
-                + Add
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-gray-400">
-            Add the tee time and players for each group. Guests are shown in
-            the group but cannot start a scorecard.
-          </p>
-          {teeTimes.map((tt, i) => (
-            <div
-              key={i}
-              className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2"
-            >
-              <div className="flex gap-2 items-center">
-                <input
-                  type="time"
-                  value={tt.time}
-                  onChange={(e) => updateTeeTime(i, "time", e.target.value)}
-                  className="w-32 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <input
-                  type="text"
-                  value={getTeeTimeGroupLabel(
-                    tt.playerIds,
-                    tt.guestNames,
-                    members
-                  )}
-                  readOnly
-                  placeholder="No players assigned"
-                  className="flex-1 min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button
-                  type="button"
-                  onClick={() => addGuestToTeeTime(i)}
-                  className="text-green-700 text-xs font-medium hover:underline"
-                >
-                  Add guest
-                </button>
-                {teeTimes.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeTeeTime(i)}
-                    className="text-red-400 hover:text-red-600 px-2"
-                    aria-label="Remove tee time"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {members.length > 0 &&
-                  members.map((member) => {
-                    const selected = tt.playerIds.includes(member.uid);
-                    return (
-                      <button
-                        key={member.uid}
-                        type="button"
-                        onClick={() => toggleTeeTimePlayer(i, member)}
-                        className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                          selected
-                            ? "border-green-600 bg-green-50 text-green-700"
-                            : "border-gray-200 bg-white text-gray-500"
-                        }`}
-                      >
-                        {formatShortMemberName(member)}
-                      </button>
-                    );
-                  })}
-                {tt.guestNames.map((guestName) => (
-                  <button
-                    key={guestName}
-                    type="button"
-                    onClick={() => removeGuestFromTeeTime(i, guestName)}
-                    className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
-                    aria-label={`Remove guest ${guestName}`}
-                  >
-                    {guestName} x
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <TeeTimesEditor
+          teeTimes={teeTimes}
+          members={members}
+          emptyPlayersMessage="No active players are available yet."
+          onRandomise={randomiseGroups}
+          onAddTeeTime={addTeeTime}
+          onRemoveTeeTime={removeTeeTime}
+          onUpdateTeeTimeTime={updateTeeTimeTime}
+          onAssignPlayer={assignPlayerToTeeTime}
+          onAddGuest={addGuestToTeeTime}
+          onRemoveGuest={removeGuestFromTeeTime}
+        />
 
         {/* Special holes */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">

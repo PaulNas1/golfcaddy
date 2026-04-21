@@ -10,22 +10,8 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { createUser, getUser } from "@/lib/firestore";
+import { createUser, getUser, subscribeUser } from "@/lib/firestore";
 import type { AppUser } from "@/types";
-
-// ─── Preview / Demo user (local development only) ────────────────────────────
-const PREVIEW_USER: AppUser = {
-  uid: "preview-user",
-  email: "preview@golfcaddy.io",
-  displayName: "Paul (Preview)",
-  role: "admin",
-  status: "active",
-  groupId: "fourplay",
-  avatarUrl: null,
-  fcmToken: null,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-};
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
@@ -40,7 +26,6 @@ interface AuthContextType {
   ) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  enterPreviewMode: () => void;
   isAdmin: boolean;
   isActive: boolean;
   isPending: boolean;
@@ -56,14 +41,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Fallback: if Firebase doesn't respond in 5s (e.g. no config), stop loading
     const timeout = setTimeout(() => setLoading(false), 5000);
+    let unsubscribeUser: (() => void) | null = null;
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       clearTimeout(timeout);
+      unsubscribeUser?.();
+      unsubscribeUser = null;
+      setLoading(true);
       setFirebaseUser(fbUser);
+
       if (fbUser) {
         try {
-          const user = await getUser(fbUser.uid);
-          setAppUser(user);
+          const initialUser = await getUser(fbUser.uid);
+          setAppUser(initialUser);
+          unsubscribeUser = subscribeUser(
+            fbUser.uid,
+            setAppUser,
+            () => setAppUser(null)
+          );
         } catch {
           setAppUser(null);
         }
@@ -74,12 +69,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     return () => {
       clearTimeout(timeout);
+      unsubscribeUser?.();
       unsubscribe();
     };
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
   };
 
   const signUp = async (
@@ -88,35 +90,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     displayName: string,
     options?: { groupId?: string; inviteId?: string }
   ) => {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await createUser(user.uid, {
-      email,
-      displayName,
-      role: "member",
-      status: "pending",
-      groupId: options?.groupId ?? "fourplay",
-      ...(options?.inviteId ? { inviteId: options.inviteId } : {}),
-      avatarUrl: null,
-      fcmToken: null,
-    });
-    // Reload appUser
-    const newUser = await getUser(user.uid);
-    setAppUser(newUser);
+    setLoading(true);
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, password);
+      await createUser(user.uid, {
+        email,
+        displayName,
+        role: "member",
+        status: "pending",
+        groupId: options?.groupId ?? "fourplay",
+        ...(options?.inviteId ? { inviteId: options.inviteId } : {}),
+        avatarUrl: null,
+        fcmToken: null,
+      });
+      // Keep appUser in sync immediately after signup.
+      const newUser = await getUser(user.uid);
+      setAppUser(newUser);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const signOut = async () => {
+    setLoading(true);
     await firebaseSignOut(auth).catch(() => {});
     setAppUser(null);
     setFirebaseUser(null);
+    setLoading(false);
   };
 
   const resetPassword = async (email: string) => {
     await sendPasswordResetEmail(auth, email);
-  };
-
-  const enterPreviewMode = () => {
-    setAppUser(PREVIEW_USER);
-    setLoading(false);
   };
 
   const isAdmin = appUser?.role === "admin";
@@ -133,7 +137,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signUp,
         signOut,
         resetPassword,
-        enterPreviewMode,
         isAdmin,
         isActive,
         isPending,

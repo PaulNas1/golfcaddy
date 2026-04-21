@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { getNotifications, markNotificationRead } from "@/lib/firestore";
+import { markNotificationRead, subscribeNotifications } from "@/lib/firestore";
 import type { AppNotification } from "@/types";
 
 const NOTIFICATION_ICONS: Record<string, string> = {
@@ -28,10 +28,19 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     if (!appUser?.uid) return;
-    getNotifications(appUser.uid).then((n) => {
-      setNotifications(n);
-      setLoading(false);
-    });
+    return subscribeNotifications(
+      appUser.uid,
+      (nextNotifications) => {
+        setNotifications(nextNotifications);
+        setLoading(false);
+      },
+      {
+        onError: (err) => {
+          console.warn("Unable to subscribe to notifications", err);
+          setLoading(false);
+        },
+      }
+    );
   }, [appUser?.uid]);
 
   const handleTap = async (n: AppNotification) => {

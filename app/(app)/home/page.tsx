@@ -5,10 +5,9 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getGroup,
-  getNextRound,
-  getLiveRound,
-  getSeasonStandings,
+  subscribeGroup,
+  subscribeRoundsForGroup,
+  subscribeSeasonStandings,
 } from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import type { Group, Round, SeasonStanding } from "@/types";
@@ -23,29 +22,54 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const groupId = appUser?.groupId ?? "fourplay";
-        const [next, live, group] = await Promise.all([
-          getNextRound(groupId),
-          getLiveRound(groupId),
-          getGroup(groupId),
-        ]);
-        const currentSeason = group?.currentSeason ?? new Date().getFullYear();
-        const seasonStandings = await getSeasonStandings(
-          groupId,
-          currentSeason
-        );
-        setNextRound(next);
-        setLiveRound(live);
-        setGroup(group);
+    const groupId = appUser?.groupId ?? "fourplay";
+    let standingsUnsubscribe: (() => void) | null = null;
+
+    const groupUnsubscribe = subscribeGroup(
+      groupId,
+      (nextGroup) => {
+        setGroup(nextGroup);
+        const currentSeason = nextGroup?.currentSeason ?? new Date().getFullYear();
         setSeason(currentSeason);
-        setStandings(seasonStandings);
-      } finally {
+        standingsUnsubscribe?.();
+        standingsUnsubscribe = subscribeSeasonStandings(
+          groupId,
+          currentSeason,
+          setStandings,
+          (err) => console.warn("Unable to subscribe to season standings", err)
+        );
+      },
+      (err) => console.warn("Unable to subscribe to group", err)
+    );
+
+    const roundsUnsubscribe = subscribeRoundsForGroup(
+      groupId,
+      (rounds) => {
+        const live = rounds.find((round) => round.status === "live") ?? null;
+        const next =
+          rounds
+            .filter((round) => round.status === "upcoming")
+            .sort((a, b) => {
+              if (a.roundNumber !== b.roundNumber) {
+                return a.roundNumber - b.roundNumber;
+              }
+              return a.date.getTime() - b.date.getTime();
+            })[0] ?? null;
+        setLiveRound(live);
+        setNextRound(next);
+        setLoading(false);
+      },
+      (err) => {
+        console.warn("Unable to subscribe to rounds", err);
         setLoading(false);
       }
+    );
+
+    return () => {
+      groupUnsubscribe();
+      roundsUnsubscribe();
+      standingsUnsubscribe?.();
     };
-    load();
   }, [appUser?.groupId]);
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";

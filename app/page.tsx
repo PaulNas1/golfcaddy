@@ -10,8 +10,8 @@ export default function RootPage() {
 
   useEffect(() => {
     if (loading) return;
-    const isPreview = appUser?.uid === "preview-user";
-    if (!firebaseUser && !isPreview) {
+
+    if (!firebaseUser) {
       router.replace("/signin");
     } else if (appUser?.status === "pending") {
       router.replace("/pending");
