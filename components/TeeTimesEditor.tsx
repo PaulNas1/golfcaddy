@@ -123,50 +123,54 @@ export default function TeeTimesEditor({
                   : "border-gray-100 bg-gray-50 hover:border-gray-200"
               }`}
             >
-              <div className="flex gap-2 items-center">
-                <input
-                  type="time"
-                  value={teeTime.time}
-                  onChange={(event) =>
-                    onUpdateTeeTimeTime(index, event.target.value)
-                  }
-                  onClick={(event) => event.stopPropagation()}
-                  className="w-32 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <div
-                  className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-sm ${
-                    isActive
-                      ? "border-green-300 bg-white text-gray-800"
-                      : "border-gray-200 bg-white text-gray-800"
-                  }`}
-                >
-                  {groupLabel || "Tap this tee time, then choose players below"}
+              <div className="space-y-2">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="time"
+                    value={teeTime.time}
+                    onChange={(event) =>
+                      onUpdateTeeTimeTime(index, event.target.value)
+                    }
+                    onClick={(event) => event.stopPropagation()}
+                    className="w-32 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <div
+                    className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-sm ${
+                      isActive
+                        ? "border-green-300 bg-white text-gray-800"
+                        : "border-gray-200 bg-white text-gray-800"
+                    }`}
+                  >
+                    {groupLabel || "Tap this tee time, then choose players below"}
+                  </div>
                 </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-500">
-                  {groupCount} player{groupCount === 1 ? "" : "s"}
-                </span>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onAddGuest(index);
-                  }}
-                  className="text-green-700 text-xs font-medium hover:underline"
-                >
-                  Add guest
-                </button>
-                {teeTimes.length > 1 && (
+                <div className="flex items-center justify-end gap-3">
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                    {groupCount} player{groupCount === 1 ? "" : "s"}
+                  </span>
                   <button
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      onRemoveTeeTime(index);
+                      onAddGuest(index);
                     }}
-                    className="text-red-500 text-xs hover:underline"
+                    className="text-green-700 text-xs font-medium hover:underline"
                   >
-                    Remove
+                    Add guest
                   </button>
-                )}
+                  {teeTimes.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onRemoveTeeTime(index);
+                      }}
+                      className="text-red-500 text-xs hover:underline"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
 
               {(teeTime.guestNames.length > 0 || teeTime.playerIds.length > 0) && (
