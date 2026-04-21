@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getGroup } from "@/lib/firestore";
+import { getGroup, subscribeNotifications } from "@/lib/firestore";
 import type { Group } from "@/types";
 
 const NAV_ITEMS = [
@@ -20,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [group, setGroup] = useState<Group | null>(null);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
   useEffect(() => {
     if (!appUser?.groupId || appUser.status !== "active") return;
@@ -27,6 +28,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .then(setGroup)
       .catch(() => setGroup(null));
   }, [appUser?.groupId, appUser?.status]);
+
+  useEffect(() => {
+    if (!appUser?.uid || appUser.status !== "active") {
+      setHasUnreadNotifications(false);
+      return;
+    }
+
+    return subscribeNotifications(
+      appUser.uid,
+      (notifications) => {
+        setHasUnreadNotifications(notifications.some((notification) => !notification.read));
+      },
+      {
+        limitCount: 20,
+        onError: () => setHasUnreadNotifications(false),
+      }
+    );
+  }, [appUser?.status, appUser?.uid]);
 
   useEffect(() => {
     if (loading) return;
@@ -85,6 +104,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
           <Link href="/notifications" className="relative p-1">
             <BellIcon className="w-6 h-6" />
+            {hasUnreadNotifications && (
+              <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-green-700" />
+            )}
           </Link>
         </div>
       </header>

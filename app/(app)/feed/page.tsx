@@ -46,7 +46,7 @@ const REACTION_OPTIONS: {
 const MAX_POST_IMAGES = 3;
 
 export default function FeedPage() {
-  const { appUser } = useAuth();
+  const { appUser, isAdmin } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
@@ -68,6 +68,7 @@ export default function FeedPage() {
   const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
   const [editingBusyPostId, setEditingBusyPostId] = useState("");
   const [deleteBusyPostId, setDeleteBusyPostId] = useState("");
+  const [openMenuPostId, setOpenMenuPostId] = useState("");
 
   useEffect(() => {
     if (!appUser?.groupId) return;
@@ -267,6 +268,7 @@ export default function FeedPage() {
   };
 
   const handleStartEdit = (post: Post) => {
+    setOpenMenuPostId("");
     setEditingPostId(post.id);
     setEditDrafts((current) => ({
       ...current,
@@ -293,6 +295,7 @@ export default function FeedPage() {
     const confirmed = window.confirm("Delete this post?");
     if (!confirmed) return;
 
+    setOpenMenuPostId("");
     setDeleteBusyPostId(post.id);
     try {
       await deleteFeedPost(post.id);
@@ -389,7 +392,9 @@ export default function FeedPage() {
           {posts.map((post) => {
             const comments = commentsByPostId[post.id] ?? [];
             const isAuthor = post.authorId === appUser?.uid;
+            const canDeletePost = isAuthor || isAdmin;
             const isEditing = editingPostId === post.id;
+            const isMenuOpen = openMenuPostId === post.id;
             return (
               <div
                 key={post.id}
@@ -418,31 +423,55 @@ export default function FeedPage() {
                           💬 {post.commentCount}
                         </span>
                       </div>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
-                        {POST_LABELS[post.type]}
-                      </span>
-                    </div>
-                    {isAuthor && (
-                      <div className="mt-2 flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            isEditing ? setEditingPostId("") : handleStartEdit(post)
-                          }
-                          className="text-[11px] font-medium text-green-700"
-                        >
-                          {isEditing ? "Cancel" : "Edit"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeletePost(post)}
-                          disabled={deleteBusyPostId === post.id}
-                          className="text-[11px] font-medium text-red-600 disabled:text-red-300"
-                        >
-                          {deleteBusyPostId === post.id ? "Deleting..." : "Delete"}
-                        </button>
+                      <div className="relative flex items-center gap-2">
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+                          {POST_LABELS[post.type]}
+                        </span>
+                        {canDeletePost && (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setOpenMenuPostId((current) =>
+                                  current === post.id ? "" : post.id
+                                )
+                              }
+                              className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
+                              aria-label="Post actions"
+                            >
+                              <EllipsisIcon className="h-4 w-4" />
+                            </button>
+                            {isMenuOpen && (
+                              <div className="absolute right-0 top-9 z-10 min-w-[128px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
+                                {isAuthor && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      isEditing
+                                        ? setEditingPostId("")
+                                        : handleStartEdit(post)
+                                    }
+                                    className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                  >
+                                    {isEditing ? "Cancel edit" : "Edit post"}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePost(post)}
+                                  disabled={deleteBusyPostId === post.id}
+                                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
+                                >
+                                  {deleteBusyPostId === post.id
+                                    ? "Deleting..."
+                                    : "Delete post"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                     <p className="mt-0.5 text-xs text-gray-400">
                       {formatDistanceToNow(post.createdAt, { addSuffix: true })}
                     </p>
@@ -598,5 +627,23 @@ export default function FeedPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function EllipsisIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 12h.01M12 12h.01M18 12h.01"
+      />
+    </svg>
   );
 }
