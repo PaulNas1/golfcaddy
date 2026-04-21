@@ -725,18 +725,16 @@ export const setRoundRsvp = async ({
 export const notifyRoundPlayers = async ({
   round,
   activeUsers,
-  notifiedBy,
   mode,
 }: {
   round: Round;
   activeUsers: AppUser[];
-  notifiedBy: AppUser | null;
   mode: "created" | "updated";
 }) => {
   const existingRsvps = await getRoundRsvps(round.id);
   const existingRsvpIds = new Set(existingRsvps.map((rsvp) => rsvp.memberId));
   const batch = writeBatch(db);
-  const postId = `${round.id}_${mode}_${Date.now()}`;
+  const notificationBaseId = `${round.id}_${mode}_${Date.now()}`;
   const title =
     mode === "created" ? "New round available" : "Round details updated";
   const body =
@@ -747,21 +745,6 @@ export const notifyRoundPlayers = async ({
   batch.update(doc(db, "rounds", round.id), {
     rsvpOpen: true,
     rsvpNotifiedAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  batch.set(doc(db, "posts", postId), {
-    groupId: round.groupId,
-    authorId: notifiedBy?.uid ?? "system",
-    authorName: notifiedBy?.displayName ?? "GolfCaddy",
-    authorAvatarUrl: notifiedBy?.avatarUrl ?? null,
-    type: "round_linked",
-    content: body,
-    roundId: round.id,
-    pinned: false,
-    photoUrls: [],
-    reactionCounts: {},
-    commentCount: 0,
-    createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 
@@ -779,7 +762,7 @@ export const notifyRoundPlayers = async ({
       });
     }
 
-    batch.set(doc(db, "notifications", `${postId}_${user.uid}`), {
+    batch.set(doc(db, "notifications", `${notificationBaseId}_${user.uid}`), {
       recipientId: user.uid,
       groupId: round.groupId,
       type: mode === "created" ? "round_announced" : "tee_times_published",
@@ -788,7 +771,7 @@ export const notifyRoundPlayers = async ({
       deepLink: `/rounds/${round.id}`,
       read: false,
       roundId: round.id,
-      postId,
+      postId: null,
       createdAt: serverTimestamp(),
     });
   });
@@ -1455,10 +1438,7 @@ export const publishRoundResultsWithStage3 = async ({
   const usersById = new Map(activeUsers.map((user) => [user.uid, user]));
   const membersById = new Map(groupMembers.map((member) => [member.id, member]));
   const batch = writeBatch(db);
-  const winner = officialResults.rankings[0];
   const author = publishedBy ?? activeUsers.find((user) => user.role === "admin");
-  const resultsPostId = `${round.id}_results`;
-
   batch.set(doc(db, "results", round.id), {
     ...results,
     createdAt: serverTimestamp(),
@@ -1475,23 +1455,6 @@ export const publishRoundResultsWithStage3 = async ({
       signedOff: true,
       updatedAt: serverTimestamp(),
     });
-  });
-  batch.set(doc(db, "posts", resultsPostId), {
-    groupId: round.groupId,
-    authorId: author?.uid ?? "system",
-    authorName: author?.displayName ?? "GolfCaddy",
-    authorAvatarUrl: author?.avatarUrl ?? null,
-    type: "round_linked",
-    content: winner
-      ? `Round ${round.roundNumber} results are official. ${winner.playerName} leads the table at ${round.courseName}.`
-      : `Round ${round.roundNumber} results are official for ${round.courseName}.`,
-    roundId: round.id,
-    pinned: false,
-    photoUrls: [],
-    reactionCounts: {},
-    commentCount: 0,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
   });
 
   standings.forEach((standing) => {
@@ -1588,7 +1551,7 @@ export const publishRoundResultsWithStage3 = async ({
       deepLink: `/rounds/${round.id}`,
       read: false,
       roundId: round.id,
-      postId: resultsPostId,
+      postId: null,
       createdAt: serverTimestamp(),
     });
   });
@@ -1708,6 +1671,7 @@ export const getFeedPosts = async (
   const snap = await getDocs(q);
   return snap.docs
     .map(mapPost)
+    .filter((post) => post.type !== "round_linked")
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, limitCount);
 };
@@ -1724,6 +1688,7 @@ export const subscribeFeedPosts = (
       onChange(
         snap.docs
           .map(mapPost)
+          .filter((post) => post.type !== "round_linked")
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .slice(0, options?.limitCount ?? 20)
       ),

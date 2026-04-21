@@ -475,7 +475,6 @@ export default function CreateRoundPage() {
             updatedAt: new Date(),
           },
           activeUsers: members,
-          notifiedBy: appUser,
           mode: "created",
         });
       }

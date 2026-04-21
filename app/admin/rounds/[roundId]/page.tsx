@@ -518,7 +518,6 @@ export default function AdminRoundDetailPage() {
       await notifyRoundPlayers({
         round: updatedRound,
         activeUsers: members,
-        notifiedBy: null,
         mode: round.rsvpOpen ? "updated" : "created",
       });
     }
