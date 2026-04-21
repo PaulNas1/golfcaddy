@@ -1866,6 +1866,39 @@ export const createPostComment = async ({
   });
 };
 
+export const deletePostComment = async ({
+  postId,
+  commentId,
+}: {
+  postId: string;
+  commentId: string;
+}) => {
+  const postRef = doc(db, "posts", postId);
+  const commentRef = doc(db, "posts", postId, "comments", commentId);
+
+  await runTransaction(db, async (transaction) => {
+    const [postSnap, commentSnap] = await Promise.all([
+      transaction.get(postRef),
+      transaction.get(commentRef),
+    ]);
+
+    if (!postSnap.exists()) {
+      throw new Error("Post not found.");
+    }
+
+    if (!commentSnap.exists()) {
+      return;
+    }
+
+    const currentPost = mapPost(postSnap);
+    transaction.delete(commentRef);
+    transaction.update(postRef, {
+      commentCount: Math.max(currentPost.commentCount - 1, 0),
+      updatedAt: serverTimestamp(),
+    });
+  });
+};
+
 function getReactionSummary(reactionType: PostReactionType) {
   switch (reactionType) {
     case "like":

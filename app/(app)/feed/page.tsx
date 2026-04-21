@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   createFeedPost,
   createPostComment,
+  deletePostComment,
   deleteFeedPost,
   setPostReaction,
   subscribeFeedPosts,
@@ -68,6 +69,7 @@ export default function FeedPage() {
   const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
   const [editingBusyPostId, setEditingBusyPostId] = useState("");
   const [deleteBusyPostId, setDeleteBusyPostId] = useState("");
+  const [deleteCommentBusyId, setDeleteCommentBusyId] = useState("");
   const [openMenuPostId, setOpenMenuPostId] = useState("");
 
   useEffect(() => {
@@ -306,6 +308,23 @@ export default function FeedPage() {
       console.error("Failed to delete post", error);
     } finally {
       setDeleteBusyPostId("");
+    }
+  };
+
+  const handleDeleteComment = async (post: Post, comment: PostComment) => {
+    const confirmed = window.confirm("Delete this reply?");
+    if (!confirmed) return;
+
+    setDeleteCommentBusyId(comment.id);
+    try {
+      await deletePostComment({
+        postId: post.id,
+        commentId: comment.id,
+      });
+    } catch (error) {
+      console.error("Failed to delete reply", error);
+    } finally {
+      setDeleteCommentBusyId("");
     }
   };
 
@@ -568,14 +587,28 @@ export default function FeedPage() {
                               className="rounded-xl border border-gray-100 bg-white px-3 py-2"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <p className="text-xs font-semibold text-gray-700">
-                                  {comment.authorName}
-                                </p>
-                                <p className="text-[11px] text-gray-400">
-                                  {formatDistanceToNow(comment.createdAt, {
-                                    addSuffix: true,
-                                  })}
-                                </p>
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-semibold text-gray-700">
+                                    {comment.authorName}
+                                  </p>
+                                  <p className="text-[11px] text-gray-400">
+                                    {formatDistanceToNow(comment.createdAt, {
+                                      addSuffix: true,
+                                    })}
+                                  </p>
+                                </div>
+                                {(comment.authorId === appUser?.uid || isAdmin) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteComment(post, comment)}
+                                    disabled={deleteCommentBusyId === comment.id}
+                                    className="shrink-0 text-[11px] font-medium text-red-600 disabled:text-red-300"
+                                  >
+                                    {deleteCommentBusyId === comment.id
+                                      ? "Deleting..."
+                                      : "Delete"}
+                                  </button>
+                                )}
                               </div>
                               <p className="mt-1 text-sm text-gray-700">
                                 {comment.content}

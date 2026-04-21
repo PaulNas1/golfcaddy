@@ -57,8 +57,7 @@ service cloud.firestore {
         request.auth.uid == userId ||
         isAdmin()
       );
-      allow delete: if isAdmin() ||
-        resource.data.authorId == request.auth.uid;
+      allow delete: if isAdmin();
     }
 
     // ─── Groups ───────────────────────────────────────────────────────────
@@ -198,7 +197,8 @@ service cloud.firestore {
           ])
         )
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() ||
+        resource.data.authorId == request.auth.uid;
 
       match /comments/{commentId} {
         allow read: if isActiveUserOrAdmin();
