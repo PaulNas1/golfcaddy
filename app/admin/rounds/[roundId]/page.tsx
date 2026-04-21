@@ -143,7 +143,7 @@ export default function AdminRoundDetailPage() {
     .length;
   const getScorecardPlayerName = (playerId: string) => {
     const member = members.find((item) => item.uid === playerId);
-    return member ? formatShortMemberName(member) : "Player";
+    return member ? formatShortMemberName(member, members) : "Player";
   };
 
   const applyCourse = (course: SeededCourse) => {
@@ -865,7 +865,7 @@ export default function AdminRoundDetailPage() {
                           >
                             <div className="min-w-0">
                               <p className="truncate text-xs font-semibold text-gray-700">
-                                {formatShortMemberName(member)}
+                                {formatShortMemberName(member, members)}
                               </p>
                               {suggestedReview &&
                                 !playerTeeAssignments[member.uid] && (

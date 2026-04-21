@@ -40,17 +40,17 @@ export default function TeeTimesEditor({
   onAddGuest,
   onRemoveGuest,
 }: TeeTimesEditorProps) {
-  const [activeTeeTimeIndex, setActiveTeeTimeIndex] = useState(0);
+  const [activeTeeTimeIndex, setActiveTeeTimeIndex] = useState<number | null>(0);
   const availableMembers = assignableMembers ?? members;
 
   useEffect(() => {
     if (teeTimes.length === 0) {
-      setActiveTeeTimeIndex(0);
+      setActiveTeeTimeIndex(null);
       return;
     }
 
     setActiveTeeTimeIndex((current) =>
-      Math.min(current, teeTimes.length - 1)
+      current == null ? current : Math.min(current, teeTimes.length - 1)
     );
   }, [teeTimes.length]);
 
@@ -66,7 +66,8 @@ export default function TeeTimesEditor({
     return playerIndexMap;
   }, [teeTimes]);
 
-  const activeTeeTime = teeTimes[activeTeeTimeIndex] ?? null;
+  const activeTeeTime =
+    activeTeeTimeIndex == null ? null : teeTimes[activeTeeTimeIndex] ?? null;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
@@ -105,12 +106,17 @@ export default function TeeTimesEditor({
             teeTime.guestNames,
             members
           );
+          const groupCount = teeTime.playerIds.length + teeTime.guestNames.length;
 
           return (
             <button
               key={index}
               type="button"
-              onClick={() => setActiveTeeTimeIndex(index)}
+              onClick={() =>
+                setActiveTeeTimeIndex((current) =>
+                  current === index ? null : index
+                )
+              }
               className={`w-full rounded-xl border p-3 text-left transition-colors ${
                 isActive
                   ? "border-green-300 bg-green-50"
@@ -136,6 +142,9 @@ export default function TeeTimesEditor({
                 >
                   {groupLabel || "Tap this tee time, then choose players below"}
                 </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                  {groupCount} player{groupCount === 1 ? "" : "s"}
+                </span>
                 <button
                   type="button"
                   onClick={(event) => {
@@ -171,7 +180,7 @@ export default function TeeTimesEditor({
                         key={playerId}
                         className="rounded-lg border border-green-200 bg-white px-2.5 py-1 text-xs font-medium text-green-700"
                       >
-                        {formatShortMemberName(member)}
+                        {formatShortMemberName(member, members)}
                       </span>
                     );
                   })}
@@ -201,12 +210,14 @@ export default function TeeTimesEditor({
             <p className="text-sm font-semibold text-gray-800">
               {activeTeeTime
                 ? `Assign players to tee time ${activeTeeTimeIndex + 1}`
-                : "Assign players"}
+                : "Assigned players"}
             </p>
             <p className="text-xs text-gray-500">
               {activeTeeTime?.time
                 ? `Active slot: ${activeTeeTime.time}`
-                : `Active slot: Group ${activeTeeTimeIndex + 1}`}
+                : activeTeeTimeIndex != null
+                ? `Active slot: Group ${activeTeeTimeIndex + 1}`
+                : "Tap a tee time above to assign or move players."}
             </p>
           </div>
           {activeTeeTime && (
@@ -224,8 +235,7 @@ export default function TeeTimesEditor({
           {availableMembers.map((member) => {
             const assignedIndex = assignedPlayerIndexById.get(member.uid);
             const isAssignedToActive = assignedIndex === activeTeeTimeIndex;
-            const isAssignedElsewhere =
-              assignedIndex !== undefined && assignedIndex !== activeTeeTimeIndex;
+            const isAssigned = assignedIndex !== undefined;
             const assignedLabel =
               assignedIndex !== undefined
                 ? teeTimes[assignedIndex]?.time || `Group ${assignedIndex + 1}`
@@ -235,16 +245,22 @@ export default function TeeTimesEditor({
               <button
                 key={member.uid}
                 type="button"
-                onClick={() => onAssignPlayer(activeTeeTimeIndex, member)}
+                onClick={() => {
+                  if (activeTeeTimeIndex == null) return;
+                  onAssignPlayer(activeTeeTimeIndex, member);
+                }}
+                disabled={activeTeeTimeIndex == null}
                 className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  isAssignedToActive
+                  activeTeeTimeIndex != null && isAssignedToActive
                     ? "border-green-600 bg-green-600 text-white"
-                    : isAssignedElsewhere
+                    : isAssigned
                     ? "border-green-300 bg-green-50 text-green-700"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:text-green-700"
+                    : activeTeeTimeIndex != null
+                    ? "border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:text-green-700"
+                    : "border-gray-200 bg-white text-gray-400"
                 }`}
               >
-                {formatShortMemberName(member)}
+                {formatShortMemberName(member, members)}
                 {assignedLabel ? ` · ${assignedLabel}` : ""}
               </button>
             );

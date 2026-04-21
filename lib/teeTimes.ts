@@ -1,10 +1,23 @@
 import type { AppUser, Round, TeeTime } from "@/types";
 
-export function formatShortMemberName(member: Pick<AppUser, "displayName">) {
+export function formatShortMemberName(
+  member: Pick<AppUser, "displayName" | "nickname" | "uid">,
+  members: Pick<AppUser, "displayName" | "nickname" | "uid">[] = []
+) {
+  const nickname = member.nickname?.trim();
+  if (nickname) return nickname;
+
   const parts = member.displayName.trim().split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? member.displayName;
+  const duplicateCount = members.filter((candidate) => {
+    if (candidate.uid === member.uid) return false;
+    return getPreferredShortBaseName(candidate) === firstName;
+  }).length;
   const lastInitial = parts.length > 1 ? parts[parts.length - 1][0] : "";
-  return lastInitial ? `${firstName} ${lastInitial}` : firstName;
+
+  return duplicateCount > 0 && lastInitial
+    ? `${firstName} ${lastInitial}`
+    : firstName;
 }
 
 export function formatTeeTime(time: string) {
@@ -55,7 +68,7 @@ export function getShortMemberNamesForIds(
   return memberIds
     .map((memberId) => members.find((member) => member.uid === memberId))
     .filter((member): member is AppUser => Boolean(member))
-    .map(formatShortMemberName);
+    .map((member) => formatShortMemberName(member, members));
 }
 
 export function getTeeTimeGroupLabel(
@@ -78,7 +91,9 @@ export function resolveMemberIdsFromText(text: string, members: AppUser[]) {
     .filter(Boolean)
     .forEach((entry) => {
       const exactMatch = members.find(
-        (member) => normalizeName(member.displayName) === entry
+        (member) =>
+          normalizeName(member.displayName) === entry ||
+          normalizeName(member.nickname ?? "") === entry
       );
       if (exactMatch) {
         usedIds.add(exactMatch.uid);
@@ -164,4 +179,13 @@ export function randomiseMemberGroups(members: AppUser[], groupCount: number) {
 
 function normalizeName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function getPreferredShortBaseName(
+  member: Pick<AppUser, "displayName" | "nickname">
+) {
+  const nickname = member.nickname?.trim();
+  if (nickname) return nickname;
+
+  return member.displayName.trim().split(/\s+/).filter(Boolean)[0] ?? member.displayName;
 }
