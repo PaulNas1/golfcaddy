@@ -6,10 +6,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   createFeedPost,
   createPostComment,
+  deleteFeedPost,
   setPostReaction,
   subscribeFeedPosts,
   subscribePostComments,
   subscribePostReaction,
+  updateFeedPost,
 } from "@/lib/firestore";
 import {
   deleteStoredImage,
@@ -62,6 +64,10 @@ export default function FeedPage() {
   >({});
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [commentErrors, setCommentErrors] = useState<Record<string, string>>({});
+  const [editingPostId, setEditingPostId] = useState("");
+  const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
+  const [editingBusyPostId, setEditingBusyPostId] = useState("");
+  const [deleteBusyPostId, setDeleteBusyPostId] = useState("");
 
   useEffect(() => {
     if (!appUser?.groupId) return;
@@ -167,7 +173,11 @@ export default function FeedPage() {
     try {
       const uploads =
         postImages.length > 0
-          ? await uploadFeedPostImages(appUser.groupId, postImages)
+          ? await uploadFeedPostImages(
+              appUser.groupId,
+              appUser.uid,
+              postImages
+            )
           : [];
       uploadedImagePaths = uploads.map((upload) => upload.path);
       await createFeedPost({
@@ -256,6 +266,46 @@ export default function FeedPage() {
     }
   };
 
+  const handleStartEdit = (post: Post) => {
+    setEditingPostId(post.id);
+    setEditDrafts((current) => ({
+      ...current,
+      [post.id]: post.content,
+    }));
+  };
+
+  const handleSaveEdit = async (post: Post) => {
+    setEditingBusyPostId(post.id);
+    try {
+      await updateFeedPost({
+        postId: post.id,
+        content: editDrafts[post.id] ?? "",
+      });
+      setEditingPostId("");
+    } catch (error) {
+      console.error("Failed to update post", error);
+    } finally {
+      setEditingBusyPostId("");
+    }
+  };
+
+  const handleDeletePost = async (post: Post) => {
+    const confirmed = window.confirm("Delete this post?");
+    if (!confirmed) return;
+
+    setDeleteBusyPostId(post.id);
+    try {
+      await deleteFeedPost(post.id);
+      await Promise.all(
+        (post.photoPaths ?? []).map((path) => deleteStoredImage(path))
+      );
+    } catch (error) {
+      console.error("Failed to delete post", error);
+    } finally {
+      setDeleteBusyPostId("");
+    }
+  };
+
   return (
     <div className="px-4 py-6 pb-8">
       <h1 className="mb-5 text-2xl font-bold text-gray-800">Social Feed</h1>
@@ -338,6 +388,8 @@ export default function FeedPage() {
         <div className="space-y-3">
           {posts.map((post) => {
             const comments = commentsByPostId[post.id] ?? [];
+            const isAuthor = post.authorId === appUser?.uid;
+            const isEditing = editingPostId === post.id;
             return (
               <div
                 key={post.id}
@@ -370,10 +422,58 @@ export default function FeedPage() {
                         {POST_LABELS[post.type]}
                       </span>
                     </div>
+                    {isAuthor && (
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            isEditing ? setEditingPostId("") : handleStartEdit(post)
+                          }
+                          className="text-[11px] font-medium text-green-700"
+                        >
+                          {isEditing ? "Cancel" : "Edit"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePost(post)}
+                          disabled={deleteBusyPostId === post.id}
+                          className="text-[11px] font-medium text-red-600 disabled:text-red-300"
+                        >
+                          {deleteBusyPostId === post.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
+                    )}
                     <p className="mt-0.5 text-xs text-gray-400">
                       {formatDistanceToNow(post.createdAt, { addSuffix: true })}
                     </p>
-                    {post.content ? (
+                    {isEditing ? (
+                      <div className="mt-3 space-y-2">
+                        <textarea
+                          value={editDrafts[post.id] ?? ""}
+                          onChange={(event) =>
+                            setEditDrafts((current) => ({
+                              ...current,
+                              [post.id]: event.target.value,
+                            }))
+                          }
+                          rows={3}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(post)}
+                            disabled={
+                              editingBusyPostId === post.id ||
+                              (editDrafts[post.id] ?? "").trim().length === 0
+                            }
+                            className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 disabled:border-gray-100 disabled:bg-gray-100 disabled:text-gray-400"
+                          >
+                            {editingBusyPostId === post.id ? "Saving..." : "Save"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : post.content ? (
                       <p className="mt-3 text-sm leading-relaxed text-gray-700">
                         {post.content}
                       </p>

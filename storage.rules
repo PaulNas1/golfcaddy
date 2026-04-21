@@ -1,0 +1,73 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(
+        /databases/(default)/documents/users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isActiveUser() {
+      return isSignedIn() && userDoc().status == 'active';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userDoc().role == 'admin';
+    }
+
+    function isSameGroup(groupId) {
+      return isActiveUser() && userDoc().groupId == groupId;
+    }
+
+    function isImageUpload() {
+      return request.resource != null &&
+        request.resource.contentType.matches('image/.*') &&
+        request.resource.size <= 5 * 1024 * 1024;
+    }
+
+    match /users/{userId}/avatar/{fileName} {
+      allow read: if isSignedIn();
+      allow create, update: if isActiveUser() &&
+        request.auth.uid == userId &&
+        isImageUpload();
+      allow delete: if isAdmin() || (
+        isActiveUser() &&
+        request.auth.uid == userId
+      );
+    }
+
+    match /groups/{groupId}/logo/{fileName} {
+      allow read: if isSignedIn() && (
+        isSameGroup(groupId) ||
+        isAdmin()
+      );
+      allow create, update, delete: if isAdmin() &&
+        userDoc().groupId == groupId &&
+        (
+          request.method == 'delete' ||
+          isImageUpload()
+        );
+    }
+
+    match /groups/{groupId}/feed/{userId}/{fileName} {
+      allow read: if isSignedIn() && (
+        isSameGroup(groupId) ||
+        isAdmin()
+      );
+      allow create, update: if isActiveUser() &&
+        request.auth.uid == userId &&
+        userDoc().groupId == groupId &&
+        isImageUpload();
+      allow delete: if isAdmin() || (
+        isActiveUser() &&
+        request.auth.uid == userId &&
+        userDoc().groupId == groupId
+      );
+    }
+  }
+}

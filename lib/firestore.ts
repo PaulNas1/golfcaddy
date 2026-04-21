@@ -7,6 +7,7 @@ import {
   getDocsFromServer,
   setDoc,
   updateDoc,
+  deleteDoc,
   addDoc,
   writeBatch,
   query,
@@ -1755,6 +1756,28 @@ export const createFeedPost = async ({
   });
 };
 
+export const updateFeedPost = async ({
+  postId,
+  content,
+}: {
+  postId: string;
+  content: string;
+}) => {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error("Post content is required.");
+  }
+
+  await updateDoc(doc(db, "posts", postId), {
+    content: trimmed,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const deleteFeedPost = async (postId: string) => {
+  await deleteDoc(doc(db, "posts", postId));
+};
+
 const mapPostComment = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
 ): PostComment => {
@@ -1884,8 +1907,8 @@ export const setPostReaction = async ({
   const postRef = doc(db, "posts", post.id);
   const reactionRef = doc(db, "posts", post.id, "reactions", user.uid);
   const notificationRef =
-    post.authorId !== user.uid
-      ? doc(db, "notifications", `${post.id}_reaction_${user.uid}`)
+    reactionType && post.authorId !== user.uid
+      ? doc(collection(db, "notifications"))
       : null;
 
   await runTransaction(db, async (transaction) => {
@@ -1941,16 +1964,11 @@ export const setPostReaction = async ({
           read: false,
           roundId: post.roundId,
           postId: post.id,
-          createdAt: reactionSnap.exists()
-            ? reactionSnap.data()?.createdAt ?? serverTimestamp()
-            : serverTimestamp(),
+          createdAt: serverTimestamp(),
         });
       }
     } else if (reactionSnap.exists()) {
       transaction.delete(reactionRef);
-      if (notificationRef) {
-        transaction.delete(notificationRef);
-      }
     }
 
     transaction.update(postRef, {

@@ -40,10 +40,14 @@ export async function uploadGroupLogoImage(groupId: string, file: File) {
   return { path, url };
 }
 
-export async function uploadFeedPostImages(groupId: string, files: File[]) {
+export async function uploadFeedPostImages(
+  groupId: string,
+  userId: string,
+  files: File[]
+) {
   const uploads = await Promise.all(
     files.map(async (file) => {
-      const path = buildStoragePath(`groups/${groupId}/feed`, file);
+      const path = buildStoragePath(`groups/${groupId}/feed/${userId}`, file);
       const storageRef = ref(storage, path);
       await uploadBytes(storageRef, file, { contentType: file.type });
       const url = await getDownloadURL(storageRef);
