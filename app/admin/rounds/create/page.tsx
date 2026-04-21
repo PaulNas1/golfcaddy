@@ -249,6 +249,22 @@ export default function CreateRoundPage() {
     );
   };
 
+  const removePlayerFromTeeTime = (teeTimeIndex: number, member: AppUser) => {
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+        const playerIds = teeTime.playerIds.filter(
+          (playerId) => playerId !== member.uid
+        );
+        return {
+          ...teeTime,
+          playerIds,
+          notes: getTeeTimeGroupLabel(playerIds, teeTime.guestNames, members),
+        };
+      })
+    );
+  };
+
   const addGuestToTeeTime = (teeTimeIndex: number) => {
     const guestName =
       typeof window !== "undefined"
@@ -760,6 +776,7 @@ export default function CreateRoundPage() {
           onRemoveTeeTime={removeTeeTime}
           onUpdateTeeTimeTime={updateTeeTimeTime}
           onAssignPlayer={assignPlayerToTeeTime}
+          onRemovePlayer={removePlayerFromTeeTime}
           onAddGuest={addGuestToTeeTime}
           onRemoveGuest={removeGuestFromTeeTime}
         />

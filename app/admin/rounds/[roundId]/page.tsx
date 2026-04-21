@@ -948,9 +948,9 @@ export default function AdminRoundDetailPage() {
                       Player tee assignments
                     </p>
                     <p className="text-[11px] text-gray-400">
-                      {acceptedRsvpMembers.length} accepted ·{" "}
+                      {acceptedMembers.length} accepted ·{" "}
                       {Math.max(
-                        acceptedRsvpMembers.length - teeOverrideCount,
+                        acceptedMembers.length - teeOverrideCount,
                         0
                       )}{" "}
                       default ·{" "}
@@ -970,12 +970,12 @@ export default function AdminRoundDetailPage() {
                 </div>
                 {showTeeAssignments && (
                   <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                    {acceptedRsvpMembers.length === 0 ? (
+                    {acceptedMembers.length === 0 ? (
                       <p className="text-[11px] text-gray-400">
                         Accepted players will appear here after they RSVP.
                       </p>
                     ) : (
-                      acceptedRsvpMembers.map((member) => {
+                      acceptedMembers.map((member) => {
                         const suggestedReview = needsTeeReview(member);
                         return (
                           <div
