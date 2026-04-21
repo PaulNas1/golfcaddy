@@ -208,7 +208,7 @@ export default function TeeTimesEditor({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-gray-800">
-              {activeTeeTime
+              {activeTeeTime && activeTeeTimeIndex != null
                 ? `Assign players to tee time ${activeTeeTimeIndex + 1}`
                 : "Assigned players"}
             </p>
