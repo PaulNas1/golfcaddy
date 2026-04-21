@@ -18,6 +18,7 @@ const NOTIFICATION_ICONS: Record<string, string> = {
   change_alert: "⚠️",
   member_approved: "✅",
   new_comment: "💬",
+  new_reaction: "❤️",
 };
 
 export default function NotificationsPage() {

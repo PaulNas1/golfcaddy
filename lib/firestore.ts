@@ -44,6 +44,7 @@ import type {
   UserStatus,
   PostReaction,
   PostReactionType,
+  PostComment,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -1658,6 +1659,13 @@ const mapPost = (
   return {
     id: d.id,
     ...data,
+    photoUrls: Array.isArray(data.photoUrls) ? data.photoUrls : [],
+    photoPaths: Array.isArray(data.photoPaths) ? data.photoPaths : [],
+    reactionCounts:
+      data.reactionCounts && typeof data.reactionCounts === "object"
+        ? data.reactionCounts
+        : {},
+    commentCount: typeof data.commentCount === "number" ? data.commentCount : 0,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as Post;
@@ -1716,15 +1724,17 @@ export const createFeedPost = async ({
   author,
   content,
   photoUrls = [],
+  photoPaths = [],
 }: {
   groupId: string;
   author: AppUser;
   content: string;
   photoUrls?: string[];
+  photoPaths?: string[];
 }) => {
   const trimmed = content.trim();
-  if (!trimmed) {
-    throw new Error("Post content is required.");
+  if (!trimmed && photoUrls.length === 0) {
+    throw new Error("Write something or attach at least one image.");
   }
 
   await addDoc(collection(db, "posts"), {
@@ -1737,12 +1747,118 @@ export const createFeedPost = async ({
     roundId: null,
     pinned: false,
     photoUrls,
+    photoPaths,
     reactionCounts: {},
     commentCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
 };
+
+const mapPostComment = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): PostComment => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as PostComment;
+};
+
+export const subscribePostComments = (
+  postId: string,
+  onChange: (comments: PostComment[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    collection(db, "posts", postId, "comments"),
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapPostComment)
+          .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      ),
+    onError
+  );
+
+export const createPostComment = async ({
+  post,
+  author,
+  content,
+}: {
+  post: Post;
+  author: AppUser;
+  content: string;
+}) => {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error("Reply cannot be empty.");
+  }
+
+  const postRef = doc(db, "posts", post.id);
+  const commentRef = doc(collection(db, "posts", post.id, "comments"));
+  const notificationRef =
+    post.authorId !== author.uid
+      ? doc(db, "notifications", `${post.id}_comment_${commentRef.id}`)
+      : null;
+
+  await runTransaction(db, async (transaction) => {
+    const postSnap = await transaction.get(postRef);
+    if (!postSnap.exists()) {
+      throw new Error("Post not found.");
+    }
+
+    const currentPost = mapPost(postSnap);
+    transaction.set(commentRef, {
+      postId: post.id,
+      groupId: post.groupId,
+      authorId: author.uid,
+      authorName: author.displayName,
+      authorAvatarUrl: author.avatarUrl ?? null,
+      content: trimmed,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    transaction.update(postRef, {
+      commentCount: currentPost.commentCount + 1,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (notificationRef) {
+      transaction.set(notificationRef, {
+        recipientId: post.authorId,
+        groupId: post.groupId,
+        type: "new_comment",
+        title: "New reply on your post",
+        body: `${author.displayName} replied to your post.`,
+        deepLink: "/feed",
+        read: false,
+        roundId: post.roundId,
+        postId: post.id,
+        createdAt: serverTimestamp(),
+      });
+    }
+  });
+};
+
+function getReactionSummary(reactionType: PostReactionType) {
+  switch (reactionType) {
+    case "like":
+      return "👍 liked";
+    case "love":
+      return "❤️ loved";
+    case "laugh":
+      return "😂 reacted";
+    case "fire":
+      return "🔥 reacted";
+    case "dislike":
+      return "👎 disliked";
+    default:
+      return "reacted to";
+  }
+}
 
 export const subscribePostReaction = (
   postId: string,
@@ -1767,6 +1883,10 @@ export const setPostReaction = async ({
 }) => {
   const postRef = doc(db, "posts", post.id);
   const reactionRef = doc(db, "posts", post.id, "reactions", user.uid);
+  const notificationRef =
+    post.authorId !== user.uid
+      ? doc(db, "notifications", `${post.id}_reaction_${user.uid}`)
+      : null;
 
   await runTransaction(db, async (transaction) => {
     const [postSnap, reactionSnap] = await Promise.all([
@@ -1810,8 +1930,27 @@ export const setPostReaction = async ({
         },
         { merge: true }
       );
+      if (notificationRef) {
+        transaction.set(notificationRef, {
+          recipientId: post.authorId,
+          groupId: post.groupId,
+          type: "new_reaction",
+          title: "New reaction on your post",
+          body: `${user.displayName} ${getReactionSummary(reactionType)} your post.`,
+          deepLink: "/feed",
+          read: false,
+          roundId: post.roundId,
+          postId: post.id,
+          createdAt: reactionSnap.exists()
+            ? reactionSnap.data()?.createdAt ?? serverTimestamp()
+            : serverTimestamp(),
+        });
+      }
     } else if (reactionSnap.exists()) {
       transaction.delete(reactionRef);
+      if (notificationRef) {
+        transaction.delete(notificationRef);
+      }
     }
 
     transaction.update(postRef, {

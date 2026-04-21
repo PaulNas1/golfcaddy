@@ -40,6 +40,20 @@ export async function uploadGroupLogoImage(groupId: string, file: File) {
   return { path, url };
 }
 
+export async function uploadFeedPostImages(groupId: string, files: File[]) {
+  const uploads = await Promise.all(
+    files.map(async (file) => {
+      const path = buildStoragePath(`groups/${groupId}/feed`, file);
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file, { contentType: file.type });
+      const url = await getDownloadURL(storageRef);
+      return { path, url };
+    })
+  );
+
+  return uploads;
+}
+
 export async function deleteStoredImage(path: string | null | undefined) {
   if (!path) return;
 

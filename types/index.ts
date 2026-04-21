@@ -381,6 +381,7 @@ export interface Post {
   roundId: string | null;
   pinned: boolean;
   photoUrls: string[];
+  photoPaths?: string[];
   reactionCounts: Record<string, number>;
   commentCount: number;
   createdAt: Date;
@@ -397,6 +398,18 @@ export interface PostReaction {
   updatedAt: Date;
 }
 
+export interface PostComment {
+  id: string;
+  postId: string;
+  groupId: string;
+  authorId: string;
+  authorName: string;
+  authorAvatarUrl: string | null;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ─── Notifications ───────────────────────────────────────────────────────────
 
 export type NotificationType =
@@ -409,7 +422,8 @@ export type NotificationType =
   | "announcement"
   | "change_alert"
   | "member_approved"
-  | "new_comment";
+  | "new_comment"
+  | "new_reaction";
 
 export interface AppNotification {
   id: string;
