@@ -39,6 +39,11 @@ service cloud.firestore {
         resource.data.groupId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId;
     }
 
+    function isSameGroupId(groupId) {
+      return isActiveUser() &&
+        groupId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId;
+    }
+
     // ─── Users ────────────────────────────────────────────────────────────
 
     match /users/{userId} {
@@ -181,7 +186,16 @@ service cloud.firestore {
         request.resource.data.type != 'announcement' || isAdmin()
       );
       allow update: if isActiveUser() && (
-        resource.data.authorId == request.auth.uid || isAdmin()
+        resource.data.authorId == request.auth.uid ||
+        isAdmin() ||
+        (
+          isSameGroupId(resource.data.groupId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'reactionCounts',
+            'commentCount',
+            'updatedAt'
+          ])
+        )
       );
       allow delete: if isAdmin();
 
@@ -218,7 +232,13 @@ service cloud.firestore {
         isSignedIn() &&
         resource.data.recipientId == request.auth.uid
       );
-      allow create: if isAdmin();
+      allow create: if isAdmin() || (
+        isActiveUser() &&
+        isSameGroupId(request.resource.data.groupId) &&
+        request.resource.data.recipientId != request.auth.uid &&
+        request.resource.data.type in ['new_comment', 'new_reaction'] &&
+        request.resource.data.read == false
+      );
       allow delete: if isAdmin();
     }
   }

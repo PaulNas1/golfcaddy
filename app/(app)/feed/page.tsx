@@ -358,9 +358,14 @@ export default function FeedPage() {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="truncate font-semibold text-gray-800">
-                        {post.authorName}
-                      </p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate font-semibold text-gray-800">
+                          {post.authorName}
+                        </p>
+                        <span className="rounded-full bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                          💬 {post.commentCount}
+                        </span>
+                      </div>
                       <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
                         {POST_LABELS[post.type]}
                       </span>
@@ -417,9 +422,6 @@ export default function FeedPage() {
                           </button>
                         );
                       })}
-                      <span className="rounded-full bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-500">
-                        💬 {post.commentCount}
-                      </span>
                     </div>
                     <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
                       <p className="text-xs font-semibold text-gray-700">
