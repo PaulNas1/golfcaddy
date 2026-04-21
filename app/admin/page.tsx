@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { AppUser, Group, Round } from "@/types";
 
 export default function AdminDashboard() {
-  const { appUser } = useAuth();
+  const { appUser, isAdmin } = useAuth();
   const [pending, setPending] = useState<AppUser[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [group, setGroup] = useState<Group | null>(null);
@@ -127,13 +127,15 @@ export default function AdminDashboard() {
             icon={<MembersIcon className="h-6 w-6" />}
             tone="gray"
           />
-          <ActionTile
-            href="/admin/settings"
-            label="Settings"
-            description="Ladder and handicap rules"
-            icon={<SettingsIcon className="h-6 w-6" />}
-            tone="amber"
-          />
+          {isAdmin && (
+            <ActionTile
+              href="/admin/settings"
+              label="Settings"
+              description="Ladder and handicap rules"
+              icon={<SettingsIcon className="h-6 w-6" />}
+              tone="amber"
+            />
+          )}
         </div>
       </div>
     </div>

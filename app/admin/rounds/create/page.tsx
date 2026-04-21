@@ -40,6 +40,7 @@ import type {
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
   const router = useRouter();
+  const assignableMembers: AppUser[] = [];
 
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
@@ -291,13 +292,15 @@ export default function CreateRoundPage() {
   };
 
   const randomiseGroups = () => {
-    if (members.length === 0) {
-      setError("No active players are available to randomise.");
+    if (assignableMembers.length === 0) {
+      setError(
+        "Players can be assigned after the round is created and members RSVP."
+      );
       return;
     }
 
     try {
-      const groups = randomiseMemberGroups(members, teeTimes.length);
+      const groups = randomiseMemberGroups(assignableMembers, teeTimes.length);
       setTeeTimes((current) =>
         current.map((teeTime, index) => {
           const group = groups[index] ?? [];
@@ -749,7 +752,9 @@ export default function CreateRoundPage() {
         <TeeTimesEditor
           teeTimes={teeTimes}
           members={members}
-          emptyPlayersMessage="No active players are available yet."
+          assignableMembers={assignableMembers}
+          playersSummary="Players appear here after the round is created, invites are sent, and members RSVP."
+          emptyPlayersMessage="No RSVP'd players yet. Create the round first, then assign tee times once members respond."
           onRandomise={randomiseGroups}
           onAddTeeTime={addTeeTime}
           onRemoveTeeTime={removeTeeTime}

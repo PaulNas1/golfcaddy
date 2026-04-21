@@ -6,18 +6,18 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { appUser, loading, isAdmin } = useAuth();
+  const { appUser, loading, canAccessAdmin, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     if (loading) return;
-    if (!appUser || !isAdmin) {
+    if (!appUser || !canAccessAdmin) {
       router.replace("/home");
     }
-  }, [loading, appUser, isAdmin, router]);
+  }, [loading, appUser, canAccessAdmin, router]);
 
-  if (loading || !isAdmin) {
+  if (loading || !canAccessAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-400 text-sm">Loading...</div>
@@ -39,7 +39,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <nav className="border-b border-gray-100 bg-white px-4 py-3">
         <div className="flex gap-2 overflow-x-auto">
-          {adminNavItems.map(({ href, label, Icon }) => {
+          {adminNavItems
+            .filter(({ adminOnly }) => !adminOnly || isAdmin)
+            .map(({ href, label, Icon }) => {
             const active =
               href === "/admin" ? pathname === href : pathname.startsWith(href);
 
@@ -70,7 +72,7 @@ const adminNavItems = [
   { href: "/admin", label: "Dashboard", Icon: DashboardIcon },
   { href: "/admin/rounds", label: "Rounds", Icon: RoundsIcon },
   { href: "/admin/members", label: "Members", Icon: MembersIcon },
-  { href: "/admin/settings", label: "Settings", Icon: SettingsIcon },
+  { href: "/admin/settings", label: "Settings", Icon: SettingsIcon, adminOnly: true },
 ];
 
 function AdminIcon({ className }: { className?: string }) {

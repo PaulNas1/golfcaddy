@@ -482,7 +482,7 @@ export default function AdminRoundLeaderboardPage() {
           <h2 className="font-semibold text-gray-800 text-sm">
             {rankings.length === 0
               ? "No completed cards yet"
-              : "Top 10 players"}
+              : "Leaderboard"}
           </h2>
           <span className="text-xs text-gray-400">
             Format:{" "}
@@ -496,7 +496,7 @@ export default function AdminRoundLeaderboardPage() {
           </p>
         ) : (
           <div className="divide-y divide-gray-100">
-            {rankings.slice(0, 10).map((ranking) => {
+            {rankings.map((ranking) => {
               const card = cardsByPlayerId.get(ranking.playerId);
               return (
               <div
@@ -605,7 +605,7 @@ export default function AdminRoundLeaderboardPage() {
             Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
           </p>
           <div className="space-y-1 text-sm text-green-900">
-            {results.rankings.slice(0, 10).map((ranking) => (
+            {results.rankings.map((ranking) => (
               <div
                 key={ranking.playerId}
                 className="flex items-center justify-between"
@@ -753,7 +753,7 @@ export default function AdminRoundLeaderboardPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         <h2 className="font-semibold text-gray-800 text-sm">Results</h2>
         <p className="text-xs text-gray-500">
-          Publishing saves the official top 10, side winners, and locks all cards.
+          Publishing saves the official results, side winners, and locks all cards.
         </p>
         <button
           type="button"

@@ -25,7 +25,7 @@ interface DebugState {
 }
 
 export default function DebugPage() {
-  const { appUser, isAdmin } = useAuth();
+  const { appUser, canAccessAdmin } = useAuth();
   const [state, setState] = useState<DebugState | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -117,7 +117,7 @@ export default function DebugPage() {
     setCopied(true);
   };
 
-  if (!isAdmin) {
+  if (!canAccessAdmin) {
     return (
       <div className="px-4 py-6 text-sm text-gray-500">
         Admin access is required for diagnostics.

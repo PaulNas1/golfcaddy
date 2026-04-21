@@ -131,14 +131,13 @@ export default function AdminRoundDetailPage() {
   const refreshableTeeSet =
     selectedTeeSet ?? getPreferredDefaultTeeSet(selectedCourse?.teeSets ?? []) ?? null;
   const acceptedMembers = useMemo(() => {
-    if (!round?.rsvpOpen) return members;
     const acceptedIds = new Set(
       rsvps
         .filter((rsvp) => rsvp.status === "accepted")
         .map((rsvp) => rsvp.memberId)
     );
     return members.filter((member) => acceptedIds.has(member.uid));
-  }, [members, round?.rsvpOpen, rsvps]);
+  }, [members, rsvps]);
   const acceptedRsvpMembers = useMemo(() => {
     const acceptedIds = new Set(
       rsvps
@@ -1042,14 +1041,12 @@ export default function AdminRoundDetailPage() {
             members={members}
             assignableMembers={acceptedMembers}
             playersSummary={
-              round.rsvpOpen
-                ? `Showing accepted players only: ${acceptedMembers.length}`
-                : undefined
+              `Showing accepted players only: ${acceptedMembers.length}`
             }
             emptyPlayersMessage={
               round.rsvpOpen
                 ? "No accepted players yet. Tee-time groups can be filled after players RSVP."
-                : "No active players are available yet."
+                : "No RSVP'd players yet. Use Save & Notify Players first, then assign tee times after members respond."
             }
             onRandomise={randomiseGroups}
             onAddTeeTime={addTeeTime}

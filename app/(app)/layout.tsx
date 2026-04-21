@@ -16,7 +16,7 @@ const NAV_ITEMS = [
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const { firebaseUser, appUser, loading, isAdmin } = useAuth();
+  const { firebaseUser, appUser, loading, canAccessAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [group, setGroup] = useState<Group | null>(null);
@@ -75,7 +75,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </span>
         </div>
         <div className="flex items-center gap-3">
-          {isAdmin && (
+          {canAccessAdmin && (
             <Link
               href="/admin"
               className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1 rounded-full transition-colors"

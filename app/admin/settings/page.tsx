@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
+import Link from "next/link";
 import {
   getGroup,
   updateGroupCurrentSeason,
@@ -13,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { Group, GroupSettings, HandicapMode } from "@/types";
 
 export default function AdminSettingsPage() {
-  const { appUser } = useAuth();
+  const { appUser, isAdmin } = useAuth();
   const [group, setGroup] = useState<Group | null>(null);
   const [groupName, setGroupName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -134,6 +135,23 @@ export default function AdminSettingsPage() {
       <div className="space-y-3">
         <div className="h-8 w-1/2 rounded bg-gray-200 animate-pulse" />
         <div className="h-40 rounded-2xl bg-gray-100 animate-pulse" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="space-y-3">
+        <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+          Only admins can change group settings, ladder rules, and season management.
+        </div>
+        <Link
+          href="/admin"
+          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700"
+        >
+          Back to admin
+        </Link>
       </div>
     );
   }

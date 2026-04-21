@@ -27,6 +27,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   isAdmin: boolean;
+  isModerator: boolean;
+  canAccessAdmin: boolean;
   isActive: boolean;
   isPending: boolean;
 }
@@ -124,6 +126,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isAdmin = appUser?.role === "admin";
+  const isModerator = appUser?.role === "moderator";
+  const canAccessAdmin = isAdmin || isModerator;
   const isActive = appUser?.status === "active";
   const isPending = appUser?.status === "pending";
 
@@ -138,6 +142,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         resetPassword,
         isAdmin,
+        isModerator,
+        canAccessAdmin,
         isActive,
         isPending,
       }}

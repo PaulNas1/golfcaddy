@@ -5,16 +5,18 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  getRoundRsvp,
   subscribeGroup,
   subscribeRoundsForGroup,
   subscribeSeasonStandings,
 } from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
-import type { Group, Round, SeasonStanding } from "@/types";
+import type { Group, Round, RoundRsvp, SeasonStanding } from "@/types";
 
 export default function HomePage() {
   const { appUser } = useAuth();
   const [nextRound, setNextRound] = useState<Round | null>(null);
+  const [nextRoundRsvp, setNextRoundRsvp] = useState<RoundRsvp | null>(null);
   const [liveRound, setLiveRound] = useState<Round | null>(null);
   const [group, setGroup] = useState<Group | null>(null);
   const [season, setSeason] = useState(new Date().getFullYear());
@@ -71,6 +73,27 @@ export default function HomePage() {
       standingsUnsubscribe?.();
     };
   }, [appUser?.groupId]);
+
+  useEffect(() => {
+    if (!nextRound?.id || !appUser?.uid) {
+      setNextRoundRsvp(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    getRoundRsvp(nextRound.id, appUser.uid)
+      .then((rsvp) => {
+        if (!cancelled) setNextRoundRsvp(rsvp);
+      })
+      .catch(() => {
+        if (!cancelled) setNextRoundRsvp(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appUser?.uid, nextRound?.id]);
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
 
@@ -140,6 +163,16 @@ export default function HomePage() {
                     <span className="text-xs text-gray-400">
                       {nextRound.status === "upcoming" ? "Upcoming" : nextRound.status}
                     </span>
+                    {nextRoundRsvp?.status === "accepted" && (
+                      <span className="text-xs font-medium rounded-full bg-green-100 px-2.5 py-1 text-green-700">
+                        Going
+                      </span>
+                    )}
+                    {nextRoundRsvp?.status === "declined" && (
+                      <span className="text-xs font-medium rounded-full bg-gray-100 px-2.5 py-1 text-gray-600">
+                        Not going
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="text-green-600 mt-1">

@@ -39,6 +39,8 @@ import type {
   SideClaim,
   SidePrizeType,
   GroupSettings,
+  UserRole,
+  UserStatus,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -329,6 +331,19 @@ export const getMembersForGroup = async (
   return snap.docs.map(mapMember);
 };
 
+export const subscribeMembersForGroup = (
+  groupId: string,
+  onChange: (members: Member[]) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(collection(db, "members"), where("groupId", "==", groupId));
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.docs.map(mapMember)),
+    onError
+  );
+};
+
 export const updateMemberStartingHandicap = async ({
   memberUser,
   handicap,
@@ -391,23 +406,7 @@ export const updateMemberStartingHandicap = async ({
 export const getPendingMembers = async (
   groupId = FOURPLAY_GROUP_ID
 ): Promise<AppUser[]> => {
-  const q = query(
-    collection(db, "users"),
-    where("status", "==", "pending"),
-    where("groupId", "==", groupId)
-  );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => {
-      const data = d.data();
-      return {
-        uid: d.id,
-        ...data,
-        createdAt: toDate(data.createdAt),
-        updatedAt: toDate(data.updatedAt),
-      } as AppUser;
-    })
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return getUsersByStatus(groupId, "pending", "createdAt");
 };
 
 const mapMemberInvite = (
@@ -482,27 +481,78 @@ export const getMemberInvitesForGroup = async (
 export const getActiveMembers = async (
   groupId = FOURPLAY_GROUP_ID
 ): Promise<AppUser[]> => {
+  return getUsersByStatus(groupId, "active", "displayName");
+};
+
+export const getRetiredMembers = async (
+  groupId = FOURPLAY_GROUP_ID
+): Promise<AppUser[]> => {
+  return getUsersByStatus(groupId, "retired", "displayName");
+};
+
+export const getSuspendedMembers = async (
+  groupId = FOURPLAY_GROUP_ID
+): Promise<AppUser[]> => {
+  return getUsersByStatus(groupId, "suspended", "displayName");
+};
+
+function mapUser(
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+) {
+  const data = d.data() ?? {};
+  return {
+    uid: d.id,
+    ...data,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as AppUser;
+}
+
+async function getUsersByStatus(
+  groupId: string,
+  status: UserStatus,
+  sortBy: "createdAt" | "displayName" = "displayName"
+) {
+  const q = query(
+    collection(db, "users"),
+    where("status", "==", status),
+    where("groupId", "==", groupId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(mapUser)
+    .sort((a, b) =>
+      sortBy === "createdAt"
+        ? b.createdAt.getTime() - a.createdAt.getTime()
+        : a.displayName.localeCompare(b.displayName)
+    );
+}
+
+export const subscribeActiveMembers = (
+  groupId: string,
+  onChange: (members: AppUser[]) => void,
+  onError?: (error: Error) => void
+) => {
   const q = query(
     collection(db, "users"),
     where("status", "==", "active"),
     where("groupId", "==", groupId)
   );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map((d) => {
-      const data = d.data();
-      return {
-        uid: d.id,
-        ...data,
-        createdAt: toDate(data.createdAt),
-        updatedAt: toDate(data.updatedAt),
-      } as AppUser;
-    })
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapUser)
+          .sort((a, b) => a.displayName.localeCompare(b.displayName))
+      ),
+    onError
+  );
 };
 
-export const approveMember = async (uid: string) => {
+export const approveMember = async (uid: string, role: UserRole = "member") => {
   await updateDoc(doc(db, "users", uid), {
+    role,
     status: "active",
     updatedAt: serverTimestamp(),
   });

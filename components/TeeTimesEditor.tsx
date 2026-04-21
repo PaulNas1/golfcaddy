@@ -91,8 +91,8 @@ export default function TeeTimesEditor({
         </div>
       </div>
       <p className="text-xs text-gray-400">
-        Click a tee slot, then assign players from the full list below. Players
-        can only belong to one tee time at a time.
+        Click a tee slot, then assign players from the list below. Players can
+        only belong to one tee time at a time.
       </p>
       {playersSummary && (
         <p className="text-xs text-green-700">{playersSummary}</p>

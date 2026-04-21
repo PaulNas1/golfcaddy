@@ -44,7 +44,7 @@ export default function RoundDetailPage() {
   const [savingClaim, setSavingClaim] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { appUser, isAdmin } = useAuth();
+  const { appUser, canAccessAdmin } = useAuth();
 
   useEffect(() => {
     if (roundId) {
@@ -302,7 +302,7 @@ export default function RoundDetailPage() {
             </p>
           </div>
           <div className="space-y-1 text-sm text-green-950">
-            {results.rankings.slice(0, 10).map((ranking) => (
+            {results.rankings.map((ranking) => (
               <div
                 key={ranking.playerId}
                 className={`flex items-center justify-between rounded-xl px-2 py-1 ${
@@ -480,7 +480,7 @@ export default function RoundDetailPage() {
       )}
 
       {/* Admin quick link */}
-      {isAdmin && (
+      {canAccessAdmin && (
         <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-4">
           <h2 className="font-semibold text-gray-800 mb-2">Admin</h2>
           <p className="text-xs text-gray-500 mb-2">

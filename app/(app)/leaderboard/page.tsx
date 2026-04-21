@@ -2,18 +2,41 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  subscribeActiveMembers,
   subscribeGroup,
+  subscribeMembersForGroup,
   subscribeRoundsForGroup,
   subscribeSeasonStandings,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import type { SeasonStanding } from "@/types";
+import type { AppUser, Group, Member, SeasonStanding } from "@/types";
+
+type LeaderboardEntry = {
+  memberId: string;
+  memberName: string;
+  currentRank: number | null;
+  previousRank: number | null;
+  totalPoints: number;
+  grossSeasonPoints: number;
+  roundsPlayed: number;
+  lastStableford: number | null;
+  ntpWinsSeason: number;
+  ldWinsSeason: number;
+  t2WinsSeason: number;
+  t3WinsSeason: number;
+  currentHandicap: number | null;
+  probation: boolean;
+  hasStanding: boolean;
+};
 
 export default function LeaderboardPage() {
   const { appUser } = useAuth();
+  const [group, setGroup] = useState<Group | null>(null);
   const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
+  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
+  const [groupMembers, setGroupMembers] = useState<Member[]>([]);
   const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,6 +46,7 @@ export default function LeaderboardPage() {
     const groupUnsubscribe = subscribeGroup(
       appUser.groupId,
       (group) => {
+        setGroup(group);
         const nextCurrentSeason =
           group?.currentSeason ?? new Date().getFullYear();
         setCurrentSeason(nextCurrentSeason);
@@ -52,6 +76,26 @@ export default function LeaderboardPage() {
   }, [appUser?.groupId]);
 
   useEffect(() => {
+    if (!appUser?.groupId) return;
+
+    const activeMembersUnsubscribe = subscribeActiveMembers(
+      appUser.groupId,
+      setActiveMembers,
+      (err) => console.warn("Unable to subscribe to active members", err)
+    );
+    const groupMembersUnsubscribe = subscribeMembersForGroup(
+      appUser.groupId,
+      setGroupMembers,
+      (err) => console.warn("Unable to subscribe to member stats", err)
+    );
+
+    return () => {
+      activeMembersUnsubscribe();
+      groupMembersUnsubscribe();
+    };
+  }, [appUser?.groupId]);
+
+  useEffect(() => {
     if (!appUser?.groupId || selectedSeason == null) return;
 
     setLoading(true);
@@ -73,6 +117,63 @@ export default function LeaderboardPage() {
     const seasons = availableSeasons.length > 0 ? availableSeasons : [currentSeason];
     return Array.from(new Set(seasons)).sort((a, b) => b - a);
   }, [availableSeasons, currentSeason]);
+
+  const leaderboardEntries = useMemo(() => {
+    const standingsByMemberId = new Map(
+      standings.map((standing) => [standing.memberId, standing])
+    );
+    const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+    const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 3;
+
+    return activeMembers
+      .map<LeaderboardEntry>((activeMember) => {
+        const standing = standingsByMemberId.get(activeMember.uid) ?? null;
+        const member = membersById.get(activeMember.uid) ?? null;
+        const memberSeasonMatches = member?.seasonYear === selectedSeason;
+        const roundsPlayed = standing?.roundsPlayed ?? (memberSeasonMatches ? member?.roundsPlayed ?? 0 : 0);
+        const currentHandicap = member?.currentHandicap ?? null;
+        const probation =
+          !member ||
+          ((currentHandicap ?? 0) <= 0 && roundsPlayed < handicapRoundsWindow);
+
+        return {
+          memberId: activeMember.uid,
+          memberName: activeMember.displayName,
+          currentRank: standing?.currentRank ?? null,
+          previousRank: standing?.previousRank ?? null,
+          totalPoints: standing?.totalPoints ?? (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
+          grossSeasonPoints: standing?.grossSeasonPoints ?? (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
+          roundsPlayed,
+          lastStableford: standing?.roundResults[0]?.stableford ?? null,
+          ntpWinsSeason: standing?.ntpWinsSeason ?? 0,
+          ldWinsSeason: standing?.ldWinsSeason ?? 0,
+          t2WinsSeason: standing?.t2WinsSeason ?? 0,
+          t3WinsSeason: standing?.t3WinsSeason ?? 0,
+          currentHandicap,
+          probation,
+          hasStanding: Boolean(standing),
+        };
+      })
+      .sort((a, b) => {
+        if (a.hasStanding && b.hasStanding) {
+          if ((a.currentRank ?? Infinity) !== (b.currentRank ?? Infinity)) {
+            return (a.currentRank ?? Infinity) - (b.currentRank ?? Infinity);
+          }
+          return a.memberName.localeCompare(b.memberName);
+        }
+        if (a.hasStanding !== b.hasStanding) return a.hasStanding ? -1 : 1;
+        return a.memberName.localeCompare(b.memberName);
+      });
+  }, [activeMembers, group?.settings.handicapRoundsWindow, groupMembers, selectedSeason, standings]);
+
+  const activeMemberIds = useMemo(
+    () => new Set(activeMembers.map((member) => member.uid)),
+    [activeMembers]
+  );
+  const sidePrizeStandings = useMemo(
+    () => standings.filter((standing) => activeMemberIds.has(standing.memberId)),
+    [activeMemberIds, standings]
+  );
 
   const sideLeaderboards = [
     {
@@ -130,7 +231,7 @@ export default function LeaderboardPage() {
             <div key={i} className="bg-white rounded-2xl p-4 h-20" />
           ))}
         </div>
-      ) : standings.length === 0 ? (
+      ) : leaderboardEntries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
           <div className="text-5xl mb-4">🏆</div>
           <p className="font-medium text-gray-500 mb-1">No standings yet</p>
@@ -141,10 +242,10 @@ export default function LeaderboardPage() {
       ) : (
         <div className="space-y-5">
           <div className="space-y-3">
-            {standings.map((standing) => (
+            {leaderboardEntries.map((entry) => (
               <StandingCard
-                key={standing.id}
-                standing={standing}
+                key={entry.memberId}
+                entry={entry}
                 currentUserId={appUser?.uid ?? ""}
               />
             ))}
@@ -159,7 +260,7 @@ export default function LeaderboardPage() {
                 <SidePrizeBoard
                   key={key}
                   label={label}
-                  standings={standings}
+                  standings={sidePrizeStandings}
                   statKey={key}
                 />
               ))}
@@ -172,16 +273,16 @@ export default function LeaderboardPage() {
 }
 
 function StandingCard({
-  standing,
+  entry,
   currentUserId,
 }: {
-  standing: SeasonStanding;
+  entry: LeaderboardEntry;
   currentUserId: string;
 }) {
   return (
     <div
       className={`bg-white rounded-2xl shadow-sm border p-4 ${
-        standing.memberId === currentUserId
+        entry.memberId === currentUserId
           ? "border-green-200"
           : "border-gray-100"
       }`}
@@ -189,50 +290,62 @@ function StandingCard({
       <div className="flex items-center gap-3">
         <div className="w-10 text-center">
           <p className="text-xl font-bold text-gray-800">
-            #{standing.currentRank}
+            {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
           </p>
           <p className="text-[11px] text-gray-400">
-            {getRankMovement(standing)}
+            {entry.hasStanding ? getRankMovement(entry) : "awaiting"}
           </p>
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-800 truncate">
-            {standing.memberName}
+            {entry.memberName}
           </p>
-          <p className="text-xs text-gray-500">
-            {standing.roundsPlayed} rounds ·{" "}
-            {standing.roundResults[0]?.stableford ?? 0} last
-          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span>
+              {entry.roundsPlayed} rounds · {entry.lastStableford ?? 0} last
+            </span>
+            <span
+              className={`rounded-full px-2 py-0.5 font-medium ${
+                entry.probation
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {entry.probation
+                ? "P"
+                : `HCP ${formatHandicap(entry.currentHandicap)}`}
+            </span>
+          </div>
         </div>
         <div className="text-right">
           <p className="text-lg font-bold text-green-700">
-            {standing.totalPoints}
+            {entry.totalPoints}
           </p>
           <p className="text-[11px] text-gray-400">points</p>
-          {standing.grossSeasonPoints !== standing.totalPoints && (
+          {entry.grossSeasonPoints !== entry.totalPoints && (
             <p className="text-[11px] text-gray-400">
-              {standing.grossSeasonPoints} raw
+              {entry.grossSeasonPoints} raw
             </p>
           )}
         </div>
       </div>
 
-      {(standing.ntpWinsSeason > 0 ||
-        standing.ldWinsSeason > 0 ||
-        standing.t2WinsSeason > 0 ||
-        standing.t3WinsSeason > 0) && (
+      {(entry.ntpWinsSeason > 0 ||
+        entry.ldWinsSeason > 0 ||
+        entry.t2WinsSeason > 0 ||
+        entry.t3WinsSeason > 0) && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {standing.ntpWinsSeason > 0 && (
-            <Badge label={`NTP ${standing.ntpWinsSeason}`} />
+          {entry.ntpWinsSeason > 0 && (
+            <Badge label={`NTP ${entry.ntpWinsSeason}`} />
           )}
-          {standing.ldWinsSeason > 0 && (
-            <Badge label={`LD ${standing.ldWinsSeason}`} />
+          {entry.ldWinsSeason > 0 && (
+            <Badge label={`LD ${entry.ldWinsSeason}`} />
           )}
-          {standing.t2WinsSeason > 0 && (
-            <Badge label={`T2 ${standing.t2WinsSeason}`} />
+          {entry.t2WinsSeason > 0 && (
+            <Badge label={`T2 ${entry.t2WinsSeason}`} />
           )}
-          {standing.t3WinsSeason > 0 && (
-            <Badge label={`T3 ${standing.t3WinsSeason}`} />
+          {entry.t3WinsSeason > 0 && (
+            <Badge label={`T3 ${entry.t3WinsSeason}`} />
           )}
         </div>
       )}
@@ -292,10 +405,18 @@ function Badge({ label }: { label: string }) {
   );
 }
 
-function getRankMovement(standing: SeasonStanding) {
-  if (standing.previousRank == null) return "new";
+function getRankMovement(standing: {
+  previousRank: number | null;
+  currentRank: number | null;
+}) {
+  if (standing.previousRank == null || standing.currentRank == null) return "new";
   const diff = standing.previousRank - standing.currentRank;
   if (diff > 0) return `↑${diff}`;
   if (diff < 0) return `↓${Math.abs(diff)}`;
   return "same";
+}
+
+function formatHandicap(handicap: number | null) {
+  if (handicap == null) return "—";
+  return Number.isInteger(handicap) ? String(handicap) : handicap.toFixed(1);
 }

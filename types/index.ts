@@ -1,7 +1,7 @@
 // ─── User & Auth ────────────────────────────────────────────────────────────
 
-export type UserRole = "member" | "admin";
-export type UserStatus = "pending" | "active" | "suspended";
+export type UserRole = "member" | "moderator" | "admin";
+export type UserStatus = "pending" | "active" | "retired" | "suspended";
 export type UserGender = "male" | "female";
 export type HandicapMode = "local" | "slope_adjusted";
 
