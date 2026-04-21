@@ -16,6 +16,7 @@ import {
   serverTimestamp,
   Timestamp,
   onSnapshot,
+  runTransaction,
   QueryDocumentSnapshot,
   DocumentSnapshot,
   DocumentData,
@@ -41,6 +42,8 @@ import type {
   GroupSettings,
   UserRole,
   UserStatus,
+  PostReaction,
+  PostReactionType,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -1694,6 +1697,128 @@ export const subscribeFeedPosts = (
       ),
     options?.onError
   );
+};
+
+const mapPostReaction = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): PostReaction => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as PostReaction;
+};
+
+export const createFeedPost = async ({
+  groupId,
+  author,
+  content,
+  photoUrls = [],
+}: {
+  groupId: string;
+  author: AppUser;
+  content: string;
+  photoUrls?: string[];
+}) => {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error("Post content is required.");
+  }
+
+  await addDoc(collection(db, "posts"), {
+    groupId,
+    authorId: author.uid,
+    authorName: author.displayName,
+    authorAvatarUrl: author.avatarUrl ?? null,
+    type: "general",
+    content: trimmed,
+    roundId: null,
+    pinned: false,
+    photoUrls,
+    reactionCounts: {},
+    commentCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const subscribePostReaction = (
+  postId: string,
+  userId: string,
+  onChange: (reaction: PostReaction | null) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    doc(db, "posts", postId, "reactions", userId),
+    (snap) => onChange(snap.exists() ? mapPostReaction(snap) : null),
+    onError
+  );
+
+export const setPostReaction = async ({
+  post,
+  user,
+  reactionType,
+}: {
+  post: Post;
+  user: AppUser;
+  reactionType: PostReactionType | null;
+}) => {
+  const postRef = doc(db, "posts", post.id);
+  const reactionRef = doc(db, "posts", post.id, "reactions", user.uid);
+
+  await runTransaction(db, async (transaction) => {
+    const [postSnap, reactionSnap] = await Promise.all([
+      transaction.get(postRef),
+      transaction.get(reactionRef),
+    ]);
+
+    if (!postSnap.exists()) {
+      throw new Error("Post not found.");
+    }
+
+    const currentPost = mapPost(postSnap);
+    const currentCounts = { ...(currentPost.reactionCounts ?? {}) };
+    const previousReaction = reactionSnap.exists()
+      ? mapPostReaction(reactionSnap).reactionType
+      : null;
+
+    if (previousReaction) {
+      currentCounts[previousReaction] = Math.max(
+        (currentCounts[previousReaction] ?? 1) - 1,
+        0
+      );
+      if (currentCounts[previousReaction] === 0) {
+        delete currentCounts[previousReaction];
+      }
+    }
+
+    if (reactionType) {
+      currentCounts[reactionType] = (currentCounts[reactionType] ?? 0) + 1;
+      transaction.set(
+        reactionRef,
+        {
+          postId: post.id,
+          groupId: post.groupId,
+          userId: user.uid,
+          reactionType,
+          createdAt: reactionSnap.exists()
+            ? reactionSnap.data()?.createdAt ?? serverTimestamp()
+            : serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } else if (reactionSnap.exists()) {
+      transaction.delete(reactionRef);
+    }
+
+    transaction.update(postRef, {
+      reactionCounts: currentCounts,
+      updatedAt: serverTimestamp(),
+    });
+  });
 };
 
 // ─── Notifications ───────────────────────────────────────────────────────────

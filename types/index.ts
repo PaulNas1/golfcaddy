@@ -363,6 +363,12 @@ export interface HandicapHistory {
 // ─── Posts & Feed ────────────────────────────────────────────────────────────
 
 export type PostType = "announcement" | "general" | "round_linked";
+export type PostReactionType =
+  | "like"
+  | "love"
+  | "laugh"
+  | "fire"
+  | "dislike";
 
 export interface Post {
   id: string;
@@ -377,6 +383,16 @@ export interface Post {
   photoUrls: string[];
   reactionCounts: Record<string, number>;
   commentCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PostReaction {
+  id: string;
+  postId: string;
+  groupId: string;
+  userId: string;
+  reactionType: PostReactionType;
   createdAt: Date;
   updatedAt: Date;
 }
