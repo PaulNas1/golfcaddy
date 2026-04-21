@@ -21,6 +21,7 @@ export interface AppUser {
   groupId: string;
   inviteId?: string | null;
   avatarUrl: string | null;
+  avatarPath?: string | null;
   fcmToken: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -62,6 +63,7 @@ export interface Group {
   name: string;
   slug: string;
   logoUrl: string | null;
+  logoPath?: string | null;
   adminIds: string[];
   memberCount: number;
   currentSeason: number;

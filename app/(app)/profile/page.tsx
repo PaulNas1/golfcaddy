@@ -10,6 +10,11 @@ import {
   subscribeSeasonStandingForMember,
   updateUser,
 } from "@/lib/firestore";
+import {
+  deleteStoredImage,
+  uploadUserAvatarImage,
+  validateImageFile,
+} from "@/lib/storageUploads";
 import type { Member, SeasonStanding, UserGender } from "@/types";
 
 export default function ProfilePage() {
@@ -23,10 +28,14 @@ export default function ProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(
+    appUser?.avatarUrl ?? ""
+  );
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [profileDraft, setProfileDraft] = useState({
     displayName: appUser?.displayName ?? "",
     nickname: appUser?.nickname ?? "",
-    avatarUrl: appUser?.avatarUrl ?? "",
     address: appUser?.address ?? "",
     mobileNumber: appUser?.mobileNumber ?? "",
     dateOfBirth: appUser?.dateOfBirth ?? "",
@@ -82,7 +91,6 @@ export default function ProfilePage() {
     setProfileDraft({
       displayName: appUser?.displayName ?? "",
       nickname: appUser?.nickname ?? "",
-      avatarUrl: appUser?.avatarUrl ?? "",
       address: appUser?.address ?? "",
       mobileNumber: appUser?.mobileNumber ?? "",
       dateOfBirth: appUser?.dateOfBirth ?? "",
@@ -90,7 +98,18 @@ export default function ProfilePage() {
       usesSeniorTees: appUser?.usesSeniorTees ?? false,
       usesProBackTees: appUser?.usesProBackTees ?? false,
     });
+    setAvatarPreviewUrl(appUser?.avatarUrl ?? "");
+    setAvatarFile(null);
+    setAvatarRemoved(false);
   }, [appUser]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
 
   const memberSeasonMatches = member?.seasonYear === season;
   const fallbackSeasonPoints = memberSeasonMatches ? member?.seasonPoints ?? 0 : 0;
@@ -111,16 +130,82 @@ export default function ProfilePage() {
     router.replace("/signin");
   };
 
+  const resetProfileForm = () => {
+    setProfileDraft({
+      displayName: appUser?.displayName ?? "",
+      nickname: appUser?.nickname ?? "",
+      address: appUser?.address ?? "",
+      mobileNumber: appUser?.mobileNumber ?? "",
+      dateOfBirth: appUser?.dateOfBirth ?? "",
+      gender: appUser?.gender ?? "",
+      usesSeniorTees: appUser?.usesSeniorTees ?? false,
+      usesProBackTees: appUser?.usesProBackTees ?? false,
+    });
+    setAvatarPreviewUrl(appUser?.avatarUrl ?? "");
+    setAvatarFile(null);
+    setAvatarRemoved(false);
+    setProfileError("");
+  };
+
+  const handleAvatarFileChange = (file: File | null) => {
+    if (!file) return;
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setProfileError(validationError);
+      return;
+    }
+
+    setProfileError("");
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreviewUrl((current) => {
+      if (current.startsWith("blob:")) {
+        URL.revokeObjectURL(current);
+      }
+      return previewUrl;
+    });
+    setAvatarFile(file);
+    setAvatarRemoved(false);
+  };
+
+  const handleRemoveAvatar = () => {
+    setAvatarPreviewUrl((current) => {
+      if (current.startsWith("blob:")) {
+        URL.revokeObjectURL(current);
+      }
+      return "";
+    });
+    setAvatarFile(null);
+    setAvatarRemoved(true);
+    setProfileError("");
+  };
+
   const handleSaveProfile = async () => {
     if (!appUser) return;
     setSavingProfile(true);
     setProfileSuccess("");
     setProfileError("");
+    let uploadedAvatarPath: string | null = null;
     try {
+      let nextAvatarUrl = avatarRemoved ? null : appUser.avatarUrl ?? null;
+      let nextAvatarPath = avatarRemoved ? null : appUser.avatarPath ?? null;
+      let previousAvatarPathToDelete: string | null = null;
+
+      if (avatarFile) {
+        const uploaded = await uploadUserAvatarImage(appUser.uid, avatarFile);
+        uploadedAvatarPath = uploaded.path;
+        nextAvatarUrl = uploaded.url;
+        nextAvatarPath = uploaded.path;
+        previousAvatarPathToDelete = appUser.avatarPath ?? null;
+      } else if (avatarRemoved) {
+        previousAvatarPathToDelete = appUser.avatarPath ?? null;
+      }
+
       await updateUser(appUser.uid, {
         displayName: profileDraft.displayName.trim() || appUser.displayName,
         nickname: profileDraft.nickname.trim() || null,
-        avatarUrl: profileDraft.avatarUrl.trim() || null,
+        avatarUrl: nextAvatarUrl,
+        avatarPath: nextAvatarPath,
         address: profileDraft.address.trim() || null,
         mobileNumber: profileDraft.mobileNumber.trim() || null,
         dateOfBirth: profileDraft.dateOfBirth || null,
@@ -130,10 +215,22 @@ export default function ProfilePage() {
         usesSeniorTees: profileDraft.usesSeniorTees,
         usesProBackTees: profileDraft.usesProBackTees,
       });
+      if (
+        previousAvatarPathToDelete &&
+        previousAvatarPathToDelete !== nextAvatarPath
+      ) {
+        await deleteStoredImage(previousAvatarPathToDelete);
+      }
+      setAvatarPreviewUrl(nextAvatarUrl ?? "");
+      setAvatarFile(null);
+      setAvatarRemoved(false);
       setEditingProfile(false);
       setProfileSuccess("Profile updated");
       setTimeout(() => setProfileSuccess(""), 3000);
     } catch {
+      if (uploadedAvatarPath) {
+        await deleteStoredImage(uploadedAvatarPath);
+      }
       setProfileError("Failed to update profile. Please try again.");
     } finally {
       setSavingProfile(false);
@@ -146,10 +243,10 @@ export default function ProfilePage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <div className="flex items-center gap-4">
-          {profileDraft.avatarUrl ? (
+          {avatarPreviewUrl ? (
             <div
               className="h-16 w-16 rounded-full bg-cover bg-center"
-              style={{ backgroundImage: `url(${profileDraft.avatarUrl})` }}
+              style={{ backgroundImage: `url(${avatarPreviewUrl})` }}
               role="img"
               aria-label="Profile photo"
             />
@@ -180,7 +277,14 @@ export default function ProfilePage() {
           </div>
           <button
             type="button"
-            onClick={() => setEditingProfile((value) => !value)}
+            onClick={() => {
+              if (editingProfile) {
+                resetProfileForm();
+                setEditingProfile(false);
+                return;
+              }
+              setEditingProfile(true);
+            }}
             className="rounded-lg border border-green-200 px-3 py-1.5 text-xs font-semibold text-green-700"
           >
             {editingProfile ? "Cancel" : "Edit"}
@@ -200,13 +304,45 @@ export default function ProfilePage() {
 
         {editingProfile ? (
           <div className="space-y-3">
-            <ProfileInput
-              label="Photo URL"
-              value={profileDraft.avatarUrl}
-              onChange={(value) =>
-                setProfileDraft((current) => ({ ...current, avatarUrl: value }))
-              }
-            />
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <p className="text-xs font-medium text-gray-600">Profile photo</p>
+              <div className="mt-3 flex items-center gap-3">
+                {avatarPreviewUrl ? (
+                  <div
+                    className="h-14 w-14 rounded-full bg-cover bg-center"
+                    style={{ backgroundImage: `url(${avatarPreviewUrl})` }}
+                    role="img"
+                    aria-label="Profile photo preview"
+                  />
+                ) : (
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-lg font-bold text-green-700">
+                    {profileDraft.displayName.charAt(0).toUpperCase() || "?"}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) =>
+                      handleAvatarFileChange(event.target.files?.[0] ?? null)
+                    }
+                    className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
+                  />
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    JPG, PNG, or WebP up to 5 MB.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600"
+                >
+                  Remove photo
+                </button>
+              </div>
+            </div>
             <ProfileInput
               label="Name"
               value={profileDraft.displayName}

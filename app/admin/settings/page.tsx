@@ -10,6 +10,11 @@ import {
   updateGroupSettings,
 } from "@/lib/firestore";
 import { normaliseGroupSettings } from "@/lib/settings";
+import {
+  deleteStoredImage,
+  uploadGroupLogoImage,
+  validateImageFile,
+} from "@/lib/storageUploads";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Group, GroupSettings, HandicapMode } from "@/types";
 
@@ -17,7 +22,9 @@ export default function AdminSettingsPage() {
   const { appUser, isAdmin } = useAuth();
   const [group, setGroup] = useState<Group | null>(null);
   const [groupName, setGroupName] = useState("");
-  const [logoUrl, setLogoUrl] = useState("");
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
   const [settings, setSettings] = useState<GroupSettings>(
     normaliseGroupSettings()
   );
@@ -33,7 +40,9 @@ export default function AdminSettingsPage() {
       .then((groupRecord) => {
         setGroup(groupRecord);
         setGroupName(groupRecord?.name ?? "");
-        setLogoUrl(groupRecord?.logoUrl ?? "");
+        setLogoPreviewUrl(groupRecord?.logoUrl ?? "");
+        setLogoFile(null);
+        setLogoRemoved(false);
         setSettings(normaliseGroupSettings(groupRecord?.settings));
         setSeasonDraft(
           groupRecord?.currentSeason ?? new Date().getFullYear()
@@ -42,6 +51,14 @@ export default function AdminSettingsPage() {
       .catch(() => setError("Failed to load settings."))
       .finally(() => setLoading(false));
   }, [appUser?.groupId]);
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+    };
+  }, [logoPreviewUrl]);
 
   const updatePoints = (position: number, value: string) => {
     const points = Number(value);
@@ -54,35 +71,96 @@ export default function AdminSettingsPage() {
     }));
   };
 
+  const handleLogoFileChange = (file: File | null) => {
+    if (!file) return;
+
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      setError(validationError);
+      setSuccess("");
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+    setLogoPreviewUrl((current) => {
+      if (current.startsWith("blob:")) {
+        URL.revokeObjectURL(current);
+      }
+      return previewUrl;
+    });
+    setLogoFile(file);
+    setLogoRemoved(false);
+    setError("");
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoPreviewUrl((current) => {
+      if (current.startsWith("blob:")) {
+        URL.revokeObjectURL(current);
+      }
+      return "";
+    });
+    setLogoFile(null);
+    setLogoRemoved(true);
+    setError("");
+    setSuccess("");
+  };
+
   const handleSave = async () => {
     if (!group) return;
     setSaving(true);
     setError("");
     setSuccess("");
+    let uploadedLogoPath: string | null = null;
     try {
       const nextName = groupName.trim();
       if (!nextName) {
         setError("Group name is required.");
         return;
       }
+      let nextLogoUrl = logoRemoved ? null : group.logoUrl ?? null;
+      let nextLogoPath = logoRemoved ? null : group.logoPath ?? null;
+      let previousLogoPathToDelete: string | null = null;
+
+      if (logoFile) {
+        const uploaded = await uploadGroupLogoImage(group.id, logoFile);
+        uploadedLogoPath = uploaded.path;
+        nextLogoUrl = uploaded.url;
+        nextLogoPath = uploaded.path;
+        previousLogoPathToDelete = group.logoPath ?? null;
+      } else if (logoRemoved) {
+        previousLogoPathToDelete = group.logoPath ?? null;
+      }
+
       const nextSettings = normaliseGroupSettings(settings);
       await Promise.all([
         updateGroupProfile({
           groupId: group.id,
           name: nextName,
-          logoUrl: logoUrl.trim() || null,
+          logoUrl: nextLogoUrl,
+          logoPath: nextLogoPath,
         }),
         updateGroupSettings(group.id, nextSettings),
       ]);
+      if (previousLogoPathToDelete && previousLogoPathToDelete !== nextLogoPath) {
+        await deleteStoredImage(previousLogoPathToDelete);
+      }
       setGroup({
         ...group,
         name: nextName,
-        logoUrl: logoUrl.trim() || null,
+        logoUrl: nextLogoUrl,
+        logoPath: nextLogoPath,
         settings: nextSettings,
       });
+      setLogoPreviewUrl(nextLogoUrl ?? "");
+      setLogoFile(null);
+      setLogoRemoved(false);
       setSettings(nextSettings);
       setSuccess("Settings saved.");
     } catch {
+      if (uploadedLogoPath) {
+        await deleteStoredImage(uploadedLogoPath);
+      }
       setError("Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
@@ -196,23 +274,36 @@ export default function AdminSettingsPage() {
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-gray-600">
-              Logo or emblem URL
+              Group logo
             </span>
-            <input
-              type="url"
-              value={logoUrl}
-              onChange={(event) => setLogoUrl(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-              placeholder="https://example.com/group-logo.png"
-            />
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(event) =>
+                  handleLogoFileChange(event.target.files?.[0] ?? null)
+                }
+                className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
+              />
+              <p className="mt-2 text-[11px] text-gray-400">
+                Upload a square logo if possible. JPG, PNG, or WebP up to 5 MB.
+              </p>
+              <button
+                type="button"
+                onClick={handleRemoveLogo}
+                className="mt-3 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600"
+              >
+                Remove logo
+              </button>
+            </div>
           </label>
           <div className="rounded-xl bg-gray-50 px-3 py-3">
             <p className="text-xs font-semibold text-gray-600">Preview</p>
             <div className="mt-2 flex items-center gap-3">
-              {logoUrl.trim() ? (
+              {logoPreviewUrl.trim() ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={logoUrl.trim()}
+                  src={logoPreviewUrl.trim()}
                   alt=""
                   className="h-10 w-10 rounded-lg object-cover"
                 />

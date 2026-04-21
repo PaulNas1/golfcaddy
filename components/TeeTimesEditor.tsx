@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatShortMemberName, getTeeTimeGroupLabel } from "@/lib/teeTimes";
 import type { AppUser } from "@/types";
 
@@ -22,6 +22,7 @@ type TeeTimesEditorProps = {
   onRemoveTeeTime: (index: number) => void;
   onUpdateTeeTimeTime: (index: number, value: string) => void;
   onAssignPlayer: (teeTimeIndex: number, member: AppUser) => void;
+  onRemovePlayer: (teeTimeIndex: number, member: AppUser) => void;
   onAddGuest: (teeTimeIndex: number) => void;
   onRemoveGuest: (teeTimeIndex: number, guestName: string) => void;
 };
@@ -37,11 +38,36 @@ export default function TeeTimesEditor({
   onRemoveTeeTime,
   onUpdateTeeTimeTime,
   onAssignPlayer,
+  onRemovePlayer,
   onAddGuest,
   onRemoveGuest,
 }: TeeTimesEditorProps) {
   const [activeTeeTimeIndex, setActiveTeeTimeIndex] = useState<number | null>(0);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    teeTimeIndex: number;
+    member: AppUser;
+  } | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
   const availableMembers = assignableMembers ?? members;
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const openRemovalPrompt = (teeTimeIndex: number, member: AppUser) => {
+    clearLongPressTimer();
+    setPendingRemoval({ teeTimeIndex, member });
+  };
+
+  const startLongPress = (teeTimeIndex: number, member: AppUser) => {
+    clearLongPressTimer();
+    longPressTimerRef.current = window.setTimeout(() => {
+      openRemovalPrompt(teeTimeIndex, member);
+    }, 500);
+  };
 
   useEffect(() => {
     if (teeTimes.length === 0) {
@@ -53,6 +79,8 @@ export default function TeeTimesEditor({
       current == null ? current : Math.min(current, teeTimes.length - 1)
     );
   }, [teeTimes.length]);
+
+  useEffect(() => clearLongPressTimer, []);
 
   const assignedPlayerIndexById = useMemo(() => {
     const playerIndexMap = new Map<string, number>();
@@ -93,6 +121,10 @@ export default function TeeTimesEditor({
       <p className="text-xs text-gray-400">
         Click a tee slot, then assign players from the list below. Players can
         only belong to one tee time at a time.
+      </p>
+      <p className="text-[11px] text-gray-400">
+        Press and hold a player chip in a tee slot to remove them without
+        changing their RSVP.
       </p>
       {playersSummary && (
         <p className="text-xs text-green-700">{playersSummary}</p>
@@ -180,12 +212,31 @@ export default function TeeTimesEditor({
                     if (!member) return null;
 
                     return (
-                      <span
+                      <button
                         key={playerId}
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                          startLongPress(index, member);
+                        }}
+                        onMouseUp={clearLongPressTimer}
+                        onMouseLeave={clearLongPressTimer}
+                        onTouchStart={(event) => {
+                          event.stopPropagation();
+                          startLongPress(index, member);
+                        }}
+                        onTouchEnd={clearLongPressTimer}
+                        onTouchCancel={clearLongPressTimer}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          openRemovalPrompt(index, member);
+                        }}
                         className="rounded-lg border border-green-200 bg-white px-2.5 py-1 text-xs font-medium text-green-700"
                       >
                         {formatShortMemberName(member, members)}
-                      </span>
+                      </button>
                     );
                   })}
                   {teeTime.guestNames.map((guestName) => (
@@ -271,6 +322,42 @@ export default function TeeTimesEditor({
           })}
         </div>
       </div>
+
+      {pendingRemoval && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900">
+              Remove player from tee slot?
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {formatShortMemberName(pendingRemoval.member, members)} will be
+              removed from this tee time only. Their RSVP will stay as Going.
+            </p>
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPendingRemoval(null)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onRemovePlayer(
+                    pendingRemoval.teeTimeIndex,
+                    pendingRemoval.member
+                  );
+                  setPendingRemoval(null);
+                }}
+                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white"
+              >
+                Remove player
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   setHoleScore,
   subscribeHoleScores,
   subscribeRound,
+  subscribeRoundRsvps,
   subscribeScorecardForMarker,
   updateScorecard,
 } from "@/lib/firestore";
@@ -147,6 +148,16 @@ export default function ScorecardPage() {
         groupId: appUser.groupId,
         onError: (err) => console.warn("Unable to subscribe to scorecard", err),
       }
+    );
+  }, [appUser, isActive, roundId]);
+
+  useEffect(() => {
+    if (!roundId || !appUser || !isActive) return;
+
+    return subscribeRoundRsvps(
+      roundId,
+      setRsvps,
+      (err) => console.warn("Unable to subscribe to RSVP updates", err)
     );
   }, [appUser, isActive, roundId]);
 
@@ -837,6 +848,8 @@ function HoleRow({
         {hole.holeNumber}
         {hole.isNTP && <span className="ml-1 text-[10px] text-yellow-600">NTP</span>}
         {hole.isLD && <span className="ml-1 text-[10px] text-blue-600">LD</span>}
+        {hole.isT2 && <span className="ml-1 text-[10px] text-emerald-600">T2</span>}
+        {hole.isT3 && <span className="ml-1 text-[10px] text-fuchsia-600">T3</span>}
         {hole.distanceMeters && (
           <div className="text-[10px] font-normal text-gray-400">
             {hole.distanceMeters}m

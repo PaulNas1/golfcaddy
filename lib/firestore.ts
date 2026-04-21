@@ -51,6 +51,7 @@ import {
 } from "./season";
 import { withSeededCourseData } from "./courseData";
 import { normaliseGroupSettings } from "./settings";
+import { getTeeTimeGroupLabel } from "./teeTimes";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -160,6 +161,8 @@ export const getUser = async (uid: string): Promise<AppUser | null> => {
   return {
     uid: snap.id,
     ...data,
+    avatarUrl: data.avatarUrl ?? null,
+    avatarPath: data.avatarPath ?? null,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as AppUser;
@@ -182,6 +185,8 @@ export const subscribeUser = (
       onChange({
         uid: snap.id,
         ...data,
+        avatarUrl: data.avatarUrl ?? null,
+        avatarPath: data.avatarPath ?? null,
         createdAt: toDate(data.createdAt),
         updatedAt: toDate(data.updatedAt),
       } as AppUser);
@@ -224,6 +229,7 @@ export const getGroup = async (
     id: snap.id,
     ...data,
     logoUrl: data.logoUrl ?? null,
+    logoPath: data.logoPath ?? null,
     settings: normaliseGroupSettings(data.settings),
   } as Group;
 };
@@ -239,6 +245,7 @@ export const subscribeGroup = (
       id: snap.id,
       ...snap.data(),
       logoUrl: snap.data()?.logoUrl ?? null,
+      logoPath: snap.data()?.logoPath ?? null,
       settings: normaliseGroupSettings(snap.data()?.settings),
     } as Group) : null),
     onError
@@ -248,16 +255,19 @@ export const updateGroupProfile = async ({
   groupId,
   name,
   logoUrl,
+  logoPath,
 }: {
   groupId: string;
   name: string;
   logoUrl: string | null;
+  logoPath: string | null;
 }) => {
   await setDoc(
     doc(db, "groups", groupId),
     {
       name,
       logoUrl,
+      logoPath,
       updatedAt: serverTimestamp(),
     },
     { merge: true }
@@ -503,6 +513,8 @@ function mapUser(
   return {
     uid: d.id,
     ...data,
+    avatarUrl: data.avatarUrl ?? null,
+    avatarPath: data.avatarPath ?? null,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as AppUser;
@@ -650,6 +662,17 @@ export const getRoundRsvps = async (roundId: string): Promise<RoundRsvp[]> => {
   return snap.docs.map(mapRoundRsvp);
 };
 
+export const subscribeRoundRsvps = (
+  roundId: string,
+  onChange: (rsvps: RoundRsvp[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    collection(db, "rounds", roundId, "rsvps"),
+    (snap) => onChange(snap.docs.map(mapRoundRsvp)),
+    onError
+  );
+
 export const getRoundRsvp = async (
   roundId: string,
   memberId: string
@@ -670,7 +693,9 @@ export const setRoundRsvp = async ({
 }) => {
   const ref = doc(db, "rounds", round.id, "rsvps", member.uid);
   const existing = await getDoc(ref);
-  await setDoc(
+  const batch = writeBatch(db);
+
+  batch.set(
     ref,
     {
       roundId: round.id,
@@ -686,6 +711,49 @@ export const setRoundRsvp = async ({
     },
     { merge: true }
   );
+
+  if (status === "declined") {
+    const [latestRound, existingRsvps, activeMembers] = await Promise.all([
+      getRound(round.id),
+      getRoundRsvps(round.id),
+      getActiveMembers(round.groupId),
+    ]);
+    const appliedRound = latestRound ?? round;
+    const acceptedMemberIds = new Set(
+      existingRsvps
+        .filter(
+          (rsvp) => rsvp.memberId !== member.uid && rsvp.status === "accepted"
+        )
+        .map((rsvp) => rsvp.memberId)
+    );
+    const nextTeeTimes = appliedRound.teeTimes.map((teeTime) => {
+      const playerIds = teeTime.playerIds.filter((playerId) =>
+        acceptedMemberIds.has(playerId)
+      );
+      return {
+        ...teeTime,
+        playerIds,
+        notes: getTeeTimeGroupLabel(
+          playerIds,
+          teeTime.guestNames ?? [],
+          activeMembers
+        ) || null,
+      };
+    });
+    const nextPlayerTeeAssignments = Object.fromEntries(
+      Object.entries(appliedRound.playerTeeAssignments ?? {}).filter(([uid]) =>
+        acceptedMemberIds.has(uid)
+      )
+    );
+
+    batch.update(doc(db, "rounds", round.id), {
+      teeTimes: nextTeeTimes,
+      playerTeeAssignments: nextPlayerTeeAssignments,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
 };
 
 export const notifyRoundPlayers = async ({

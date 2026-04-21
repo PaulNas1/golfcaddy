@@ -103,6 +103,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         groupId: options?.groupId ?? "fourplay",
         ...(options?.inviteId ? { inviteId: options.inviteId } : {}),
         avatarUrl: null,
+        avatarPath: null,
         fcmToken: null,
       });
       // Keep appUser in sync immediately after signup.

@@ -15,6 +15,7 @@ import {
   getRound,
   getRoundRsvps,
   notifyRoundPlayers,
+  subscribeRoundRsvps,
   updateRound,
   getScorecardsForRound,
 } from "@/lib/firestore";
@@ -83,6 +84,7 @@ export default function AdminRoundDetailPage() {
   const [courseSearchActive, setCourseSearchActive] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
+  const [rsvpsReady, setRsvpsReady] = useState(false);
   const [courseId, setCourseId] = useState("");
   const [teeSetId, setTeeSetId] = useState("");
   const [courseName, setCourseName] = useState("");
@@ -130,24 +132,19 @@ export default function AdminRoundDetailPage() {
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
   const refreshableTeeSet =
     selectedTeeSet ?? getPreferredDefaultTeeSet(selectedCourse?.teeSets ?? []) ?? null;
+  const acceptedMemberIds = useMemo(
+    () =>
+      rsvps
+        .filter((rsvp) => rsvp.status === "accepted")
+        .map((rsvp) => rsvp.memberId),
+    [rsvps]
+  );
   const acceptedMembers = useMemo(() => {
-    const acceptedIds = new Set(
-      rsvps
-        .filter((rsvp) => rsvp.status === "accepted")
-        .map((rsvp) => rsvp.memberId)
-    );
+    const acceptedIds = new Set(acceptedMemberIds);
     return members.filter((member) => acceptedIds.has(member.uid));
-  }, [members, rsvps]);
-  const acceptedRsvpMembers = useMemo(() => {
-    const acceptedIds = new Set(
-      rsvps
-        .filter((rsvp) => rsvp.status === "accepted")
-        .map((rsvp) => rsvp.memberId)
-    );
-    return members.filter((member) => acceptedIds.has(member.uid));
-  }, [members, rsvps]);
+  }, [acceptedMemberIds, members]);
   const assignmentTeeSets = courseTeeSets;
-  const teeReviewMembers = acceptedRsvpMembers.filter(
+  const teeReviewMembers = acceptedMembers.filter(
     (member) =>
       needsTeeReview(member) &&
       !playerTeeAssignments[member.uid]
@@ -261,6 +258,7 @@ export default function AdminRoundDetailPage() {
       ]).then(([r, activeMembers, roundRsvps]) => {
         setMembers(activeMembers);
         setRsvps(roundRsvps);
+        setRsvpsReady(true);
         setRound(r);
         setLoading(false);
         if (r) {
@@ -290,6 +288,55 @@ export default function AdminRoundDetailPage() {
       });
     }
   }, [appUser?.groupId, roundId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+
+    return subscribeRoundRsvps(
+      roundId,
+      (nextRsvps) => {
+        setRsvps(nextRsvps);
+        setRsvpsReady(true);
+      },
+      (err) => console.warn("Unable to subscribe to RSVP updates", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (!rsvpsReady) return;
+
+    const acceptedIds = new Set(acceptedMemberIds);
+
+    setTeeTimes((current) => {
+      let changed = false;
+      const next = current.map((teeTime) => {
+        const playerIds = teeTime.playerIds.filter((playerId) =>
+          acceptedIds.has(playerId)
+        );
+        if (playerIds.length === teeTime.playerIds.length) {
+          return teeTime;
+        }
+
+        changed = true;
+        return {
+          ...teeTime,
+          playerIds,
+          notes: getTeeTimeGroupLabel(playerIds, teeTime.guestNames, members),
+        };
+      });
+
+      return changed ? next : current;
+    });
+
+    setPlayerTeeAssignments((current) => {
+      const next = Object.fromEntries(
+        Object.entries(current).filter(([uid]) => acceptedIds.has(uid))
+      );
+      return Object.keys(next).length === Object.keys(current).length
+        ? current
+        : next;
+    });
+  }, [acceptedMemberIds, members, rsvpsReady]);
 
   useEffect(() => {
     if (!round) return;
@@ -474,7 +521,6 @@ export default function AdminRoundDetailPage() {
         notifiedBy: null,
         mode: round.rsvpOpen ? "updated" : "created",
       });
-      setRsvps(await getRoundRsvps(round.id));
     }
 
     setRound(updatedRound);
@@ -594,6 +640,26 @@ export default function AdminRoundDetailPage() {
         };
       })
     );
+  };
+
+  const removePlayerFromTeeTime = (teeTimeIndex: number, member: AppUser) => {
+    setTeeTimes((current) =>
+      current.map((teeTime, index) => {
+        if (index !== teeTimeIndex) return teeTime;
+        const playerIds = teeTime.playerIds.filter(
+          (playerId) => playerId !== member.uid
+        );
+        return {
+          ...teeTime,
+          playerIds,
+          notes: getTeeTimeGroupLabel(playerIds, teeTime.guestNames, members),
+        };
+      })
+    );
+    setSuccess(
+      `${formatShortMemberName(member, members)} removed from the tee slot. Save to keep this lineup.`
+    );
+    setTimeout(() => setSuccess(""), 3000);
   };
 
   const addGuestToTeeTime = (teeTimeIndex: number) => {
@@ -1036,11 +1102,11 @@ export default function AdminRoundDetailPage() {
             />
           </div>
 
-          <TeeTimesEditor
-            teeTimes={teeTimes}
-            members={members}
-            assignableMembers={acceptedMembers}
-            playersSummary={
+        <TeeTimesEditor
+          teeTimes={teeTimes}
+          members={members}
+          assignableMembers={acceptedMembers}
+          playersSummary={
               `Showing accepted players only: ${acceptedMembers.length}`
             }
             emptyPlayersMessage={
@@ -1050,12 +1116,13 @@ export default function AdminRoundDetailPage() {
             }
             onRandomise={randomiseGroups}
             onAddTeeTime={addTeeTime}
-            onRemoveTeeTime={removeTeeTime}
-            onUpdateTeeTimeTime={updateTeeTimeTime}
-            onAssignPlayer={assignPlayerToTeeTime}
-            onAddGuest={addGuestToTeeTime}
-            onRemoveGuest={removeGuestFromTeeTime}
-          />
+          onRemoveTeeTime={removeTeeTime}
+          onUpdateTeeTimeTime={updateTeeTimeTime}
+          onAssignPlayer={assignPlayerToTeeTime}
+          onRemovePlayer={removePlayerFromTeeTime}
+          onAddGuest={addGuestToTeeTime}
+          onRemoveGuest={removeGuestFromTeeTime}
+        />
         </div>
 
         <div className="border-t border-gray-100 pt-3 mt-2 space-y-3">

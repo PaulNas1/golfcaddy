@@ -321,6 +321,12 @@ function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
         {hole.isLD && (
           <span className="ml-1 text-[10px] text-blue-600">LD</span>
         )}
+        {hole.isT2 && (
+          <span className="ml-1 text-[10px] text-emerald-600">T2</span>
+        )}
+        {hole.isT3 && (
+          <span className="ml-1 text-[10px] text-fuchsia-600">T3</span>
+        )}
         {hole.distanceMeters && (
           <div className="text-[10px] font-normal text-gray-400">
             {hole.distanceMeters}m
