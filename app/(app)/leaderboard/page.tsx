@@ -20,10 +20,6 @@ type LeaderboardEntry = {
   grossSeasonPoints: number;
   roundsPlayed: number;
   lastStableford: number | null;
-  ntpWinsSeason: number;
-  ldWinsSeason: number;
-  t2WinsSeason: number;
-  t3WinsSeason: number;
   currentHandicap: number | null;
   probation: boolean;
   hasStanding: boolean;
@@ -145,10 +141,6 @@ export default function LeaderboardPage() {
           grossSeasonPoints: standing?.grossSeasonPoints ?? (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
           roundsPlayed,
           lastStableford: standing?.roundResults[0]?.stableford ?? null,
-          ntpWinsSeason: standing?.ntpWinsSeason ?? 0,
-          ldWinsSeason: standing?.ldWinsSeason ?? 0,
-          t2WinsSeason: standing?.t2WinsSeason ?? 0,
-          t3WinsSeason: standing?.t3WinsSeason ?? 0,
           currentHandicap,
           probation,
           hasStanding: Boolean(standing),
@@ -293,7 +285,7 @@ function StandingCard({
             {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
           </p>
           <p className="text-[11px] text-gray-400">
-            {entry.hasStanding ? getRankMovement(entry) : "awaiting"}
+            {entry.hasStanding ? getRankMovement(entry) : "Unranked"}
           </p>
         </div>
         <div className="flex-1 min-w-0">
@@ -301,9 +293,10 @@ function StandingCard({
             {entry.memberName}
           </p>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-            <span>
-              {entry.roundsPlayed} rounds · {entry.lastStableford ?? 0} last
-            </span>
+            <span>{entry.roundsPlayed} round{entry.roundsPlayed === 1 ? "" : "s"}</span>
+            {entry.lastStableford != null && (
+              <span>Last round {entry.lastStableford} pts</span>
+            )}
             <span
               className={`rounded-full px-2 py-0.5 font-medium ${
                 entry.probation
@@ -317,11 +310,10 @@ function StandingCard({
             </span>
           </div>
         </div>
-        <div className="text-right">
+        <div className="shrink-0 text-right">
           <p className="text-lg font-bold text-green-700">
-            {entry.totalPoints}
+            {entry.totalPoints} <span className="text-sm font-semibold">pts</span>
           </p>
-          <p className="text-[11px] text-gray-400">points</p>
           {entry.grossSeasonPoints !== entry.totalPoints && (
             <p className="text-[11px] text-gray-400">
               {entry.grossSeasonPoints} raw
@@ -329,26 +321,6 @@ function StandingCard({
           )}
         </div>
       </div>
-
-      {(entry.ntpWinsSeason > 0 ||
-        entry.ldWinsSeason > 0 ||
-        entry.t2WinsSeason > 0 ||
-        entry.t3WinsSeason > 0) && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {entry.ntpWinsSeason > 0 && (
-            <Badge label={`NTP ${entry.ntpWinsSeason}`} />
-          )}
-          {entry.ldWinsSeason > 0 && (
-            <Badge label={`LD ${entry.ldWinsSeason}`} />
-          )}
-          {entry.t2WinsSeason > 0 && (
-            <Badge label={`T2 ${entry.t2WinsSeason}`} />
-          )}
-          {entry.t3WinsSeason > 0 && (
-            <Badge label={`T3 ${entry.t3WinsSeason}`} />
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -397,23 +369,15 @@ function SidePrizeBoard({
   );
 }
 
-function Badge({ label }: { label: string }) {
-  return (
-    <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
-      {label}
-    </span>
-  );
-}
-
 function getRankMovement(standing: {
   previousRank: number | null;
   currentRank: number | null;
 }) {
-  if (standing.previousRank == null || standing.currentRank == null) return "new";
+  if (standing.previousRank == null || standing.currentRank == null) return "New";
   const diff = standing.previousRank - standing.currentRank;
   if (diff > 0) return `↑${diff}`;
   if (diff < 0) return `↓${Math.abs(diff)}`;
-  return "same";
+  return "Same";
 }
 
 function formatHandicap(handicap: number | null) {

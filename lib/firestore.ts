@@ -614,10 +614,10 @@ export const subscribeRoundsForGroup = (
         snap.docs
           .map(mapRound)
           .sort((a, b) => {
-            if (a.roundNumber !== b.roundNumber) {
-              return b.roundNumber - a.roundNumber;
+            if (a.date.getTime() !== b.date.getTime()) {
+              return b.date.getTime() - a.date.getTime();
             }
-            return b.date.getTime() - a.date.getTime();
+            return b.roundNumber - a.roundNumber;
           })
       ),
     onError
