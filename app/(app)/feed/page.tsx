@@ -72,6 +72,8 @@ export default function FeedPage() {
   const [deleteCommentBusyId, setDeleteCommentBusyId] = useState("");
   const [openMenuPostId, setOpenMenuPostId] = useState("");
   const [openCommentMenuId, setOpenCommentMenuId] = useState("");
+  const [selectedImageUrl, setSelectedImageUrl] = useState("");
+  const [selectedImageLabel, setSelectedImageLabel] = useState("");
 
   useEffect(() => {
     if (!appUser?.groupId) return;
@@ -136,6 +138,35 @@ export default function FeedPage() {
       postImagePreviews.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
     };
   }, [postImagePreviews]);
+
+  useEffect(() => {
+    if (!openMenuPostId && !openCommentMenuId && !selectedImageUrl) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      if (!target.closest("[data-feed-menu-root]")) {
+        setOpenMenuPostId("");
+        setOpenCommentMenuId("");
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setOpenMenuPostId("");
+      setOpenCommentMenuId("");
+      setSelectedImageUrl("");
+      setSelectedImageLabel("");
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [openCommentMenuId, openMenuPostId, selectedImageUrl]);
 
   const replacePostImages = (files: File[]) => {
     postImagePreviews.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
@@ -330,6 +361,11 @@ export default function FeedPage() {
     }
   };
 
+  const openImageViewer = (imageUrl: string, label: string) => {
+    setSelectedImageUrl(imageUrl);
+    setSelectedImageLabel(label);
+  };
+
   return (
     <div className="px-4 py-6 pb-8">
       <h1 className="mb-5 text-2xl font-bold text-gray-800">Social Feed</h1>
@@ -355,7 +391,7 @@ export default function FeedPage() {
             className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
           />
           <p className="mt-2 text-[11px] text-gray-400">
-            Attach up to {MAX_POST_IMAGES} images. JPG, PNG, or WebP up to 5 MB each.
+            Attach up to {MAX_POST_IMAGES} images. JPG or PNG up to 5 MB each.
           </p>
           {postImagePreviews.length > 0 && (
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -449,7 +485,7 @@ export default function FeedPage() {
                           {POST_LABELS[post.type]}
                         </span>
                         {canDeletePost && (
-                          <div className="relative">
+                          <div className="relative" data-feed-menu-root>
                             <button
                               type="button"
                               onClick={() =>
@@ -474,7 +510,7 @@ export default function FeedPage() {
                                     }
                                     className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
                                   >
-                                    {isEditing ? "Cancel edit" : "Edit post"}
+                                  {isEditing ? "Cancel edit" : "Edit post"}
                                   </button>
                                 )}
                                 <button
@@ -535,8 +571,12 @@ export default function FeedPage() {
                         }`}
                       >
                         {post.photoUrls.map((photoUrl) => (
-                          <div
+                          <button
                             key={photoUrl}
+                            type="button"
+                            onClick={() =>
+                              openImageViewer(photoUrl, `${post.authorName} post image`)
+                            }
                             className="overflow-hidden rounded-xl border border-gray-100 bg-gray-50"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -545,7 +585,7 @@ export default function FeedPage() {
                               alt=""
                               className="max-h-72 w-full object-cover"
                             />
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -596,18 +636,32 @@ export default function FeedPage() {
                                 className="rounded-xl border border-gray-100 bg-white px-3 py-2"
                               >
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="min-w-0">
-                                    <p className="truncate text-xs font-semibold text-gray-700">
-                                      {comment.authorName}
-                                    </p>
-                                    <p className="text-[11px] text-gray-400">
-                                      {formatDistanceToNow(comment.createdAt, {
-                                        addSuffix: true,
-                                      })}
-                                    </p>
+                                  <div className="flex min-w-0 items-start gap-2">
+                                    {comment.authorAvatarUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img
+                                        src={comment.authorAvatarUrl}
+                                        alt=""
+                                        className="h-7 w-7 shrink-0 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-[11px] font-bold text-green-700">
+                                        {comment.authorName.charAt(0).toUpperCase()}
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <p className="truncate text-xs font-semibold text-gray-700">
+                                        {comment.authorName}
+                                      </p>
+                                      <p className="text-[11px] text-gray-400">
+                                        {formatDistanceToNow(comment.createdAt, {
+                                          addSuffix: true,
+                                        })}
+                                      </p>
+                                    </div>
                                   </div>
                                   {canManageComment && (
-                                    <div className="relative shrink-0">
+                                    <div className="relative shrink-0" data-feed-menu-root>
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -685,6 +739,45 @@ export default function FeedPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {selectedImageUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90"
+          onClick={() => {
+            setSelectedImageUrl("");
+            setSelectedImageLabel("");
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedImageUrl("");
+              setSelectedImageLabel("");
+            }}
+            className="absolute right-4 top-4 z-10 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur"
+          >
+            Close
+          </button>
+          <div className="absolute inset-0 overflow-auto overscroll-contain p-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={selectedImageUrl}
+              alt={selectedImageLabel}
+              onClick={(event) => event.stopPropagation()}
+              className="mx-auto block h-auto w-auto max-w-none"
+              style={{
+                minHeight: "100%",
+                maxWidth: "100%",
+                objectFit: "contain",
+                touchAction: "pinch-zoom",
+              }}
+            />
+          </div>
+          <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1.5 text-xs text-white backdrop-blur">
+            Tap outside to close. Pinch to zoom.
+          </p>
         </div>
       )}
     </div>
