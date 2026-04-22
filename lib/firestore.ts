@@ -46,6 +46,7 @@ import type {
   PostReaction,
   PostReactionType,
   PostComment,
+  HandicapHistory,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -1650,6 +1651,36 @@ export const subscribeSeasonStandingForMember = (
     (snap) => onChange(snap.exists() ? mapSeasonStanding(snap) : null),
     onError
   );
+
+const mapHandicapHistory = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): HandicapHistory => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    createdAt: toDate(data.createdAt),
+  } as HandicapHistory;
+};
+
+export const getLatestHandicapHistoryForMemberSeason = async (
+  groupId: string,
+  memberId: string,
+  season: number
+): Promise<HandicapHistory | null> => {
+  const q = query(
+    collection(db, "handicapHistory"),
+    where("groupId", "==", groupId),
+    where("memberId", "==", memberId)
+  );
+  const snap = await getDocs(q);
+  return (
+    snap.docs
+      .map(mapHandicapHistory)
+      .filter((entry) => entry.season === season)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
+  );
+};
 
 // ─── Posts & Feed ───────────────────────────────────────────────────────────
 

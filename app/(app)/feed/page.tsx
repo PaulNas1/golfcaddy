@@ -774,6 +774,9 @@ function FeedImageViewer({
     startDistance: number;
     startScale: number;
   } | null>(null);
+  const scaleRef = useRef(1);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const skipTouchEndResetRef = useRef(false);
   const panRef = useRef<{
     startX: number;
     startY: number;
@@ -792,6 +795,14 @@ function FeedImageViewer({
     };
   }, []);
 
+  useEffect(() => {
+    scaleRef.current = scale;
+  }, [scale]);
+
+  useEffect(() => {
+    offsetRef.current = offset;
+  }, [offset]);
+
   const closeViewer = () => {
     setScale(1);
     setOffset({ x: 0, y: 0 });
@@ -799,14 +810,18 @@ function FeedImageViewer({
   };
 
   const toggleZoom = () => {
-    if (scale > 1) {
+    if (scaleRef.current > 1) {
       setScale(1);
       setOffset({ x: 0, y: 0 });
+      scaleRef.current = 1;
+      offsetRef.current = { x: 0, y: 0 };
       return;
     }
 
     setScale(2.5);
     setOffset({ x: 0, y: 0 });
+    scaleRef.current = 2.5;
+    offsetRef.current = { x: 0, y: 0 };
   };
 
   const getTouchDistance = (
@@ -832,6 +847,7 @@ function FeedImageViewer({
     const now = Date.now();
     if (now - lastTapRef.current < 260) {
       event.preventDefault();
+      skipTouchEndResetRef.current = true;
       toggleZoom();
       lastTapRef.current = 0;
       panRef.current = null;
@@ -897,18 +913,28 @@ function FeedImageViewer({
   };
 
   const handleTouchEnd = () => {
-    const draggedOffsetY = offset.y;
+    if (skipTouchEndResetRef.current) {
+      skipTouchEndResetRef.current = false;
+      pinchRef.current = null;
+      panRef.current = null;
+      setDragging(false);
+      return;
+    }
+
+    const draggedOffsetY = offsetRef.current.y;
     pinchRef.current = null;
     panRef.current = null;
     setDragging(false);
 
-    if (scale <= 1.05) {
+    if (scaleRef.current <= 1.05) {
       if (draggedOffsetY > 120) {
         closeViewer();
         return;
       }
       setScale(1);
       setOffset({ x: 0, y: 0 });
+      scaleRef.current = 1;
+      offsetRef.current = { x: 0, y: 0 };
     }
   };
 

@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import type { UserGender } from "@/types";
 
 export default function SignUpPage() {
   return (
@@ -33,6 +34,12 @@ function SignUpForm() {
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [gender, setGender] = useState<UserGender | "">("");
+  const [usesSeniorTees, setUsesSeniorTees] = useState(false);
+  const [usesProBackTees, setUsesProBackTees] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -54,6 +61,12 @@ function SignUpForm() {
       await signUp(email, password, name.trim(), {
         groupId,
         inviteId: inviteId || undefined,
+        nickname: nickname.trim() || null,
+        mobileNumber: mobileNumber.trim() || null,
+        dateOfBirth: dateOfBirth || null,
+        gender: gender || null,
+        usesSeniorTees,
+        usesProBackTees,
       });
       router.replace("/pending");
     } catch (err: unknown) {
@@ -144,6 +157,97 @@ function SignUpForm() {
                 placeholder="••••••••"
                 autoComplete="new-password"
               />
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Player profile
+                </h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  Optional, but recommended so admins can assign tees properly.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nickname
+                  </label>
+                  <input
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Optional nickname"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Mobile number
+                  </label>
+                  <input
+                    type="tel"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    placeholder="Optional mobile"
+                    autoComplete="tel"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date of birth
+                  </label>
+                  <input
+                    type="date"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Gender
+                  </label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value as UserGender | "")}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="">Not set</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <span className="text-sm font-medium text-gray-700">
+                    I usually play senior tees
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={usesSeniorTees}
+                    onChange={(e) => setUsesSeniorTees(e.target.checked)}
+                    className="h-5 w-5 rounded border-gray-300 text-green-600"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+                  <span className="text-sm font-medium text-gray-700">
+                    I usually play pro/back tees
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={usesProBackTees}
+                    onChange={(e) => setUsesProBackTees(e.target.checked)}
+                    className="h-5 w-5 rounded border-gray-300 text-green-600"
+                  />
+                </label>
+              </div>
             </div>
 
             {error && (

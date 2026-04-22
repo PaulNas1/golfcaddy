@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
+  getLatestHandicapHistoryForMemberSeason,
   subscribeGroup,
   subscribeMember,
+  subscribeRoundsForGroup,
   subscribeSeasonStandingForMember,
   updateUser,
 } from "@/lib/firestore";
@@ -15,14 +17,23 @@ import {
   uploadUserAvatarImage,
   validateImageFile,
 } from "@/lib/storageUploads";
-import type { Member, SeasonStanding, UserGender } from "@/types";
+import type {
+  HandicapHistory,
+  Member,
+  SeasonStanding,
+  UserGender,
+} from "@/types";
 
 export default function ProfilePage() {
   const { appUser, signOut } = useAuth();
   const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [standing, setStanding] = useState<SeasonStanding | null>(null);
-  const [season, setSeason] = useState(new Date().getFullYear());
+  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
+  const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
+  const [latestHandicapHistory, setLatestHandicapHistory] =
+    useState<HandicapHistory | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -46,32 +57,29 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!appUser?.uid || !appUser.groupId) return;
-    let standingsUnsubscribe: (() => void) | null = null;
 
     const groupUnsubscribe = subscribeGroup(
       appUser.groupId,
       (group) => {
-        const currentSeason = group?.currentSeason ?? new Date().getFullYear();
-        setSeason(currentSeason);
-        standingsUnsubscribe?.();
-        standingsUnsubscribe = subscribeSeasonStandingForMember(
-          appUser.groupId,
-          currentSeason,
-          appUser.uid,
-          (seasonStanding) => {
-            setStanding(seasonStanding);
-            setLoadingStats(false);
-          },
-          (err) => {
-            console.warn("Unable to subscribe to season standing", err);
-            setLoadingStats(false);
-          }
-        );
+        const nextCurrentSeason = group?.currentSeason ?? new Date().getFullYear();
+        setCurrentSeason(nextCurrentSeason);
+        setSelectedSeason((current) => current ?? nextCurrentSeason);
       },
       (err) => {
         console.warn("Unable to subscribe to group", err);
         setLoadingStats(false);
       }
+    );
+
+    const roundsUnsubscribe = subscribeRoundsForGroup(
+      appUser.groupId,
+      (rounds) => {
+        const seasons = Array.from(
+          new Set(rounds.map((round) => round.season))
+        ).sort((a, b) => b - a);
+        setAvailableSeasons(seasons);
+      },
+      (err) => console.warn("Unable to subscribe to rounds", err)
     );
 
     const memberUnsubscribe = subscribeMember(
@@ -82,10 +90,54 @@ export default function ProfilePage() {
 
     return () => {
       groupUnsubscribe();
+      roundsUnsubscribe();
       memberUnsubscribe();
-      standingsUnsubscribe?.();
     };
   }, [appUser?.groupId, appUser?.uid]);
+
+  useEffect(() => {
+    if (!appUser?.uid || !appUser.groupId || selectedSeason == null) return;
+
+    setLoadingStats(true);
+    return subscribeSeasonStandingForMember(
+      appUser.groupId,
+      selectedSeason,
+      appUser.uid,
+      (seasonStanding) => {
+        setStanding(seasonStanding);
+        setLoadingStats(false);
+      },
+      (err) => {
+        console.warn("Unable to subscribe to season standing", err);
+        setLoadingStats(false);
+      }
+    );
+  }, [appUser?.groupId, appUser?.uid, selectedSeason]);
+
+  useEffect(() => {
+    if (!appUser?.uid || !appUser.groupId || selectedSeason == null) {
+      setLatestHandicapHistory(null);
+      return;
+    }
+
+    let cancelled = false;
+    getLatestHandicapHistoryForMemberSeason(
+      appUser.groupId,
+      appUser.uid,
+      selectedSeason
+    )
+      .then((history) => {
+        if (!cancelled) setLatestHandicapHistory(history);
+      })
+      .catch((err) => {
+        console.warn("Unable to load handicap history", err);
+        if (!cancelled) setLatestHandicapHistory(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appUser?.groupId, appUser?.uid, selectedSeason]);
 
   useEffect(() => {
     setProfileDraft({
@@ -111,7 +163,7 @@ export default function ProfilePage() {
     };
   }, [avatarPreviewUrl]);
 
-  const memberSeasonMatches = member?.seasonYear === season;
+  const memberSeasonMatches = member?.seasonYear === selectedSeason;
   const fallbackSeasonPoints = memberSeasonMatches ? member?.seasonPoints ?? 0 : 0;
   const fallbackRoundsPlayed = memberSeasonMatches ? member?.roundsPlayed ?? 0 : 0;
   const fallbackAverageStableford = memberSeasonMatches
@@ -124,6 +176,20 @@ export default function ProfilePage() {
   const fallbackLdWins = memberSeasonMatches ? member?.ldWins ?? 0 : 0;
   const fallbackT2Wins = memberSeasonMatches ? member?.t2Wins ?? 0 : 0;
   const fallbackT3Wins = memberSeasonMatches ? member?.t3Wins ?? 0 : 0;
+  const seasonOptions = Array.from(
+    new Set([
+      ...(availableSeasons.length > 0 ? availableSeasons : [currentSeason]),
+      currentSeason,
+    ])
+  ).sort((a, b) => b - a);
+  const activeSeason = selectedSeason ?? currentSeason;
+  const statRounds = standing?.roundResults ?? [];
+  const displayedHandicap =
+    latestHandicapHistory?.newHandicap ?? member?.currentHandicap ?? "—";
+  const rankTrend = getRankTrend(standing);
+  const handicapTrend = getHandicapTrend(latestHandicapHistory);
+  const averageTrend = getAverageStablefordTrend(statRounds);
+  const bestTrend = getBestStablefordTrend(statRounds);
 
   const handleSignOut = async () => {
     await signOut();
@@ -462,10 +528,34 @@ export default function ProfilePage() {
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-gray-800">Season {season}</h3>
-          <Link href="/leaderboard" className="text-green-600 text-sm">
-            Ladder
-          </Link>
+          <div>
+            <h3 className="font-semibold text-gray-800">Season {activeSeason}</h3>
+            <p className="text-xs text-gray-400">
+              {activeSeason === currentSeason ? "Active season" : "Archived season"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="block">
+              <span className="mb-1 block text-right text-[11px] font-medium uppercase tracking-wide text-gray-400">
+                Season
+              </span>
+              <select
+                value={activeSeason}
+                onChange={(event) => setSelectedSeason(Number(event.target.value))}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                {seasonOptions.map((season) => (
+                  <option key={season} value={season}>
+                    {season}
+                    {season === currentSeason ? " (Active)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Link href="/leaderboard" className="text-green-600 text-sm">
+              Ladder
+            </Link>
+          </div>
         </div>
 
         {loadingStats ? (
@@ -485,14 +575,16 @@ export default function ProfilePage() {
               <StatCard
                 label="Rank"
                 value={standing ? `#${standing.currentRank}` : "—"}
+                trend={rankTrend}
               />
               <StatCard
                 label="Points"
-                value={String(standing?.totalPoints ?? fallbackSeasonPoints)}
+                value={`${standing?.totalPoints ?? fallbackSeasonPoints} pts`}
               />
               <StatCard
                 label="Handicap"
-                value={String(member?.currentHandicap ?? "—")}
+                value={String(displayedHandicap)}
+                trend={handicapTrend}
               />
               <StatCard
                 label="Rounds"
@@ -501,10 +593,12 @@ export default function ProfilePage() {
               <StatCard
                 label="Avg Stableford"
                 value={String(fallbackAverageStableford)}
+                trend={averageTrend}
               />
               <StatCard
                 label="Best Stableford"
                 value={String(fallbackBestStableford)}
+                trend={bestTrend}
               />
             </div>
 
@@ -538,7 +632,7 @@ export default function ProfilePage() {
                   Recent Results
                 </h4>
                 <div className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-                  {standing.roundResults.slice(0, 5).map((roundResult) => (
+                  {standing.roundResults.slice(0, 3).map((roundResult) => (
                     <Link
                       key={roundResult.roundId}
                       href={`/rounds/${roundResult.roundId}`}
@@ -662,11 +756,131 @@ function ProfileFact({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+type StatTrendTone = "positive" | "negative" | "neutral";
+
+type StatTrend = {
+  label: string;
+  tone: StatTrendTone;
+};
+
+function StatCard({
+  label,
+  value,
+  trend,
+}: {
+  label: string;
+  value: string;
+  trend?: StatTrend | null;
+}) {
+  const trendClass =
+    trend?.tone === "positive"
+      ? "text-green-700"
+      : trend?.tone === "negative"
+        ? "text-red-600"
+        : "text-gray-400";
+
   return (
     <div className="rounded-xl bg-gray-50 px-3 py-3">
       <p className="text-xs text-gray-500">{label}</p>
       <p className="mt-1 text-xl font-bold text-gray-800">{value}</p>
+      {trend && (
+        <p className={`mt-1 text-[11px] font-medium ${trendClass}`}>
+          {trend.label}
+        </p>
+      )}
     </div>
   );
+}
+
+function getRankTrend(
+  standing: SeasonStanding | null
+): StatTrend | null {
+  if (!standing) return { label: "Unranked", tone: "neutral" };
+  if (standing.previousRank == null) return { label: "New", tone: "neutral" };
+  const diff = standing.previousRank - standing.currentRank;
+  if (diff > 0) {
+    return {
+      label: `Up ${diff} ${diff === 1 ? "place" : "places"}`,
+      tone: "positive",
+    };
+  }
+  if (diff < 0) {
+    return {
+      label: `Down ${Math.abs(diff)} ${Math.abs(diff) === 1 ? "place" : "places"}`,
+      tone: "negative",
+    };
+  }
+  return { label: "Same rank", tone: "neutral" };
+}
+
+function getHandicapTrend(
+  history: HandicapHistory | null
+): StatTrend | null {
+  if (!history) return null;
+  const change = Number(
+    Math.abs(history.newHandicap - history.previousHandicap).toFixed(1)
+  );
+  if (change === 0) return { label: "No change", tone: "neutral" };
+  if (history.newHandicap < history.previousHandicap) {
+    return { label: `↓ ${change}`, tone: "positive" };
+  }
+  return { label: `↑ ${change}`, tone: "negative" };
+}
+
+function getAverageStablefordTrend(roundResults: SeasonStanding["roundResults"]): StatTrend | null {
+  const played = roundResults.filter((roundResult) => roundResult.stableford > 0);
+  if (played.length < 2) return null;
+
+  const currentAverage = Number(
+    (
+      played.reduce((sum, roundResult) => sum + roundResult.stableford, 0) /
+      played.length
+    ).toFixed(1)
+  );
+  const previousAverage = Number(
+    (
+      played
+        .slice(1)
+        .reduce((sum, roundResult) => sum + roundResult.stableford, 0) /
+      (played.length - 1)
+    ).toFixed(1)
+  );
+
+  if (currentAverage > previousAverage) {
+    return {
+      label: `↑ ${Number((currentAverage - previousAverage).toFixed(1))} vs last`,
+      tone: "positive",
+    };
+  }
+  if (currentAverage < previousAverage) {
+    return {
+      label: `↓ ${Number((previousAverage - currentAverage).toFixed(1))} vs last`,
+      tone: "negative",
+    };
+  }
+  return { label: "No change", tone: "neutral" };
+}
+
+function getBestStablefordTrend(roundResults: SeasonStanding["roundResults"]): StatTrend | null {
+  const played = roundResults.filter((roundResult) => roundResult.stableford > 0);
+  if (played.length < 2) return null;
+
+  const currentBest = Math.max(...played.map((roundResult) => roundResult.stableford));
+  const previousBest = Math.max(
+    ...played.slice(1).map((roundResult) => roundResult.stableford)
+  );
+
+  if (currentBest > previousBest) {
+    return {
+      label: `↑ ${currentBest - previousBest} vs last`,
+      tone: "positive",
+    };
+  }
+  if (currentBest < previousBest) {
+    return {
+      label: `↓ ${previousBest - currentBest} vs last`,
+      tone: "negative",
+    };
+  }
+  return { label: "Matched best", tone: "neutral" };
 }

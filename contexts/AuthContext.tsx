@@ -11,7 +11,18 @@ import {
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { createUser, getUser, subscribeUser } from "@/lib/firestore";
-import type { AppUser } from "@/types";
+import type { AppUser, UserGender } from "@/types";
+
+type SignUpOptions = {
+  groupId?: string;
+  inviteId?: string;
+  nickname?: string | null;
+  mobileNumber?: string | null;
+  dateOfBirth?: string | null;
+  gender?: UserGender | null;
+  usesSeniorTees?: boolean;
+  usesProBackTees?: boolean;
+};
 
 interface AuthContextType {
   firebaseUser: FirebaseUser | null;
@@ -22,7 +33,7 @@ interface AuthContextType {
     email: string,
     password: string,
     displayName: string,
-    options?: { groupId?: string; inviteId?: string }
+    options?: SignUpOptions
   ) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
@@ -90,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     displayName: string,
-    options?: { groupId?: string; inviteId?: string }
+    options?: SignUpOptions
   ) => {
     setLoading(true);
     try {
@@ -102,6 +113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         status: "pending",
         groupId: options?.groupId ?? "fourplay",
         ...(options?.inviteId ? { inviteId: options.inviteId } : {}),
+        nickname: options?.nickname ?? null,
+        mobileNumber: options?.mobileNumber ?? null,
+        dateOfBirth: options?.dateOfBirth ?? null,
+        gender: options?.gender ?? null,
+        usesSeniorTees: options?.usesSeniorTees ?? false,
+        usesProBackTees: options?.usesProBackTees ?? false,
         avatarUrl: null,
         avatarPath: null,
         fcmToken: null,
