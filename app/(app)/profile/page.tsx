@@ -187,7 +187,10 @@ export default function ProfilePage() {
   const displayedHandicap =
     latestHandicapHistory?.newHandicap ?? member?.currentHandicap ?? "—";
   const rankTrend = getRankTrend(standing);
-  const handicapTrend = getHandicapTrend(latestHandicapHistory);
+  const handicapTrend = getHandicapTrend(
+    latestHandicapHistory,
+    standing?.roundsPlayed ?? fallbackRoundsPlayed
+  );
   const averageTrend = getAverageStablefordTrend(statRounds);
   const bestTrend = getBestStablefordTrend(statRounds);
 
@@ -534,29 +537,28 @@ export default function ProfilePage() {
               {activeSeason === currentSeason ? "Active season" : "Archived season"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="block">
-              <span className="mb-1 block text-right text-[11px] font-medium uppercase tracking-wide text-gray-400">
-                Season
-              </span>
-              <select
-                value={activeSeason}
-                onChange={(event) => setSelectedSeason(Number(event.target.value))}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {seasonOptions.map((season) => (
-                  <option key={season} value={season}>
-                    {season}
-                    {season === currentSeason ? " (Active)" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Link href="/leaderboard" className="text-green-600 text-sm">
-              Ladder
-            </Link>
-          </div>
+          <Link href="/leaderboard" className="text-green-600 text-sm">
+            Ladder
+          </Link>
         </div>
+
+        <label className="mb-3 block">
+          <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-gray-400">
+            Season
+          </span>
+          <select
+            value={activeSeason}
+            onChange={(event) => setSelectedSeason(Number(event.target.value))}
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            {seasonOptions.map((season) => (
+              <option key={season} value={season}>
+                {season}
+                {season === currentSeason ? " (Active)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {loadingStats ? (
           <div className="grid grid-cols-2 gap-3 animate-pulse">
@@ -606,20 +608,20 @@ export default function ProfilePage() {
               <h4 className="text-sm font-semibold text-gray-800 mb-2">
                 Side Prizes
               </h4>
-              <div className="flex flex-wrap gap-2">
-                <SidePrizePill
+              <div className="grid grid-cols-2 gap-2">
+                <SidePrizeTile
                   label="NTP"
                   value={standing?.ntpWinsSeason ?? fallbackNtpWins}
                 />
-                <SidePrizePill
+                <SidePrizeTile
                   label="LD"
                   value={standing?.ldWinsSeason ?? fallbackLdWins}
                 />
-                <SidePrizePill
+                <SidePrizeTile
                   label="T2"
                   value={standing?.t2WinsSeason ?? fallbackT2Wins}
                 />
-                <SidePrizePill
+                <SidePrizeTile
                   label="T3"
                   value={standing?.t3WinsSeason ?? fallbackT3Wins}
                 />
@@ -648,17 +650,15 @@ export default function ProfilePage() {
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-green-700">
-                          {roundResult.pointsAwarded} pts
+                          {roundResult.stableford > 0
+                            ? `${roundResult.stableford} stb`
+                            : `${roundResult.pointsAwarded} pts`}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Finish #{roundResult.finish} · Result {roundResult.pointsAwarded} pts
                         </p>
                         {!roundResult.countsForSeason && (
-                          <p className="text-xs text-gray-400">
-                            not counted
-                          </p>
-                        )}
-                        {roundResult.stableford > 0 && (
-                          <p className="text-xs text-gray-400">
-                            {roundResult.stableford} stb
-                          </p>
+                          <p className="text-xs text-gray-400">Not counted</p>
                         )}
                       </div>
                     </Link>
@@ -680,11 +680,14 @@ export default function ProfilePage() {
   );
 }
 
-function SidePrizePill({ label, value }: { label: string; value: number }) {
+function SidePrizeTile({ label, value }: { label: string; value: number }) {
   return (
-    <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-      {label} {value}
-    </span>
+    <div className="rounded-xl bg-green-50 px-3 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-green-700">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-bold text-green-800">{value}</p>
+    </div>
   );
 }
 
@@ -814,9 +817,12 @@ function getRankTrend(
 }
 
 function getHandicapTrend(
-  history: HandicapHistory | null
+  history: HandicapHistory | null,
+  roundsPlayed: number
 ): StatTrend | null {
-  if (!history) return null;
+  if (!history || roundsPlayed < 2) {
+    return { label: "—", tone: "neutral" };
+  }
   const change = Number(
     Math.abs(history.newHandicap - history.previousHandicap).toFixed(1)
   );
