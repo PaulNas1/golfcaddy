@@ -10,7 +10,7 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { createUser, getUser, subscribeUser } from "@/lib/firestore";
+import { createUser, getUser, subscribeUser, updateUser } from "@/lib/firestore";
 import type { AppUser, UserGender } from "@/types";
 
 type SignUpOptions = {
@@ -66,7 +66,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (fbUser) {
         try {
           const initialUser = await getUser(fbUser.uid);
-          setAppUser(initialUser);
+          if (initialUser && fbUser.email && initialUser.email !== fbUser.email) {
+            setAppUser({ ...initialUser, email: fbUser.email });
+            updateUser(fbUser.uid, { email: fbUser.email }).catch((error) => {
+              console.warn("Unable to sync email from auth user", error);
+            });
+          } else {
+            setAppUser(initialUser);
+          }
           unsubscribeUser = subscribeUser(
             fbUser.uid,
             setAppUser,

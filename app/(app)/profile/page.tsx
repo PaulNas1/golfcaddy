@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
-  updateEmail as updateFirebaseEmail,
   updatePassword as updateFirebasePassword,
+  verifyBeforeUpdateEmail,
 } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -55,6 +55,7 @@ export default function ProfilePage() {
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [accountSecurityOpen, setAccountSecurityOpen] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(
     appUser?.avatarUrl ?? ""
@@ -346,6 +347,7 @@ export default function ProfilePage() {
     setSavingEmail(true);
     setAccountError("");
     setAccountSuccess("");
+    setAccountSecurityOpen(true);
 
     try {
       const credential = EmailAuthProvider.credential(
@@ -353,20 +355,31 @@ export default function ProfilePage() {
         emailPassword
       );
       await reauthenticateWithCredential(auth.currentUser, credential);
-      await updateFirebaseEmail(auth.currentUser, nextEmail);
-      await updateUser(appUser.uid, { email: nextEmail });
+      await verifyBeforeUpdateEmail(auth.currentUser, nextEmail);
       setEmailPassword("");
-      setAccountSuccess("Email updated.");
+      setAccountSuccess(
+        `Verification email sent to ${nextEmail}. Open it to finish changing your sign-in email.`
+      );
       setTimeout(() => setAccountSuccess(""), 3000);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message.toLowerCase() : "";
-      if (message.includes("wrong-password") || message.includes("invalid-credential")) {
+      const code =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof error.code === "string"
+          ? error.code
+          : "";
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential" || message.includes("wrong-password") || message.includes("invalid-credential")) {
         setAccountError("Current password is incorrect.");
-      } else if (message.includes("email-already-in-use")) {
+      } else if (code === "auth/email-already-in-use" || message.includes("email-already-in-use")) {
         setAccountError("That email is already in use.");
+      } else if (code === "auth/invalid-email") {
+        setAccountError("Enter a valid email address.");
+      } else if (code === "auth/requires-recent-login") {
+        setAccountError("Please sign in again before changing your email.");
       } else {
-        setAccountError("Failed to update email. Please try again.");
+        setAccountError("Failed to send the email change verification. Please try again.");
       }
     } finally {
       setSavingEmail(false);
@@ -391,6 +404,7 @@ export default function ProfilePage() {
     setSavingPassword(true);
     setAccountError("");
     setAccountSuccess("");
+    setAccountSecurityOpen(true);
 
     try {
       const credential = EmailAuthProvider.credential(
@@ -405,10 +419,20 @@ export default function ProfilePage() {
       setAccountSuccess("Password updated.");
       setTimeout(() => setAccountSuccess(""), 3000);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message.toLowerCase() : "";
-      if (message.includes("wrong-password") || message.includes("invalid-credential")) {
+      const code =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof error.code === "string"
+          ? error.code
+          : "";
+      const message = error instanceof Error ? error.message.toLowerCase() : "";
+      if (code === "auth/wrong-password" || code === "auth/invalid-credential" || message.includes("wrong-password") || message.includes("invalid-credential")) {
         setAccountError("Current password is incorrect.");
+      } else if (code === "auth/weak-password") {
+        setAccountError("Choose a stronger password.");
+      } else if (code === "auth/requires-recent-login") {
+        setAccountError("Please sign in again before changing your password.");
       } else {
         setAccountError("Failed to update password. Please try again.");
       }
@@ -779,89 +803,102 @@ export default function ProfilePage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="mb-3">
-          <h3 className="font-semibold text-gray-800">Account Security</h3>
-          <p className="text-xs text-gray-400">
-            Update your sign-in email and password.
-          </p>
-        </div>
-
-        {accountSuccess && (
-          <p className="mb-3 rounded-xl bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
-            {accountSuccess}
-          </p>
-        )}
-        {accountError && (
-          <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-            {accountError}
-          </p>
-        )}
-
-        <div className="space-y-4">
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <h4 className="text-sm font-semibold text-gray-800">Email</h4>
-            <p className="mt-1 text-xs text-gray-500">
-              Use your current password to confirm the change.
+        <button
+          type="button"
+          onClick={() => setAccountSecurityOpen((current) => !current)}
+          className="flex w-full items-start justify-between gap-3 text-left"
+          aria-expanded={accountSecurityOpen}
+        >
+          <div>
+            <h3 className="font-semibold text-gray-800">Account Security</h3>
+            <p className="text-xs text-gray-400">
+              Change email or password when needed.
             </p>
-            <div className="mt-3 space-y-3">
-              <ProfileInput
-                label="Email address"
-                type="email"
-                value={emailDraft}
-                onChange={setEmailDraft}
-              />
-              <ProfileInput
-                label="Current password"
-                type="password"
-                value={emailPassword}
-                onChange={setEmailPassword}
-              />
-              <button
-                type="button"
-                onClick={handleUpdateEmail}
-                disabled={savingEmail}
-                className="w-full rounded-xl border border-green-200 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
-              >
-                {savingEmail ? "Updating email..." : "Update email"}
-              </button>
+          </div>
+          <span className="rounded-full bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-500">
+            {accountSecurityOpen ? "Hide" : "Manage"}
+          </span>
+        </button>
+
+        {accountSecurityOpen && (
+          <div className="mt-4 space-y-4">
+            {accountSuccess && (
+              <p className="rounded-xl bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
+                {accountSuccess}
+              </p>
+            )}
+            {accountError && (
+              <p className="rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                {accountError}
+              </p>
+            )}
+
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <h4 className="text-sm font-semibold text-gray-800">Email</h4>
+              <p className="mt-1 text-xs text-gray-500">
+                We’ll send a verification email before the address changes.
+              </p>
+              <div className="mt-3 space-y-3">
+                <ProfileInput
+                  label="Email address"
+                  type="email"
+                  inputMode="email"
+                  value={emailDraft}
+                  onChange={setEmailDraft}
+                />
+                <ProfileInput
+                  label="Current password"
+                  type="password"
+                  value={emailPassword}
+                  onChange={setEmailPassword}
+                />
+                <button
+                  type="button"
+                  onClick={handleUpdateEmail}
+                  disabled={savingEmail}
+                  className="w-full rounded-xl border border-green-200 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
+                >
+                  {savingEmail ? "Sending verification..." : "Verify new email"}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <h4 className="text-sm font-semibold text-gray-800">Password</h4>
+              <p className="mt-1 text-xs text-gray-500">
+                Choose a new password with at least 8 characters.
+              </p>
+              <div className="mt-3 space-y-3">
+                <ProfileInput
+                  label="Current password"
+                  type="password"
+                  value={passwordCurrent}
+                  onChange={setPasswordCurrent}
+                />
+                <ProfileInput
+                  label="New password"
+                  type="password"
+                  value={passwordNext}
+                  onChange={setPasswordNext}
+                />
+                <ProfileInput
+                  label="Confirm new password"
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={setPasswordConfirm}
+                />
+                <button
+                  type="button"
+                  onClick={handleUpdatePassword}
+                  disabled={savingPassword}
+                  className="w-full rounded-xl border border-green-200 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
+                >
+                  {savingPassword ? "Updating password..." : "Update password"}
+                </button>
+              </div>
             </div>
           </div>
-
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
-            <h4 className="text-sm font-semibold text-gray-800">Password</h4>
-            <p className="mt-1 text-xs text-gray-500">
-              Choose a new password with at least 8 characters.
-            </p>
-            <div className="mt-3 space-y-3">
-              <ProfileInput
-                label="Current password"
-                type="password"
-                value={passwordCurrent}
-                onChange={setPasswordCurrent}
-              />
-              <ProfileInput
-                label="New password"
-                type="password"
-                value={passwordNext}
-                onChange={setPasswordNext}
-              />
-              <ProfileInput
-                label="Confirm new password"
-                type="password"
-                value={passwordConfirm}
-                onChange={setPasswordConfirm}
-              />
-              <button
-                type="button"
-                onClick={handleUpdatePassword}
-                disabled={savingPassword}
-                className="w-full rounded-xl border border-green-200 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
-              >
-                {savingPassword ? "Updating password..." : "Update password"}
-              </button>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       <button
