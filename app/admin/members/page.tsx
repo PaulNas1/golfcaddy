@@ -207,6 +207,7 @@ export default function AdminMembersPage() {
     setError("");
     setSuccess("");
     try {
+      const inviteMethod = getInviteContactMethod(trimmedContact);
       let link = buildInviteLink({
         groupId: group.id,
         groupName: group.name,
@@ -232,11 +233,29 @@ export default function AdminMembersPage() {
       setInviteName("");
       setInviteContact("");
       const copied = await copyToClipboard(link);
+      const openedShareTarget =
+        trimmedContact && inviteMethod
+          ? openInviteShare({
+              inviteeName: trimmedName,
+              groupName: group.name,
+              contact: trimmedContact,
+              link,
+              method: inviteMethod,
+            })
+          : false;
       setSuccess(
         savedInvite
-          ? copied
-            ? "Invite link created and copied. Share it with the player to sign up."
-            : "Invite link created. Copy it below and share it with the player to sign up."
+          ? openedShareTarget
+            ? inviteMethod === "email"
+              ? copied
+                ? "Invite email is ready and the link was copied as a fallback."
+                : "Invite email is ready. If it does not open, copy the link below and share it manually."
+              : copied
+                ? "Invite text is ready and the link was copied as a fallback."
+                : "Invite text is ready. If it does not open, copy the link below and share it manually."
+            : copied
+              ? "Invite link created and copied. Share it with the player to sign up."
+              : "Invite link created. Copy it below and share it with the player to sign up."
           : copied
             ? "Invite link created and copied, but it could not be saved to Recent invites. The signup link will still work."
             : "Invite link created, but it could not be saved to Recent invites. Copy it below. The signup link will still work."
@@ -282,8 +301,8 @@ export default function AdminMembersPage() {
           <div>
             <h2 className="font-semibold text-gray-800">Invite New Player</h2>
             <p className="mt-1 text-xs text-gray-500">
-              Create a signup link. The player owns their account and still
-              needs admin approval.
+              Create a signup link. Add an email or mobile to open your mail or
+              messages app with the invite ready to send.
             </p>
           </div>
           <span className="rounded-lg bg-green-50 p-2 text-green-700">
@@ -300,7 +319,7 @@ export default function AdminMembersPage() {
           />
           <div className="space-y-2">
             <label className="block text-xs font-medium text-gray-600">
-              Email or mobile
+              Email or mobile to send to
             </label>
             <div className="flex gap-2">
               <select
@@ -320,12 +339,14 @@ export default function AdminMembersPage() {
                 value={inviteContact}
                 onChange={(event) => setInviteContact(event.target.value)}
                 className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Mobile or email optional"
+                placeholder="Optional email or mobile"
                 autoComplete="email tel"
               />
             </div>
             <p className="text-xs text-gray-500">
-              Emails are used as entered. Mobile numbers use the selected country code unless you type a full international number.
+              Emails open your email app. Mobile numbers open a text message
+              draft and use the selected country code unless you type a full
+              international number.
             </p>
           </div>
           <button
@@ -334,7 +355,9 @@ export default function AdminMembersPage() {
             disabled={actioning === "invite"}
             className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
           >
-            {actioning === "invite" ? "Creating..." : "Create Invite Link"}
+            {actioning === "invite"
+              ? "Creating..."
+              : getInviteActionLabel(inviteContact)}
           </button>
           {inviteLink && (
             <div className="rounded-xl bg-gray-50 px-3 py-3">
@@ -977,6 +1000,56 @@ function normaliseInviteContact(value: string, countryCode: string) {
   }
 
   return `${countryCode}${digitsOnly.replace(/^0+/, "")}`;
+}
+
+function getInviteContactMethod(contact: string | null) {
+  if (!contact) return null;
+  return contact.includes("@") ? "email" : "sms";
+}
+
+function getInviteActionLabel(rawContact: string) {
+  const trimmedContact = rawContact.trim();
+  if (!trimmedContact) return "Create Invite Link";
+  return trimmedContact.includes("@")
+    ? "Create and Open Email"
+    : "Create and Open Text";
+}
+
+function openInviteShare({
+  inviteeName,
+  groupName,
+  contact,
+  link,
+  method,
+}: {
+  inviteeName: string;
+  groupName: string;
+  contact: string;
+  link: string;
+  method: "email" | "sms";
+}) {
+  if (typeof window === "undefined") return false;
+
+  const message = `Hi ${inviteeName}, join ${groupName} on GolfCaddy using this signup link: ${link}`;
+  const encodedMessage = encodeURIComponent(message);
+
+  try {
+    if (method === "email") {
+      const subject = encodeURIComponent(`Join ${groupName} on GolfCaddy`);
+      window.location.href = `mailto:${encodeURIComponent(contact)}?subject=${subject}&body=${encodedMessage}`;
+      return true;
+    }
+
+    const bodySeparator =
+      typeof navigator !== "undefined" &&
+      /iPhone|iPad|iPod/i.test(navigator.userAgent)
+        ? "&"
+        : "?";
+    window.location.href = `sms:${contact}${bodySeparator}body=${encodedMessage}`;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function buildInviteLink({

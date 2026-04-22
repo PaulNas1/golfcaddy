@@ -30,6 +30,9 @@ function SignUpForm() {
   const invitedName = searchParams.get("name") ?? "";
   const invitedContact = searchParams.get("contact") ?? "";
   const invitedEmail = invitedContact.includes("@") ? invitedContact : "";
+  const invitedMobile = invitedContact && !invitedContact.includes("@")
+    ? invitedContact
+    : "";
   const inviteId = searchParams.get("invite") ?? "";
   const groupId = searchParams.get("groupId") ?? "fourplay";
   const groupName = searchParams.get("groupName") ?? "your golf group";
@@ -38,7 +41,7 @@ function SignUpForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [nickname, setNickname] = useState("");
-  const [mobileNumber, setMobileNumber] = useState("");
+  const [mobileNumber, setMobileNumber] = useState(invitedMobile);
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState<UserGender | "">("");
   const [usesSeniorTees, setUsesSeniorTees] = useState(false);
