@@ -52,10 +52,10 @@ export default function HomePage() {
           rounds
             .filter((round) => round.status === "upcoming")
             .sort((a, b) => {
-              if (a.roundNumber !== b.roundNumber) {
-                return a.roundNumber - b.roundNumber;
+              if (a.date.getTime() !== b.date.getTime()) {
+                return a.date.getTime() - b.date.getTime();
               }
-              return a.date.getTime() - b.date.getTime();
+              return a.roundNumber - b.roundNumber;
             })[0] ?? null;
         setLiveRound(live);
         setNextRound(next);

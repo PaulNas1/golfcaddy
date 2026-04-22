@@ -37,6 +37,7 @@ export default function AdminMembersPage() {
   const [inviteContact, setInviteContact] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [pendingRoleDrafts, setPendingRoleDrafts] = useState<Record<string, UserRole>>({});
+  const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -89,6 +90,7 @@ export default function AdminMembersPage() {
   const handleRoleChange = async (user: AppUser, role: UserRole) => {
     if (!canManageUser(appUser, user)) return;
     setActioning(user.uid);
+    setActiveMenuUserId(null);
     setError("");
     setSuccess("");
     try {
@@ -105,6 +107,7 @@ export default function AdminMembersPage() {
   const handleStatusChange = async (user: AppUser, status: UserStatus) => {
     if (!canManageUser(appUser, user)) return;
     setActioning(user.uid);
+    setActiveMenuUserId(null);
     setError("");
     setSuccess("");
     try {
@@ -521,37 +524,62 @@ export default function AdminMembersPage() {
                 )}
 
                 {canManageUser(appUser, user) && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
-                    <select
-                      value={user.role}
-                      onChange={(event) =>
-                        handleRoleChange(user, event.target.value as UserRole)
-                      }
-                      disabled={actioning === user.uid}
-                      className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    >
-                      {getAssignableRoles(appUser?.role).map((role) => (
-                        <option key={role} value={role}>
-                          {formatRoleLabel(role)}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange(user, "retired")}
-                      disabled={actioning === user.uid}
-                      className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 disabled:text-amber-300"
-                    >
-                      Retire
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleStatusChange(user, "suspended")}
-                      disabled={actioning === user.uid}
-                      className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:text-red-300"
-                    >
-                      Suspend
-                    </button>
+                  <div className="relative mt-3 border-t border-gray-100 pt-3">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveMenuUserId((current) =>
+                            current === user.uid ? null : user.uid
+                          )
+                        }
+                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500"
+                        aria-label={`Manage ${user.displayName}`}
+                      >
+                        <EllipsisIcon className="h-4 w-4" />
+                      </button>
+                    </div>
+                    {activeMenuUserId === user.uid && (
+                      <div className="mt-3 space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-medium text-gray-600">
+                            Promote
+                          </span>
+                          <select
+                            value={user.role}
+                            onChange={(event) =>
+                              handleRoleChange(user, event.target.value as UserRole)
+                            }
+                            disabled={actioning === user.uid}
+                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          >
+                            {getAssignableRoles(appUser?.role).map((role) => (
+                              <option key={role} value={role}>
+                                {formatRoleLabel(role)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(user, "retired")}
+                            disabled={actioning === user.uid}
+                            className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 disabled:text-amber-300"
+                          >
+                            Retire
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStatusChange(user, "suspended")}
+                            disabled={actioning === user.uid}
+                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:text-red-300"
+                          >
+                            Suspend
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -797,6 +825,24 @@ function PencilIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M19.5 7.125L16.875 4.5M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+      />
+    </svg>
+  );
+}
+
+function EllipsisIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6 12h.01M12 12h.01M18 12h.01"
       />
     </svg>
   );
