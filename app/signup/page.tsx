@@ -6,6 +6,9 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import type { UserGender } from "@/types";
 
+const DATE_INPUT_CLASSNAME =
+  "w-full rounded-xl border border-gray-200 px-4 py-3 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left";
+
 export default function SignUpPage() {
   return (
     <Suspense
@@ -205,7 +208,7 @@ function SignUpForm() {
                     type="date"
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className={DATE_INPUT_CLASSNAME}
                   />
                 </div>
 

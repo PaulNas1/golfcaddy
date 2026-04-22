@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getPendingMembers,
   getActiveMembers,
@@ -20,6 +20,7 @@ import type { AppUser, Group, Member, MemberInvite, UserRole, UserStatus } from 
 
 export default function AdminMembersPage() {
   const { appUser } = useAuth();
+  const activeMenuRef = useRef<HTMLDivElement | null>(null);
   const [pending, setPending] = useState<AppUser[]>([]);
   const [active, setActive] = useState<AppUser[]>([]);
   const [retired, setRetired] = useState<AppUser[]>([]);
@@ -78,6 +79,30 @@ export default function AdminMembersPage() {
   }, [appUser?.groupId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!activeMenuUserId) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (activeMenuRef.current?.contains(target)) return;
+      setActiveMenuUserId(null);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveMenuUserId(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeMenuUserId]);
 
   const handleApprove = async (uid: string) => {
     const role = pendingRoleDrafts[uid] ?? "member";
@@ -480,6 +505,70 @@ export default function AdminMembersPage() {
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
+                      {canManageUser(appUser, user) && (
+                        <div
+                          ref={activeMenuUserId === user.uid ? activeMenuRef : null}
+                          className="relative"
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveMenuUserId((current) =>
+                                current === user.uid ? null : user.uid
+                              )
+                            }
+                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500"
+                            aria-label={`Manage ${user.displayName}`}
+                            aria-expanded={activeMenuUserId === user.uid}
+                          >
+                            <EllipsisIcon className="h-4 w-4" />
+                          </button>
+                          {activeMenuUserId === user.uid && (
+                            <div className="absolute right-0 top-full z-20 mt-2 w-56 space-y-3 rounded-xl border border-gray-100 bg-white p-3 shadow-lg">
+                              <label className="block">
+                                <span className="mb-1 block text-xs font-medium text-gray-600">
+                                  Promote
+                                </span>
+                                <select
+                                  value={user.role}
+                                  onChange={(event) =>
+                                    handleRoleChange(
+                                      user,
+                                      event.target.value as UserRole
+                                    )
+                                  }
+                                  disabled={actioning === user.uid}
+                                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                                  {getAssignableRoles(appUser?.role).map((role) => (
+                                    <option key={role} value={role}>
+                                      {formatRoleLabel(role)}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusChange(user, "retired")}
+                                  disabled={actioning === user.uid}
+                                  className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 disabled:text-amber-300"
+                                >
+                                  Retire
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusChange(user, "suspended")}
+                                  disabled={actioning === user.uid}
+                                  className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:text-red-300"
+                                >
+                                  Suspend
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -520,66 +609,6 @@ export default function AdminMembersPage() {
                         </button>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {canManageUser(appUser, user) && (
-                  <div className="relative mt-3 border-t border-gray-100 pt-3">
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setActiveMenuUserId((current) =>
-                            current === user.uid ? null : user.uid
-                          )
-                        }
-                        className="flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500"
-                        aria-label={`Manage ${user.displayName}`}
-                      >
-                        <EllipsisIcon className="h-4 w-4" />
-                      </button>
-                    </div>
-                    {activeMenuUserId === user.uid && (
-                      <div className="mt-3 space-y-3 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                        <label className="block">
-                          <span className="mb-1 block text-xs font-medium text-gray-600">
-                            Promote
-                          </span>
-                          <select
-                            value={user.role}
-                            onChange={(event) =>
-                              handleRoleChange(user, event.target.value as UserRole)
-                            }
-                            disabled={actioning === user.uid}
-                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                          >
-                            {getAssignableRoles(appUser?.role).map((role) => (
-                              <option key={role} value={role}>
-                                {formatRoleLabel(role)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(user, "retired")}
-                            disabled={actioning === user.uid}
-                            className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 disabled:text-amber-300"
-                          >
-                            Retire
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(user, "suspended")}
-                            disabled={actioning === user.uid}
-                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:text-red-300"
-                          >
-                            Suspend
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>

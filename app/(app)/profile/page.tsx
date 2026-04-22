@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updateEmail as updateFirebaseEmail,
+  updatePassword as updateFirebasePassword,
+} from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { auth } from "@/lib/firebase";
 import {
   getLatestHandicapHistoryForMemberSeason,
   subscribeGroup,
@@ -25,7 +32,7 @@ import type {
 } from "@/types";
 
 export default function ProfilePage() {
-  const { appUser, signOut } = useAuth();
+  const { appUser, firebaseUser, signOut } = useAuth();
   const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [standing, setStanding] = useState<SeasonStanding | null>(null);
@@ -39,6 +46,15 @@ export default function ProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [accountSuccess, setAccountSuccess] = useState("");
+  const [accountError, setAccountError] = useState("");
+  const [emailDraft, setEmailDraft] = useState(appUser?.email ?? "");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [passwordCurrent, setPasswordCurrent] = useState("");
+  const [passwordNext, setPasswordNext] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(
     appUser?.avatarUrl ?? ""
@@ -154,6 +170,10 @@ export default function ProfilePage() {
     setAvatarFile(null);
     setAvatarRemoved(false);
   }, [appUser]);
+
+  useEffect(() => {
+    setEmailDraft(appUser?.email ?? "");
+  }, [appUser?.email]);
 
   useEffect(() => {
     return () => {
@@ -303,6 +323,97 @@ export default function ProfilePage() {
       setProfileError("Failed to update profile. Please try again.");
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    const nextEmail = emailDraft.trim();
+
+    if (!appUser || !firebaseUser || !auth.currentUser) return;
+    if (!nextEmail) {
+      setAccountError("Enter your email address.");
+      return;
+    }
+    if (!emailPassword) {
+      setAccountError("Enter your current password to change email.");
+      return;
+    }
+    if (nextEmail.toLowerCase() === (appUser.email ?? "").toLowerCase()) {
+      setAccountError("That email address is already on your account.");
+      return;
+    }
+
+    setSavingEmail(true);
+    setAccountError("");
+    setAccountSuccess("");
+
+    try {
+      const credential = EmailAuthProvider.credential(
+        firebaseUser.email ?? appUser.email,
+        emailPassword
+      );
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updateFirebaseEmail(auth.currentUser, nextEmail);
+      await updateUser(appUser.uid, { email: nextEmail });
+      setEmailPassword("");
+      setAccountSuccess("Email updated.");
+      setTimeout(() => setAccountSuccess(""), 3000);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message.toLowerCase() : "";
+      if (message.includes("wrong-password") || message.includes("invalid-credential")) {
+        setAccountError("Current password is incorrect.");
+      } else if (message.includes("email-already-in-use")) {
+        setAccountError("That email is already in use.");
+      } else {
+        setAccountError("Failed to update email. Please try again.");
+      }
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!appUser || !firebaseUser || !auth.currentUser) return;
+    if (!passwordCurrent) {
+      setAccountError("Enter your current password.");
+      return;
+    }
+    if (passwordNext.length < 8) {
+      setAccountError("New password must be at least 8 characters.");
+      return;
+    }
+    if (passwordNext !== passwordConfirm) {
+      setAccountError("New passwords do not match.");
+      return;
+    }
+
+    setSavingPassword(true);
+    setAccountError("");
+    setAccountSuccess("");
+
+    try {
+      const credential = EmailAuthProvider.credential(
+        firebaseUser.email ?? appUser.email,
+        passwordCurrent
+      );
+      await reauthenticateWithCredential(auth.currentUser, credential);
+      await updateFirebasePassword(auth.currentUser, passwordNext);
+      setPasswordCurrent("");
+      setPasswordNext("");
+      setPasswordConfirm("");
+      setAccountSuccess("Password updated.");
+      setTimeout(() => setAccountSuccess(""), 3000);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message.toLowerCase() : "";
+      if (message.includes("wrong-password") || message.includes("invalid-credential")) {
+        setAccountError("Current password is incorrect.");
+      } else {
+        setAccountError("Failed to update password. Please try again.");
+      }
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -645,7 +756,7 @@ export default function ProfilePage() {
                           {roundResult.courseName}
                         </p>
                         <p className="text-xs text-gray-400">
-                          Finish #{roundResult.finish}
+                          Finish #{roundResult.finish} · Result {roundResult.pointsAwarded} pts
                         </p>
                       </div>
                       <div className="text-right">
@@ -653,9 +764,6 @@ export default function ProfilePage() {
                           {roundResult.stableford > 0
                             ? `${roundResult.stableford} stb`
                             : `${roundResult.pointsAwarded} pts`}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          Finish #{roundResult.finish} · Result {roundResult.pointsAwarded} pts
                         </p>
                         {!roundResult.countsForSeason && (
                           <p className="text-xs text-gray-400">Not counted</p>
@@ -668,6 +776,92 @@ export default function ProfilePage() {
             )}
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="mb-3">
+          <h3 className="font-semibold text-gray-800">Account Security</h3>
+          <p className="text-xs text-gray-400">
+            Update your sign-in email and password.
+          </p>
+        </div>
+
+        {accountSuccess && (
+          <p className="mb-3 rounded-xl bg-green-50 px-3 py-2 text-xs font-medium text-green-700">
+            {accountSuccess}
+          </p>
+        )}
+        {accountError && (
+          <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {accountError}
+          </p>
+        )}
+
+        <div className="space-y-4">
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+            <h4 className="text-sm font-semibold text-gray-800">Email</h4>
+            <p className="mt-1 text-xs text-gray-500">
+              Use your current password to confirm the change.
+            </p>
+            <div className="mt-3 space-y-3">
+              <ProfileInput
+                label="Email address"
+                type="email"
+                value={emailDraft}
+                onChange={setEmailDraft}
+              />
+              <ProfileInput
+                label="Current password"
+                type="password"
+                value={emailPassword}
+                onChange={setEmailPassword}
+              />
+              <button
+                type="button"
+                onClick={handleUpdateEmail}
+                disabled={savingEmail}
+                className="w-full rounded-xl border border-green-200 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
+              >
+                {savingEmail ? "Updating email..." : "Update email"}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+            <h4 className="text-sm font-semibold text-gray-800">Password</h4>
+            <p className="mt-1 text-xs text-gray-500">
+              Choose a new password with at least 8 characters.
+            </p>
+            <div className="mt-3 space-y-3">
+              <ProfileInput
+                label="Current password"
+                type="password"
+                value={passwordCurrent}
+                onChange={setPasswordCurrent}
+              />
+              <ProfileInput
+                label="New password"
+                type="password"
+                value={passwordNext}
+                onChange={setPasswordNext}
+              />
+              <ProfileInput
+                label="Confirm new password"
+                type="password"
+                value={passwordConfirm}
+                onChange={setPasswordConfirm}
+              />
+              <button
+                type="button"
+                onClick={handleUpdatePassword}
+                disabled={savingPassword}
+                className="w-full rounded-xl border border-green-200 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
+              >
+                {savingPassword ? "Updating password..." : "Update password"}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <button
@@ -702,8 +896,9 @@ function ProfileInput({
   value: string;
   onChange: (value: string) => void;
   type?: string;
-  inputMode?: "tel";
+  inputMode?: "tel" | "email";
 }) {
+  const isDateInput = type === "date";
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-gray-600">
@@ -714,7 +909,11 @@ function ProfileInput({
         inputMode={inputMode}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+        className={`w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 ${
+          isDateInput
+            ? "text-left [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left"
+            : ""
+        }`}
       />
     </label>
   );
