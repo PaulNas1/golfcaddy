@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { getMemberInvite } from "@/lib/firestore";
 import type { UserGender } from "@/types";
 
 const DATE_INPUT_CLASSNAME =
@@ -34,8 +35,11 @@ function SignUpForm() {
     ? invitedContact
     : "";
   const inviteId = searchParams.get("invite") ?? "";
+  const inviteToken = searchParams.get("token") ?? "";
   const groupId = searchParams.get("groupId") ?? "fourplay";
   const groupName = searchParams.get("groupName") ?? "your golf group";
+  const [resolvedGroupId, setResolvedGroupId] = useState(groupId);
+  const [resolvedGroupName, setResolvedGroupName] = useState(groupName);
   const [name, setName] = useState(invitedName);
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
@@ -47,11 +51,73 @@ function SignUpForm() {
   const [usesSeniorTees, setUsesSeniorTees] = useState(false);
   const [usesProBackTees, setUsesProBackTees] = useState(false);
   const [error, setError] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [checkingInvite, setCheckingInvite] = useState(Boolean(inviteId));
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!inviteId) {
+      setCheckingInvite(false);
+      setInviteError("");
+      return;
+    }
+
+    let cancelled = false;
+    setCheckingInvite(true);
+    setInviteError("");
+
+    getMemberInvite(inviteId)
+      .then((invite) => {
+        if (cancelled) return;
+        if (!invite || invite.token !== inviteToken) {
+          setInviteError("This invite link is invalid.");
+          return;
+        }
+        if (invite.status === "cancelled") {
+          setInviteError("This invite has been revoked.");
+          return;
+        }
+        if (invite.status === "used") {
+          setInviteError("This invite has already been used.");
+          return;
+        }
+
+        setResolvedGroupId(invite.groupId);
+        setResolvedGroupName(invite.groupName);
+        setName(invite.inviteeName);
+        if (invite.contact?.includes("@")) {
+          setEmail(invite.contact);
+          setMobileNumber("");
+        } else {
+          setMobileNumber(invite.contact ?? "");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setInviteError("This invite could not be verified. Please ask for a new link.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingInvite(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteId, inviteToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (inviteError) {
+      setError(inviteError);
+      return;
+    }
+    if (checkingInvite) {
+      setError("Checking your invite. Please wait a moment and try again.");
+      return;
+    }
 
     if (password !== confirm) {
       setError("Passwords do not match.");
@@ -65,7 +131,7 @@ function SignUpForm() {
     setLoading(true);
     try {
       await signUp(email, password, name.trim(), {
-        groupId,
+        groupId: resolvedGroupId,
         inviteId: inviteId || undefined,
         nickname: nickname.trim() || null,
         mobileNumber: mobileNumber.trim() || null,
@@ -93,7 +159,7 @@ function SignUpForm() {
           <div className="text-5xl mb-3">⛳</div>
           <h1 className="text-2xl font-bold text-white">GolfCaddy</h1>
           <p className="text-green-200 mt-1 text-sm">
-            Request access to {groupName}
+            Request access to {resolvedGroupName}
           </p>
         </div>
 
@@ -256,18 +322,28 @@ function SignUpForm() {
               </div>
             </div>
 
-            {error && (
+            {(inviteError || error) && (
               <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
-                {error}
+                {inviteError || error}
+              </div>
+            )}
+
+            {checkingInvite && (
+              <div className="bg-white/80 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600">
+                Verifying your invite...
               </div>
             )}
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || checkingInvite || Boolean(inviteError)}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
             >
-              {loading ? "Submitting..." : "Request access"}
+              {loading
+                ? "Submitting..."
+                : checkingInvite
+                  ? "Checking invite..."
+                  : "Request access"}
             </button>
           </form>
 

@@ -480,6 +480,31 @@ export const createMemberInvite = async ({
   } as MemberInvite;
 };
 
+export const getMemberInvite = async (
+  inviteId: string
+): Promise<MemberInvite | null> => {
+  const snap = await getDoc(doc(db, "memberInvites", inviteId));
+  if (!snap.exists()) return null;
+  return mapMemberInvite(snap);
+};
+
+export const updateMemberInviteStatus = async (
+  inviteId: string,
+  status: MemberInvite["status"]
+) => {
+  await updateDoc(doc(db, "memberInvites", inviteId), {
+    status,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+export const markMemberInviteUsed = async (inviteId: string) => {
+  await updateDoc(doc(db, "memberInvites", inviteId), {
+    status: "used",
+    updatedAt: serverTimestamp(),
+  });
+};
+
 export const getMemberInvitesForGroup = async (
   groupId: string
 ): Promise<MemberInvite[]> => {

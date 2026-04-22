@@ -44,6 +44,13 @@ service cloud.firestore {
         groupId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId;
     }
 
+    function canMarkInviteUsed() {
+      return isSignedIn() &&
+        resource.data.status == 'created' &&
+        request.resource.data.status == 'used' &&
+        request.resource.data.diff(resource.data).changedKeys().hasOnly(['status', 'updatedAt']);
+    }
+
     // ─── Users ────────────────────────────────────────────────────────────
 
     match /users/{userId} {
@@ -77,7 +84,9 @@ service cloud.firestore {
     // ─── Member Invites ──────────────────────────────────────────────────
 
     match /memberInvites/{inviteId} {
-      allow read, write: if isAdmin();
+      allow get: if true;
+      allow list, create, delete: if isAdmin();
+      allow update: if isAdmin() || canMarkInviteUsed();
     }
 
     // ─── Courses ──────────────────────────────────────────────────────────

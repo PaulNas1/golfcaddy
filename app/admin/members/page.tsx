@@ -10,6 +10,7 @@ import {
   getGroup,
   createMemberInvite,
   getMemberInvitesForGroup,
+  updateMemberInviteStatus,
   approveMember,
   rejectMember,
   updateMemberStartingHandicap,
@@ -21,6 +22,7 @@ import type { AppUser, Group, Member, MemberInvite, UserRole, UserStatus } from 
 export default function AdminMembersPage() {
   const { appUser } = useAuth();
   const activeMenuRef = useRef<HTMLDivElement | null>(null);
+  const inviteMenuRef = useRef<HTMLDivElement | null>(null);
   const [pending, setPending] = useState<AppUser[]>([]);
   const [active, setActive] = useState<AppUser[]>([]);
   const [retired, setRetired] = useState<AppUser[]>([]);
@@ -39,6 +41,7 @@ export default function AdminMembersPage() {
   const [inviteLink, setInviteLink] = useState("");
   const [pendingRoleDrafts, setPendingRoleDrafts] = useState<Record<string, UserRole>>({});
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
+  const [activeInviteMenuId, setActiveInviteMenuId] = useState<string | null>(null);
   const [activeSearch, setActiveSearch] = useState("");
   const [selectedActiveUser, setSelectedActiveUser] = useState<AppUser | null>(null);
   const [error, setError] = useState("");
@@ -83,17 +86,20 @@ export default function AdminMembersPage() {
   useEffect(() => { load(); }, [load]);
 
   useEffect(() => {
-    if (!activeMenuUserId) return;
+    if (!activeMenuUserId && !activeInviteMenuId) return;
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node | null;
       if (activeMenuRef.current?.contains(target)) return;
+      if (inviteMenuRef.current?.contains(target)) return;
       setActiveMenuUserId(null);
+      setActiveInviteMenuId(null);
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setActiveMenuUserId(null);
+        setActiveInviteMenuId(null);
       }
     };
 
@@ -104,7 +110,7 @@ export default function AdminMembersPage() {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [activeMenuUserId]);
+  }, [activeInviteMenuId, activeMenuUserId]);
 
   const handleApprove = async (uid: string) => {
     const role = pendingRoleDrafts[uid] ?? "member";
@@ -238,6 +244,7 @@ export default function AdminMembersPage() {
           ? openInviteShare({
               inviteeName: trimmedName,
               groupName: group.name,
+              senderName: appUser.displayName,
               contact: trimmedContact,
               link,
               method: inviteMethod,
@@ -274,9 +281,63 @@ export default function AdminMembersPage() {
     }
   };
 
+  const handleResendInvite = async (invite: MemberInvite) => {
+    const inviteMethod = getInviteContactMethod(invite.contact);
+    const link = buildInviteLink(invite);
+    const copied = await copyToClipboard(link);
+    const openedShareTarget =
+      invite.contact && inviteMethod
+        ? openInviteShare({
+            inviteeName: invite.inviteeName,
+            groupName: invite.groupName,
+            senderName: invite.createdByName,
+            contact: invite.contact,
+            link,
+            method: inviteMethod,
+          })
+        : false;
+
+    setInviteLink(link);
+    setActiveInviteMenuId(null);
+    setError("");
+    setSuccess(
+      openedShareTarget
+        ? inviteMethod === "email"
+          ? copied
+            ? "Invite email is ready again and the link was copied as a fallback."
+            : "Invite email is ready again. If it does not open, copy the link below and share it manually."
+          : copied
+            ? "Invite text is ready again and the link was copied as a fallback."
+            : "Invite text is ready again. If it does not open, copy the link below and share it manually."
+        : copied
+          ? "Invite link copied. Share it with the player."
+          : "Copy is not available in this browser. Select the link below and share it manually."
+    );
+  };
+
+  const handleRevokeInvite = async (invite: MemberInvite) => {
+    if (!confirm(`Revoke the invite for ${invite.inviteeName}?`)) return;
+
+    setActioning(`revoke-invite:${invite.id}`);
+    setActiveInviteMenuId(null);
+    setError("");
+    setSuccess("");
+    try {
+      await updateMemberInviteStatus(invite.id, "cancelled");
+      setSuccess(`${invite.inviteeName}'s invite was revoked.`);
+      await load();
+    } catch (error) {
+      console.error("Could not revoke invite", error);
+      setError("Could not revoke the invite. Please try again.");
+    } finally {
+      setActioning(null);
+    }
+  };
+
   const approvalRoleOptions = getAssignableRoles(appUser?.role);
   const activeSectionDescription =
     "Set each player's GolfCaddy starting handicap here. Published rounds will move it from this baseline.";
+  const recentInvites = invites.filter((invite) => invite.status === "created");
   const activeMembers = [...active]
     .sort(compareUsersByFirstName)
     .filter((user) => matchesMemberSearch(user, activeSearch));
@@ -383,23 +444,87 @@ export default function AdminMembersPage() {
               </button>
             </div>
           )}
-          {invites.length > 0 && (
+          {recentInvites.length > 0 && (
             <div className="border-t border-gray-100 pt-3">
               <p className="text-xs font-semibold text-gray-600">
                 Recent invites
               </p>
-              <div className="mt-2 space-y-1">
-                {invites.slice(0, 3).map((invite) => (
+              <div className="mt-2 space-y-2">
+                {recentInvites.slice(0, 4).map((invite) => (
                   <div
                     key={invite.id}
-                    className="flex items-center justify-between text-xs"
+                    className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 px-3 py-2.5"
                   >
-                    <span className="truncate text-gray-600">
-                      {invite.inviteeName}
-                    </span>
-                    <span className="capitalize text-gray-400">
-                      {invite.status}
-                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-700">
+                        {invite.inviteeName}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {formatInviteDate(invite.createdAt)}
+                      </p>
+                    </div>
+                    <div className="relative flex items-start">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setActiveInviteMenuId((current) =>
+                            current === invite.id ? null : invite.id
+                          )
+                        }
+                        className="rounded-lg border border-gray-200 p-1.5 text-gray-500"
+                        aria-label={`Invite actions for ${invite.inviteeName}`}
+                      >
+                        <EllipsisIcon className="h-4 w-4" />
+                      </button>
+                      {activeInviteMenuId === invite.id && (
+                        <div
+                          ref={inviteMenuRef}
+                          className="absolute right-0 top-9 z-20 w-44 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+                        >
+                          {invite.status === "created" && (
+                            <button
+                              type="button"
+                              onClick={() => handleResendInvite(invite)}
+                              className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                            >
+                              {invite.contact
+                                ? getInviteContactMethod(invite.contact) === "email"
+                                  ? "Resend email"
+                                  : "Resend text"
+                                : "Copy invite link"}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const copied = await copyToClipboard(
+                                buildInviteLink(invite)
+                              );
+                              setActiveInviteMenuId(null);
+                              setError("");
+                              setSuccess(
+                                copied
+                                  ? "Invite link copied."
+                                  : "Copy is not available in this browser. Select the link below and share it manually."
+                              );
+                            }}
+                            className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            Copy link
+                          </button>
+                          {invite.status === "created" && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeInvite(invite)}
+                              disabled={actioning === `revoke-invite:${invite.id}`}
+                              className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:text-red-300"
+                            >
+                              Revoke invite
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -731,6 +856,17 @@ function formatStatusLabel(status: UserStatus) {
   return "Pending";
 }
 
+function formatInviteDate(date: Date) {
+  return new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "short",
+    year:
+      date.getFullYear() === new Date().getFullYear()
+        ? undefined
+        : "numeric",
+  }).format(date);
+}
+
 function getAssignableRoles(currentUserRole: UserRole | undefined) {
   return currentUserRole === "admin"
     ? (["member", "moderator", "admin"] as UserRole[])
@@ -1018,24 +1154,41 @@ function getInviteActionLabel(rawContact: string) {
 function openInviteShare({
   inviteeName,
   groupName,
+  senderName,
   contact,
   link,
   method,
 }: {
   inviteeName: string;
   groupName: string;
+  senderName: string;
   contact: string;
   link: string;
   method: "email" | "sms";
 }) {
   if (typeof window === "undefined") return false;
 
-  const message = `Hi ${inviteeName}, join ${groupName} on GolfCaddy using this signup link: ${link}`;
+  const message =
+    method === "email"
+      ? buildInviteEmailMessage({
+          inviteeName,
+          groupName,
+          senderName,
+          link,
+        })
+      : buildInviteTextMessage({
+          inviteeName,
+          groupName,
+          senderName,
+          link,
+        });
   const encodedMessage = encodeURIComponent(message);
 
   try {
     if (method === "email") {
-      const subject = encodeURIComponent(`Join ${groupName} on GolfCaddy`);
+      const subject = encodeURIComponent(
+        `You're invited to join ${groupName} on GolfCaddy`
+      );
       window.location.href = `mailto:${encodeURIComponent(contact)}?subject=${subject}&body=${encodedMessage}`;
       return true;
     }
@@ -1050,6 +1203,51 @@ function openInviteShare({
   } catch {
     return false;
   }
+}
+
+function buildInviteEmailMessage({
+  inviteeName,
+  groupName,
+  senderName,
+  link,
+}: {
+  inviteeName: string;
+  groupName: string;
+  senderName: string;
+  link: string;
+}) {
+  return [
+    `Hi ${inviteeName},`,
+    "",
+    `${senderName} has invited you to join ${groupName} on GolfCaddy.`,
+    "",
+    "GolfCaddy is where members manage rounds, results, and club updates.",
+    "",
+    "Use the link below to create your account and request access.",
+    "",
+    "",
+    link,
+    "",
+    "",
+    "Once you sign up, an admin will approve your membership and you’ll be ready to go.",
+    "",
+    "See you soon,",
+    senderName,
+  ].join("\n");
+}
+
+function buildInviteTextMessage({
+  inviteeName,
+  groupName,
+  senderName,
+  link,
+}: {
+  inviteeName: string;
+  groupName: string;
+  senderName: string;
+  link: string;
+}) {
+  return `Hi ${inviteeName}, ${senderName} has invited you to join ${groupName} on GolfCaddy. Create your account here:\n\n${link}`;
 }
 
 function buildInviteLink({

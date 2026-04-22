@@ -10,7 +10,13 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { createUser, getUser, subscribeUser, updateUser } from "@/lib/firestore";
+import {
+  createUser,
+  getUser,
+  markMemberInviteUsed,
+  subscribeUser,
+  updateUser,
+} from "@/lib/firestore";
 import type { AppUser, UserGender } from "@/types";
 
 type SignUpOptions = {
@@ -130,6 +136,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         avatarPath: null,
         fcmToken: null,
       });
+      if (options?.inviteId) {
+        markMemberInviteUsed(options.inviteId).catch((error) => {
+          console.warn("Unable to mark invite as used", error);
+        });
+      }
       // Keep appUser in sync immediately after signup.
       const newUser = await getUser(user.uid);
       setAppUser(newUser);
