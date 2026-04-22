@@ -169,19 +169,19 @@ export default function LeaderboardPage() {
 
   const sideLeaderboards = [
     {
-      label: "NTP leaders",
+      label: "NTP",
       key: "ntpWinsSeason" as const,
     },
     {
-      label: "LD leaders",
+      label: "LD",
       key: "ldWinsSeason" as const,
     },
     {
-      label: "T2 leaders",
+      label: "T2",
       key: "t2WinsSeason" as const,
     },
     {
-      label: "T3 leaders",
+      label: "T3",
       key: "t3WinsSeason" as const,
     },
   ];
@@ -341,32 +341,58 @@ function SidePrizeBoard({
   const leaders = standings
     .filter((standing) => standing[statKey] > 0)
     .sort((a, b) => b[statKey] - a[statKey] || a.memberName.localeCompare(b.memberName))
-    .slice(0, 5);
+    .slice(0, 3);
+
+  const leader = leaders[0] ?? null;
+  const runnersUp = leaders.slice(1);
 
   return (
-    <div className="rounded-xl bg-gray-50 px-3 py-3">
-      <p className="text-sm font-semibold text-gray-800">{label}</p>
-      {leaders.length === 0 ? (
-        <p className="mt-2 text-xs text-gray-400">No winners yet</p>
+    <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+        {label}
+      </p>
+      {!leader ? (
+        <div className="mt-3">
+          <p className="text-sm font-semibold text-gray-700">No winner yet</p>
+          <p className="mt-1 text-xs text-gray-400">
+            This category updates after prize winners are published.
+          </p>
+        </div>
       ) : (
-        <div className="mt-2 space-y-1">
-          {leaders.map((standing, index) => (
-            <div
-              key={standing.memberId}
-              className="flex items-center justify-between text-xs"
-            >
-              <span className="truncate text-gray-600">
-                #{index + 1} {standing.memberName}
-              </span>
-              <span className="font-semibold text-green-700">
-                {standing[statKey]}
-              </span>
-            </div>
-          ))}
+        <div className="mt-3">
+          <p className="truncate text-sm font-semibold text-gray-800">
+            {leader.memberName}
+          </p>
+          <p className="mt-1 text-lg font-bold text-green-700">
+            {leader[statKey]} {formatWinLabel(leader[statKey])}
+          </p>
+          <div className="mt-3 space-y-1.5">
+            {runnersUp.length === 0 ? (
+              <p className="text-xs text-gray-400">No other winners</p>
+            ) : (
+              runnersUp.map((standing, index) => (
+                <div
+                  key={standing.memberId}
+                  className="flex items-center justify-between gap-3 text-xs"
+                >
+                  <span className="truncate text-gray-500">
+                    #{index + 2} {standing.memberName}
+                  </span>
+                  <span className="shrink-0 font-semibold text-green-700">
+                    {standing[statKey]}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
   );
+}
+
+function formatWinLabel(count: number) {
+  return count === 1 ? "win" : "wins";
 }
 
 function getRankMovement(standing: {
