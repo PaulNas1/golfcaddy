@@ -498,20 +498,18 @@ export default function AdminMembersPage() {
                 className="cursor-pointer rounded-xl border border-gray-100 bg-white px-4 py-3 transition-colors hover:bg-gray-50"
                 onClick={() => setSelectedActiveUser(user)}
               >
-                <div className="grid grid-cols-[auto,minmax(0,1fr),auto,auto,auto] items-center gap-3">
+                <div className="grid grid-cols-[auto,minmax(0,1fr),72px,36px,36px] items-center gap-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-base font-bold text-green-700">
                     {user.displayName.charAt(0).toUpperCase()}
                   </div>
-                  <p className="min-w-0 text-sm font-medium leading-tight text-gray-800 break-words">
-                    {user.displayName}
-                  </p>
+                  <MemberListName name={user.displayName} />
 
                   {editingHandicapFor !== user.uid ? (
-                    <span className="whitespace-nowrap rounded-lg bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-700">
+                    <span className="w-[72px] whitespace-nowrap rounded-lg bg-gray-50 px-2.5 py-1 text-center text-xs font-semibold text-gray-700">
                       HCP {members[user.uid]?.currentHandicap ?? "—"}
                     </span>
                   ) : (
-                    <span className="text-xs font-medium text-green-700">
+                    <span className="w-[72px] text-center text-xs font-medium text-green-700">
                       Editing
                     </span>
                   )}
@@ -602,7 +600,7 @@ export default function AdminMembersPage() {
                       )}
                     </div>
                   ) : (
-                    <div />
+                    <div className="h-9 w-9" aria-hidden="true" />
                   )}
                 </div>
 
@@ -831,6 +829,30 @@ function MemberDetailFact({
       <p className="mt-0.5 break-words font-semibold text-gray-700">{value}</p>
     </div>
   );
+}
+
+function MemberListName({ name }: { name: string }) {
+  const [firstLine, secondLine] = splitDisplayName(name);
+
+  return (
+    <div className="min-w-0">
+      <p className="truncate text-sm font-medium leading-tight text-gray-800">
+        {firstLine}
+      </p>
+      <p className="truncate text-sm font-medium leading-tight text-gray-800">
+        {secondLine}
+      </p>
+    </div>
+  );
+}
+
+function splitDisplayName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    return [parts[0] ?? name, "\u00A0"];
+  }
+
+  return [parts[0], parts.slice(1).join(" ")];
 }
 
 function MemberStatusSection({
