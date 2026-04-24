@@ -50,6 +50,9 @@ import type {
   TeeTime,
 } from "@/types";
 
+const DATE_INPUT_CLASSNAME =
+  "block h-[42px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-gray-200 bg-white px-3 text-left text-sm leading-[42px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
+
 function extractGolfCourseApiId(
   courseId: string | null | undefined,
   teeSetId: string | null | undefined
@@ -1088,7 +1091,7 @@ export default function AdminRoundDetailPage() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={DATE_INPUT_CLASSNAME}
             />
           </div>
 
