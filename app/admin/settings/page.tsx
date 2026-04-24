@@ -34,6 +34,10 @@ export default function AdminSettingsPage() {
   const [updatingSeason, setUpdatingSeason] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [expandedSections, setExpandedSections] = useState({
+    ladderPoints: false,
+    handicapRules: false,
+  });
 
   useEffect(() => {
     getGroup(appUser?.groupId)
@@ -182,6 +186,13 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    const confirmed = confirm(
+      seasonDraft > group.currentSeason
+        ? `Finalise season ${group.currentSeason} and start season ${seasonDraft}? New rounds and ladder updates will go into ${seasonDraft}.`
+        : `Change the active season from ${group.currentSeason} to ${seasonDraft}? New rounds and ladder updates will go into ${seasonDraft}.`
+    );
+    if (!confirmed) return;
+
     setUpdatingSeason(true);
     setError("");
     setSuccess("");
@@ -320,12 +331,19 @@ export default function AdminSettingsPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-gray-800">Ladder Points</h2>
-        <p className="mt-1 text-xs text-gray-500">
-          Points are awarded by final placing after countback.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-3">
+      <CollapsibleSettingsSection
+        title="Ladder Points"
+        description="Points are awarded by final placing after countback."
+        summary={getPointsSummary(settings.pointsTable)}
+        expanded={expandedSections.ladderPoints}
+        onToggle={() =>
+          setExpandedSections((current) => ({
+            ...current,
+            ladderPoints: !current.ladderPoints,
+          }))
+        }
+      >
+        <div className="grid grid-cols-2 gap-3">
           {Array.from({ length: 10 }, (_, index) => index + 1).map(
             (position) => (
               <label key={position} className="block">
@@ -345,7 +363,7 @@ export default function AdminSettingsPage() {
             )
           )}
         </div>
-      </section>
+      </CollapsibleSettingsSection>
 
       <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <h2 className="font-semibold text-gray-800">Season Total</h2>
@@ -405,17 +423,28 @@ export default function AdminSettingsPage() {
             <span className="mb-1 block text-xs font-medium text-gray-600">
               Change active season
             </span>
-            <input
-              type="number"
-              min={2000}
-              step={1}
+            <select
               value={seasonDraft}
               onChange={(event) =>
                 setSeasonDraft(Number(event.target.value) || new Date().getFullYear())
               }
               className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+            >
+              {getSeasonOptions(group?.currentSeason ?? seasonDraft).map(
+                (seasonOption) => (
+                  <option key={seasonOption} value={seasonOption}>
+                    {seasonOption}
+                  </option>
+                )
+              )}
+            </select>
           </label>
+          <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
+            <p className="text-xs text-amber-800">
+              Changing the active season only affects where new rounds and
+              ladder updates go. Historical season results stay in place.
+            </p>
+          </div>
           <button
             type="button"
             onClick={handleSeasonUpdate}
@@ -429,12 +458,19 @@ export default function AdminSettingsPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-gray-800">Handicap Rules</h2>
-        <p className="mt-1 text-xs text-gray-500">
-          GolfCaddy handicap movement uses recent Stableford cards.
-        </p>
-        <div className="mt-4 space-y-3">
+      <CollapsibleSettingsSection
+        title="Handicap Rules"
+        description="GolfCaddy handicap movement uses recent Stableford cards."
+        summary={getHandicapSummary(settings)}
+        expanded={expandedSections.handicapRules}
+        onToggle={() =>
+          setExpandedSections((current) => ({
+            ...current,
+            handicapRules: !current.handicapRules,
+          }))
+        }
+      >
+        <div className="space-y-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-gray-600">
               Cards used for handicap movement
@@ -469,7 +505,7 @@ export default function AdminSettingsPage() {
             />
           </div>
         </div>
-      </section>
+      </CollapsibleSettingsSection>
 
       <button
         type="button"
@@ -480,6 +516,49 @@ export default function AdminSettingsPage() {
         {saving ? "Saving..." : "Save Settings"}
       </button>
     </div>
+  );
+}
+
+function CollapsibleSettingsSection({
+  title,
+  description,
+  summary,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  description: string;
+  summary: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-start justify-between gap-3 text-left"
+        aria-expanded={expanded}
+      >
+        <span>
+          <span className="block font-semibold text-gray-800">{title}</span>
+          <span className="mt-1 block text-xs text-gray-500">{description}</span>
+          <span className="mt-2 block text-xs font-medium text-green-700">
+            {summary}
+          </span>
+        </span>
+        <span
+          className={`mt-0.5 rounded-lg border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-500 transition-transform ${
+            expanded ? "rotate-180" : ""
+          }`}
+        >
+          ˅
+        </span>
+      </button>
+      {expanded && <div className="mt-4">{children}</div>}
+    </section>
   );
 }
 
@@ -560,4 +639,22 @@ function getSeasonActionLabel(
     return `Finalise ${currentSeason} and start ${nextSeason}`;
   }
   return `Set active season to ${nextSeason}`;
+}
+
+function getSeasonOptions(activeSeason: number) {
+  return Array.from({ length: 5 }, (_, index) => activeSeason - 1 + index);
+}
+
+function getPointsSummary(pointsTable: GroupSettings["pointsTable"]) {
+  return Array.from({ length: 4 }, (_, index) => pointsTable[String(index + 1)] ?? 0)
+    .join(", ")
+    .concat(" ...");
+}
+
+function getHandicapSummary(settings: GroupSettings) {
+  const handicapModeLabel =
+    settings.handicapMode === "slope_adjusted"
+      ? "Slope-adjusted mode"
+      : "Local handicap mode";
+  return `${settings.handicapRoundsWindow} cards, ${handicapModeLabel}`;
 }

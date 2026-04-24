@@ -37,6 +37,9 @@ import type {
   TeeTime,
 } from "@/types";
 
+const DATE_INPUT_CLASSNAME =
+  "block w-full min-w-0 rounded-xl border border-gray-200 px-4 py-3 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left";
+
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
   const router = useRouter();
@@ -607,74 +610,72 @@ export default function CreateRoundPage() {
                 </p>
               </div>
               {showCustomCourseSetup && (
-                <div className="mt-3 overflow-x-auto">
-                  <div className="min-w-[420px]">
-                    <div className="grid grid-cols-[44px_110px_88px_120px] items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                <div className="mt-3">
+                  <div className="grid grid-cols-[34px_minmax(0,1fr)_56px_72px] items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
                       <span>Hole</span>
                       <span>Par</span>
                       <span>Index</span>
-                      <span>Distance (m)</span>
-                    </div>
-                    <div className="mt-2 space-y-2">
-                      {customHoles.map((hole) => (
-                        <div
-                          key={hole.number}
-                          className="grid grid-cols-[44px_110px_88px_120px] items-center gap-2 text-xs"
+                      <span>Dist</span>
+                  </div>
+                  <div className="mt-2 space-y-2">
+                    {customHoles.map((hole) => (
+                      <div
+                        key={hole.number}
+                        className="grid grid-cols-[34px_minmax(0,1fr)_56px_72px] items-center gap-1.5 text-xs"
+                      >
+                        <span className="font-semibold text-gray-700">
+                          H{hole.number}
+                        </span>
+                        <select
+                          value={hole.par}
+                          onChange={(e) =>
+                            updateCustomHole(
+                              hole.number,
+                              "par",
+                              e.target.value
+                            )
+                          }
+                          className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          aria-label={`Hole ${hole.number} par`}
                         >
-                          <span className="font-semibold text-gray-700">
-                            H{hole.number}
-                          </span>
-                          <select
-                            value={hole.par}
-                            onChange={(e) =>
-                              updateCustomHole(
-                                hole.number,
-                                "par",
-                                e.target.value
-                              )
-                            }
-                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            aria-label={`Hole ${hole.number} par`}
-                          >
-                            {[3, 4, 5].map((par) => (
-                              <option key={par} value={par}>
-                                Par {par}
-                              </option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            min={1}
-                            max={18}
-                            value={hole.strokeIndex}
-                            onChange={(e) =>
-                              updateCustomHole(
-                                hole.number,
-                                "strokeIndex",
-                                e.target.value
-                              )
-                            }
-                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            aria-label={`Hole ${hole.number} stroke index`}
-                          />
-                          <input
-                            type="number"
-                            min={1}
-                            value={hole.distanceMeters ?? ""}
-                            onChange={(e) =>
-                              updateCustomHole(
-                                hole.number,
-                                "distanceMeters",
-                                e.target.value
-                              )
-                            }
-                            placeholder="m"
-                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            aria-label={`Hole ${hole.number} distance metres`}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                          {[3, 4, 5].map((par) => (
+                            <option key={par} value={par}>
+                              Par {par}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min={1}
+                          max={18}
+                          value={hole.strokeIndex}
+                          onChange={(e) =>
+                            updateCustomHole(
+                              hole.number,
+                              "strokeIndex",
+                              e.target.value
+                            )
+                          }
+                          className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          aria-label={`Hole ${hole.number} stroke index`}
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          value={hole.distanceMeters ?? ""}
+                          onChange={(e) =>
+                            updateCustomHole(
+                              hole.number,
+                              "distanceMeters",
+                              e.target.value
+                            )
+                          }
+                          placeholder="m"
+                          className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          aria-label={`Hole ${hole.number} distance metres`}
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -693,7 +694,7 @@ export default function CreateRoundPage() {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+              className={DATE_INPUT_CLASSNAME}
             />
           </div>
 
