@@ -38,7 +38,7 @@ import type {
 } from "@/types";
 
 const DATE_INPUT_CLASSNAME =
-  "block w-full min-w-0 rounded-xl border border-gray-200 px-4 py-3 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left";
+  "block w-full min-w-0 max-w-full appearance-none bg-white px-4 py-3 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
@@ -624,8 +624,8 @@ export default function CreateRoundPage() {
                   <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 px-1 text-[10px] font-semibold text-gray-500">
                       <span>Hole</span>
                       <span>Par</span>
-                      <span className="text-center">Index</span>
-                      <span className="text-center">Distance</span>
+                      <span>Index</span>
+                      <span>Distance</span>
                   </div>
                   <div className="mt-2 space-y-2">
                     {customHoles.map((hole) => (
@@ -700,13 +700,15 @@ export default function CreateRoundPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              className={DATE_INPUT_CLASSNAME}
-            />
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+                className={DATE_INPUT_CLASSNAME}
+              />
+            </div>
           </div>
 
           <div className="rounded-xl border border-green-100 bg-green-50 px-3 py-3">
