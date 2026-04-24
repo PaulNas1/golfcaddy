@@ -730,10 +730,13 @@ export default function CreateRoundPage() {
               Round number
             </label>
             <input
-              type="number"
-              min={1}
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
               value={roundNumber}
-              onChange={(e) => setRoundNumber(e.target.value)}
+              onChange={(e) =>
+                setRoundNumber(e.target.value.replace(/[^\d]/g, ""))
+              }
               required
               className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
             />

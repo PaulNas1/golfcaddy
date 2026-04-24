@@ -41,6 +41,7 @@ import {
 } from "@/lib/teeTimes";
 import type {
   AppUser,
+  CourseTeeSet,
   HoleOverride,
   Round,
   RoundStatus,
@@ -52,6 +53,18 @@ import type {
 
 const DATE_INPUT_CLASSNAME =
   "block h-[42px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-gray-200 bg-white px-3 text-left text-sm leading-[42px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
+
+function mergeTeeSets(...groups: Array<CourseTeeSet[] | null | undefined>) {
+  const merged = new Map<string, CourseTeeSet>();
+
+  groups.forEach((group) => {
+    group?.forEach((teeSet) => {
+      merged.set(teeSet.id, teeSet);
+    });
+  });
+
+  return Array.from(merged.values());
+}
 
 function extractGolfCourseApiId(
   courseId: string | null | undefined,
@@ -115,8 +128,10 @@ export default function AdminRoundDetailPage() {
 
     return apiCourseById ?? apiCourseByName ?? null;
   }, [apiCourses, courseId, courseName]);
-  const courseTeeSets =
-    selectedCourse?.teeSets ?? (round ? getRoundTeeSets(round) : []);
+  const courseTeeSets = useMemo(
+    () => mergeTeeSets(selectedCourse?.teeSets, round ? getRoundTeeSets(round) : []),
+    [round, selectedCourse?.teeSets]
+  );
   const selectedTeeSet =
     courseTeeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
   const apiCourseSuggestions = useMemo(
@@ -147,7 +162,15 @@ export default function AdminRoundDetailPage() {
     const acceptedIds = new Set(acceptedMemberIds);
     return members.filter((member) => acceptedIds.has(member.uid));
   }, [acceptedMemberIds, members]);
-  const assignmentTeeSets = courseTeeSets;
+  const assignmentTeeSets = useMemo(
+    () =>
+      mergeTeeSets(
+        courseTeeSets,
+        round?.availableTeeSets,
+        selectedCourse?.teeSets
+      ),
+    [courseTeeSets, round?.availableTeeSets, selectedCourse?.teeSets]
+  );
   const teeReviewMembers = acceptedMembers.filter(
     (member) =>
       needsTeeReview(member) &&

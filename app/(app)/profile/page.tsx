@@ -9,7 +9,6 @@ import {
 } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import PushNotificationSettingsCard from "@/components/PushNotificationSettingsCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import {
@@ -901,9 +900,6 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
-
-      <PushNotificationSettingsCard />
-
       <button
         onClick={handleSignOut}
         className="w-full py-3 border border-gray-200 rounded-2xl text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
