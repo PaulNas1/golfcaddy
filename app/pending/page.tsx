@@ -1,11 +1,30 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function PendingPage() {
-  const { appUser, signOut } = useAuth();
+  const { appUser, loading, signOut } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (!appUser) {
+      router.replace("/signin");
+      return;
+    }
+
+    if (appUser.status === "active") {
+      router.replace("/home");
+      return;
+    }
+
+    if (appUser.status !== "pending") {
+      router.replace("/signin");
+    }
+  }, [appUser, loading, router]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -38,7 +57,10 @@ export default function PendingPage() {
             <span className="text-2xl">⏳</span>
             <div>
               <p className="font-medium text-gray-800 text-sm">Admin approval pending</p>
-              <p className="text-gray-500 text-xs">You&apos;ll get an email when approved</p>
+              <p className="text-gray-500 text-xs">
+                Stay signed in here and GolfCaddy will open automatically once
+                you&apos;re approved.
+              </p>
             </div>
           </div>
 
