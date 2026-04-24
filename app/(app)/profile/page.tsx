@@ -9,6 +9,7 @@ import {
 } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import PushNotificationSettingsCard from "@/components/PushNotificationSettingsCard";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import {
@@ -900,6 +901,8 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      <PushNotificationSettingsCard />
 
       <button
         onClick={handleSignOut}

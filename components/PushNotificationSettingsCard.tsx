@@ -99,22 +99,45 @@ export default function PushNotificationSettingsCard() {
       : permission === "denied"
         ? "Blocked"
         : "Not enabled";
+  const actionLabel = !supported
+    ? "Unavailable"
+    : permission === "granted" && appUser?.fcmToken
+      ? "Re-check"
+      : "Enable";
 
   return (
-    <div className="mb-4 rounded-2xl border border-green-200 bg-green-50 p-4">
+    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-semibold text-green-900">
+          <h2 className="text-sm font-semibold text-gray-800">
             Device Notifications
           </h2>
-          <p className="mt-1 text-xs text-green-800">
-            Status: {statusLabel}
+          <p className="mt-1 text-xs text-gray-500">
+            Control alerts for round changes, published results, and feed activity.
           </p>
-          <p className="mt-1 text-xs text-green-800">
-            Token saved: {appUser?.fcmToken ? "Yes" : "No"}
-          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={`rounded-full px-2.5 py-1 font-semibold ${
+                permission === "granted" && appUser?.fcmToken
+                  ? "bg-green-100 text-green-700"
+                  : permission === "denied"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {statusLabel}
+            </span>
+            <span className="text-gray-500">
+              Token saved: {appUser?.fcmToken ? "Yes" : "No"}
+            </span>
+          </div>
+          {!supported && (
+            <p className="mt-2 text-xs text-gray-500">
+              This browser or device does not support web push notifications.
+            </p>
+          )}
           {permission === "denied" && (
-            <p className="mt-2 text-xs text-green-800">
+            <p className="mt-2 text-xs text-gray-500">
               Notifications are blocked for this Home Screen app. Re-enable them in iPhone Settings.
             </p>
           )}
@@ -123,12 +146,20 @@ export default function PushNotificationSettingsCard() {
           type="button"
           onClick={handleEnable}
           disabled={syncing || !supported}
-          className="rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+          className="rounded-xl border border-green-200 px-3 py-2 text-xs font-semibold text-green-700 disabled:opacity-60"
         >
-          {syncing ? "Checking..." : "Enable"}
+          {syncing ? "Checking..." : actionLabel}
         </button>
       </div>
-      {message && <p className="mt-3 text-xs text-red-600">{message}</p>}
+      {message && (
+        <p
+          className={`mt-3 text-xs ${
+            message.includes("enabled") ? "text-green-700" : "text-red-600"
+          }`}
+        >
+          {message}
+        </p>
+      )}
     </div>
   );
 }
