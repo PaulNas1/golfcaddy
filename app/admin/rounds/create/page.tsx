@@ -72,6 +72,9 @@ export default function CreateRoundPage() {
   const [customHoles, setCustomHoles] = useState<CourseHole[]>(
     getFallbackCourseHoles
   );
+  const [customStrokeIndexInputs, setCustomStrokeIndexInputs] = useState<
+    Record<number, string>
+  >({});
   const selectedApiCourseById = useMemo(
     () => apiCourses.find((course) => course.id === courseId) ?? null,
     [apiCourses, courseId]
@@ -347,6 +350,13 @@ export default function CreateRoundPage() {
     field: "par" | "strokeIndex" | "distanceMeters",
     value: string
   ) => {
+    if (field === "strokeIndex") {
+      setCustomStrokeIndexInputs((current) => ({
+        ...current,
+        [holeNumber]: value,
+      }));
+    }
+
     setCustomHoles((holes) =>
       holes.map((hole) => {
         if (hole.number !== holeNumber) return hole;
@@ -611,17 +621,17 @@ export default function CreateRoundPage() {
               </div>
               {showCustomCourseSetup && (
                 <div className="mt-3">
-                  <div className="grid grid-cols-[34px_minmax(0,1fr)_56px_72px] items-center gap-1.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 px-1 text-[10px] font-semibold text-gray-500">
                       <span>Hole</span>
                       <span>Par</span>
-                      <span>Index</span>
-                      <span>Dist</span>
+                      <span className="text-center">Index</span>
+                      <span className="text-center">Distance</span>
                   </div>
                   <div className="mt-2 space-y-2">
                     {customHoles.map((hole) => (
                       <div
                         key={hole.number}
-                        className="grid grid-cols-[34px_minmax(0,1fr)_56px_72px] items-center gap-1.5 text-xs"
+                        className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs"
                       >
                         <span className="font-semibold text-gray-700">
                           H{hole.number}
@@ -648,7 +658,7 @@ export default function CreateRoundPage() {
                           type="number"
                           min={1}
                           max={18}
-                          value={hole.strokeIndex}
+                          value={customStrokeIndexInputs[hole.number] ?? ""}
                           onChange={(e) =>
                             updateCustomHole(
                               hole.number,
@@ -656,6 +666,7 @@ export default function CreateRoundPage() {
                               e.target.value
                             )
                           }
+                          placeholder={String(hole.number)}
                           className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
                           aria-label={`Hole ${hole.number} stroke index`}
                         />
