@@ -38,7 +38,7 @@ import type {
 } from "@/types";
 
 const DATE_INPUT_CLASSNAME =
-  "block h-[50px] w-full min-w-0 max-w-full appearance-none bg-white px-4 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
+  "block h-[50px] w-full min-w-0 max-w-full appearance-none bg-white px-4 text-left text-base leading-[50px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
