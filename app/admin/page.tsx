@@ -31,6 +31,10 @@ export default function AdminDashboard() {
     );
   }, [appUser?.groupId]);
 
+  const activeSeason = group?.currentSeason ?? new Date().getFullYear();
+  const activeSeasonRounds = rounds.filter(
+    (round) => round.season === activeSeason
+  );
   const liveRound = rounds.find((r) => r.status === "live");
 
   return (
@@ -64,9 +68,9 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
           <div className="text-2xl font-bold text-green-600">
-            {loading ? "—" : rounds.length}
+            {loading ? "—" : activeSeasonRounds.length}
           </div>
-          <div className="text-xs text-gray-500 mt-1">Rounds</div>
+          <div className="text-xs text-gray-500 mt-1">Rounds this season</div>
         </div>
         <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
           <div className="text-2xl font-bold text-amber-500">
@@ -76,7 +80,7 @@ export default function AdminDashboard() {
         </div>
         <div className="bg-white rounded-2xl p-4 text-center shadow-sm border border-gray-100">
           <div className="text-2xl font-bold text-blue-500">
-            {loading ? "—" : group?.currentSeason ?? new Date().getFullYear()}
+            {loading ? "—" : activeSeason}
           </div>
           <div className="text-xs text-gray-500 mt-1">Season</div>
         </div>

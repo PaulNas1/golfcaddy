@@ -505,17 +505,20 @@ export default function AdminRoundDetailPage() {
           t.notes?.trim() ||
           null,
       }));
+    const isEditingExistingCourse =
+      !selectedCourse && courseName.trim() === round.courseName;
     const savedCourseId =
-      selectedCourse?.id ?? (preserveExistingCourseData ? round.courseId : "");
+      selectedCourse?.id ??
+      (isEditingExistingCourse || preserveExistingCourseData ? round.courseId : "");
     const savedAvailableTeeSets =
       selectedCourse?.teeSets ??
-      (preserveExistingCourseData ? getRoundTeeSets(round) : []);
+      (isEditingExistingCourse || preserveExistingCourseData ? courseTeeSets : []);
     const validTeeSetIds = new Set(
       savedAvailableTeeSets.map((teeSet) => teeSet.id)
     );
     const savedDefaultTeeSetId =
       courseDetails.teeSetId ??
-      (preserveExistingCourseData ? round.teeSetId : null);
+      (isEditingExistingCourse || preserveExistingCourseData ? round.teeSetId : null);
     const savedPlayerTeeAssignments = Object.fromEntries(
       Object.entries(playerTeeAssignments).filter(
         ([, teeId]) =>
