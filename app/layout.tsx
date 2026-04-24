@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
+import PushNotificationsManager from "@/components/PushNotificationsManager";
 
 export const metadata: Metadata = {
   title: "GolfCaddy",
@@ -34,7 +35,10 @@ export default function RootLayout({
       </head>
       <body className="font-sans antialiased">
         <DevServiceWorkerCleanup />
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PushNotificationsManager />
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );

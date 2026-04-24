@@ -17,6 +17,7 @@ import {
   subscribeUser,
   updateUser,
 } from "@/lib/firestore";
+import { clearCurrentPushToken } from "@/lib/pushClient";
 import type { AppUser, UserGender } from "@/types";
 
 type SignUpOptions = {
@@ -151,6 +152,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     setLoading(true);
+    if (appUser?.uid) {
+      await clearCurrentPushToken().catch(() => {});
+      await updateUser(appUser.uid, { fcmToken: null }).catch(() => {});
+    }
     await firebaseSignOut(auth).catch(() => {});
     setAppUser(null);
     setFirebaseUser(null);

@@ -47,6 +47,7 @@ import type {
   PostReactionType,
   PostComment,
   HandicapHistory,
+  NotificationType,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -57,6 +58,7 @@ import {
 } from "./season";
 import { withSeededCourseData } from "./courseData";
 import { normaliseGroupSettings } from "./settings";
+import { sendPushNotificationsToUsers } from "./pushClient";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +86,85 @@ function createBatchedWriter() {
     commit: commitCurrent,
   };
 }
+
+async function maybeSendPushNotification({
+  recipientUserIds,
+  title,
+  body,
+  deepLink,
+  type,
+}: {
+  recipientUserIds: string[];
+  title: string;
+  body: string;
+  deepLink: string;
+  type: NotificationType;
+}) {
+  if (typeof window === "undefined") return;
+  if (recipientUserIds.length === 0) return;
+
+  try {
+    await sendPushNotificationsToUsers({
+      recipientUserIds,
+      title,
+      body,
+      deepLink,
+      type,
+    });
+  } catch (error) {
+    console.warn("Unable to dispatch push notification", error);
+  }
+}
+
+export const createNotificationsForUsers = async ({
+  recipientUserIds,
+  groupId,
+  type,
+  title,
+  body,
+  deepLink,
+  roundId = null,
+  postId = null,
+}: {
+  recipientUserIds: string[];
+  groupId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  deepLink: string;
+  roundId?: string | null;
+  postId?: string | null;
+}) => {
+  const uniqueRecipientIds = Array.from(new Set(recipientUserIds));
+  if (uniqueRecipientIds.length === 0) return;
+
+  const batch = writeBatch(db);
+  const notificationBaseId = `${type}_${Date.now()}`;
+
+  uniqueRecipientIds.forEach((recipientId) => {
+    batch.set(doc(db, "notifications", `${notificationBaseId}_${recipientId}`), {
+      recipientId,
+      groupId,
+      type,
+      title,
+      body,
+      deepLink,
+      read: false,
+      roundId,
+      postId,
+      createdAt: serverTimestamp(),
+    });
+  });
+
+  await batch.commit();
+  await maybeSendPushNotification({
+    recipientUserIds: uniqueRecipientIds,
+    title,
+    body,
+    deepLink,
+    type,
+  });
+};
 
 export const toDate = (val: Timestamp | Date | null | undefined): Date => {
   if (!val) return new Date();
@@ -593,11 +674,24 @@ export const subscribeActiveMembers = (
 };
 
 export const approveMember = async (uid: string, role: UserRole = "member") => {
+  const userSnap = await getDoc(doc(db, "users", uid));
   await updateDoc(doc(db, "users", uid), {
     role,
     status: "active",
     updatedAt: serverTimestamp(),
   });
+
+  const user = userSnap.exists() ? mapUser(userSnap) : null;
+  if (user?.groupId) {
+    await createNotificationsForUsers({
+      recipientUserIds: [uid],
+      groupId: user.groupId,
+      type: "member_approved",
+      title: "Membership approved",
+      body: "You’re in. GolfCaddy is ready to use.",
+      deepLink: "/home",
+    });
+  }
 };
 
 export const rejectMember = async (uid: string) => {
@@ -808,6 +902,13 @@ export const notifyRoundPlayers = async ({
   });
 
   await batch.commit();
+  await maybeSendPushNotification({
+    recipientUserIds: activeUsers.map((user) => user.uid),
+    title,
+    body,
+    deepLink: `/rounds/${round.id}`,
+    type: mode === "created" ? "round_announced" : "tee_times_published",
+  });
 };
 
 const mapSideClaim = (
@@ -1470,6 +1571,7 @@ export const publishRoundResultsWithStage3 = async ({
   const membersById = new Map(groupMembers.map((member) => [member.id, member]));
   const batch = writeBatch(db);
   const author = publishedBy ?? activeUsers.find((user) => user.role === "admin");
+  const handicapChangedMemberIds: string[] = [];
   batch.set(doc(db, "results", round.id), {
     ...results,
     createdAt: serverTimestamp(),
@@ -1543,6 +1645,7 @@ export const publishRoundResultsWithStage3 = async ({
     );
 
     if (nextHandicap !== currentHandicap) {
+      handicapChangedMemberIds.push(standing.memberId);
       batch.set(doc(db, "handicapHistory", `${round.id}_${standing.memberId}`), {
         groupId: round.groupId,
         memberId: standing.memberId,
@@ -1588,6 +1691,20 @@ export const publishRoundResultsWithStage3 = async ({
   });
 
   await batch.commit();
+  await maybeSendPushNotification({
+    recipientUserIds: handicapChangedMemberIds,
+    title: "Handicap updated",
+    body: `Round ${round.roundNumber} is now official. Open your profile to see your latest handicap.`,
+    deepLink: "/profile",
+    type: "handicap_updated",
+  });
+  await maybeSendPushNotification({
+    recipientUserIds: activeUsers.map((user) => user.uid),
+    title: "Results published",
+    body: `Round ${round.roundNumber} results are official for ${round.courseName}.`,
+    deepLink: `/rounds/${round.id}`,
+    type: "results_published",
+  });
 
   return { officialResults, standings };
 };
@@ -1920,6 +2037,16 @@ export const createPostComment = async ({
       });
     }
   });
+
+  if (post.authorId !== author.uid) {
+    await maybeSendPushNotification({
+      recipientUserIds: [post.authorId],
+      title: "New reply on your post",
+      body: `${author.displayName} replied to your post.`,
+      deepLink: "/feed",
+      type: "new_comment",
+    });
+  }
 };
 
 export const deletePostComment = async ({
@@ -2065,6 +2192,16 @@ export const setPostReaction = async ({
       updatedAt: serverTimestamp(),
     });
   });
+
+  if (reactionType && post.authorId !== user.uid) {
+    await maybeSendPushNotification({
+      recipientUserIds: [post.authorId],
+      title: "New reaction on your post",
+      body: `${user.displayName} ${getReactionSummary(reactionType)} your post.`,
+      deepLink: "/feed",
+      type: "new_reaction",
+    });
+  }
 };
 
 // ─── Notifications ───────────────────────────────────────────────────────────

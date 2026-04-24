@@ -10,6 +10,7 @@ import {
   searchGolfCourseCatalogue,
 } from "@/lib/courseCatalogueClient";
 import {
+  createNotificationsForUsers,
   deleteRoundCascade,
   getActiveMembers,
   getRound,
@@ -381,11 +382,28 @@ export default function AdminRoundDetailPage() {
   const setStatus = async (status: RoundStatus) => {
     if (!round) return;
     setSaving(true);
-    await updateRound(round.id, { status });
-    setRound({ ...round, status });
-    setSuccess(`Round marked as ${status}`);
-    setSaving(false);
-    setTimeout(() => setSuccess(""), 3000);
+    try {
+      await updateRound(round.id, { status });
+      setRound({ ...round, status });
+
+      if (status === "live") {
+        const activeUsers = await getActiveMembers(round.groupId);
+        await createNotificationsForUsers({
+          recipientUserIds: activeUsers.map((user) => user.uid),
+          groupId: round.groupId,
+          type: "round_live",
+          title: "Round is live",
+          body: `Scoring is now open for Round ${round.roundNumber} at ${round.courseName}.`,
+          deepLink: `/rounds/${round.id}/scorecard`,
+          roundId: round.id,
+        });
+      }
+
+      setSuccess(`Round marked as ${status}`);
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSaveDetails = async (notifyPlayers = false) => {
@@ -775,6 +793,16 @@ export default function AdminRoundDetailPage() {
       const updatedRound = { ...round, holeOverrides: updated };
       const specialHoles = getEffectiveSpecialHoles(updatedRound);
       await updateRound(round.id, { holeOverrides: updated, specialHoles });
+      const activeUsers = await getActiveMembers(round.groupId);
+      await createNotificationsForUsers({
+        recipientUserIds: activeUsers.map((user) => user.uid),
+        groupId: round.groupId,
+        type: "change_alert",
+        title: "Course update",
+        body: `Hole ${holeNumber} is now Par ${overridePar}${reason.trim() ? `: ${reason.trim()}` : "."}`,
+        deepLink: `/rounds/${round.id}`,
+        roundId: round.id,
+      });
       setRound({ ...updatedRound, specialHoles });
       setEditingOverride(null);
       setSuccess("Hole par updated. Members will be notified.");
@@ -803,6 +831,16 @@ export default function AdminRoundDetailPage() {
       const updatedRound = { ...round, holeOverrides: updated };
       const specialHoles = getEffectiveSpecialHoles(updatedRound);
       await updateRound(round.id, { holeOverrides: updated, specialHoles });
+      const activeUsers = await getActiveMembers(round.groupId);
+      await createNotificationsForUsers({
+        recipientUserIds: activeUsers.map((user) => user.uid),
+        groupId: round.groupId,
+        type: "change_alert",
+        title: "Course update",
+        body: `Hole ${overrideToDelete.holeNumber} par override was removed for Round ${round.roundNumber}.`,
+        deepLink: `/rounds/${round.id}`,
+        roundId: round.id,
+      });
       setRound({ ...updatedRound, specialHoles });
       if (
         editingOverride?.holeNumber === overrideToDelete.holeNumber &&

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { markNotificationRead, subscribeNotifications } from "@/lib/firestore";
+import PushNotificationSettingsCard from "@/components/PushNotificationSettingsCard";
 import type { AppNotification } from "@/types";
 
 const NOTIFICATION_ICONS: Record<string, string> = {
@@ -57,6 +58,7 @@ export default function NotificationsPage() {
   return (
     <div className="px-4 py-6">
       <h1 className="text-2xl font-bold text-gray-800 mb-5">Notifications</h1>
+      <PushNotificationSettingsCard />
 
       {loading ? (
         <div className="space-y-3 animate-pulse">
