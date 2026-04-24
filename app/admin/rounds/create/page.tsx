@@ -38,7 +38,7 @@ import type {
 } from "@/types";
 
 const DATE_INPUT_CLASSNAME =
-  "block w-full min-w-0 max-w-full appearance-none bg-white px-4 py-3 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
+  "block h-[50px] w-full min-w-0 max-w-full appearance-none bg-white px-4 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
 
 export default function CreateRoundPage() {
   const { appUser } = useAuth();
@@ -621,7 +621,7 @@ export default function CreateRoundPage() {
               </div>
               {showCustomCourseSetup && (
                 <div className="mt-3">
-                  <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 px-1 text-[10px] font-semibold text-gray-500">
+                  <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-[10px] font-semibold text-gray-500">
                       <span>Hole</span>
                       <span>Par</span>
                       <span>Index</span>
