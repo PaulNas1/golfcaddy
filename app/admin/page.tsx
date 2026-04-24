@@ -3,10 +3,18 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { getGroup, getPendingMembers, getRounds } from "@/lib/firestore";
+import {
+  getPendingMembers,
+  subscribeGroup,
+  subscribeRoundsForGroup,
+} from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AppUser, Group, Round } from "@/types";
+
+function uniqueRoundsById(rounds: Round[]) {
+  return Array.from(new Map(rounds.map((round) => [round.id, round])).values());
+}
 
 export default function AdminDashboard() {
   const { appUser, isAdmin } = useAuth();
@@ -16,19 +24,60 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const groupId = appUser?.groupId ?? "fourplay";
-    Promise.all([
-      getPendingMembers(groupId),
-      getRounds(groupId),
-      getGroup(groupId),
-    ]).then(
-      ([p, r, groupRecord]) => {
-        setPending(p);
-        setRounds(r);
-        setGroup(groupRecord);
+    if (!appUser?.groupId) return;
+
+    let pendingLoaded = false;
+    let groupLoaded = false;
+    let roundsLoaded = false;
+
+    const markLoaded = () => {
+      if (pendingLoaded && groupLoaded && roundsLoaded) {
         setLoading(false);
       }
+    };
+
+    setLoading(true);
+
+    getPendingMembers(appUser.groupId)
+      .then((members) => setPending(members))
+      .catch((error) => console.warn("Unable to load pending members", error))
+      .finally(() => {
+        pendingLoaded = true;
+        markLoaded();
+      });
+
+    const groupUnsubscribe = subscribeGroup(
+      appUser.groupId,
+      (groupRecord) => {
+        setGroup(groupRecord);
+        groupLoaded = true;
+        markLoaded();
+      },
+      (error) => {
+        console.warn("Unable to subscribe to group", error);
+        groupLoaded = true;
+        markLoaded();
+      }
     );
+
+    const roundsUnsubscribe = subscribeRoundsForGroup(
+      appUser.groupId,
+      (nextRounds) => {
+        setRounds(uniqueRoundsById(nextRounds));
+        roundsLoaded = true;
+        markLoaded();
+      },
+      (error) => {
+        console.warn("Unable to subscribe to rounds", error);
+        roundsLoaded = true;
+        markLoaded();
+      }
+    );
+
+    return () => {
+      groupUnsubscribe();
+      roundsUnsubscribe();
+    };
   }, [appUser?.groupId]);
 
   const activeSeason = group?.currentSeason ?? new Date().getFullYear();

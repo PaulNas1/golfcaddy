@@ -52,6 +52,7 @@ export default function FeedPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
+  const [postType, setPostType] = useState<Post["type"]>("general");
   const [postImages, setPostImages] = useState<File[]>([]);
   const [postImagePreviews, setPostImagePreviews] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
@@ -220,10 +221,12 @@ export default function FeedPage() {
         groupId: appUser.groupId,
         author: appUser,
         content: draft,
+        type: isAdmin && postType === "announcement" ? "announcement" : "general",
         photoUrls: uploads.map((upload) => upload.url),
         photoPaths: uploads.map((upload) => upload.path),
       });
       setDraft("");
+      setPostType("general");
       replacePostImages([]);
     } catch (error) {
       await Promise.all(uploadedImagePaths.map((path) => deleteStoredImage(path)));
@@ -374,13 +377,40 @@ export default function FeedPage() {
       <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-gray-800">Write a post</h2>
         <p className="mt-1 text-xs text-gray-500">
-          Banter, wrap-up notes, photos from the day, or general club chat.
+          {isAdmin && postType === "announcement"
+            ? "Announcements notify members and stay clearly labeled in the feed."
+            : "Banter, wrap-up notes, photos from the day, or general club chat."}
         </p>
+        {isAdmin && (
+          <div className="mt-3 inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
+            {([
+              { id: "general", label: "General post" },
+              { id: "announcement", label: "Announcement" },
+            ] as const).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setPostType(option.id)}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                  postType === option.id
+                    ? "bg-green-600 text-white"
+                    : "text-gray-600 hover:bg-white"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           rows={4}
-          placeholder="What’s happening in the group?"
+          placeholder={
+            isAdmin && postType === "announcement"
+              ? "Share an update members should not miss..."
+              : "What’s happening in the group?"
+          }
           className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
         />
         <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
@@ -426,7 +456,11 @@ export default function FeedPage() {
             disabled={posting || (draft.trim().length === 0 && postImages.length === 0)}
             className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-green-300"
           >
-            {posting ? "Posting..." : "Post"}
+            {posting
+              ? "Posting..."
+              : isAdmin && postType === "announcement"
+              ? "Post announcement"
+              : "Post"}
           </button>
         </div>
       </div>

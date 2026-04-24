@@ -8,6 +8,7 @@ import {
   subscribeRoundsForGroup,
   subscribeSeasonStandings,
 } from "@/lib/firestore";
+import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AppUser, Group, Member, SeasonStanding } from "@/types";
 
@@ -115,11 +116,15 @@ export default function LeaderboardPage() {
   }, [availableSeasons, currentSeason]);
 
   const leaderboardEntries = useMemo(() => {
-    const standingsByMemberId = new Map(
-      standings.map((standing) => [standing.memberId, standing])
-    );
     const membersById = new Map(groupMembers.map((member) => [member.id, member]));
     const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 3;
+    const visibleStandings = getVisibleSeasonStandings(
+      standings,
+      new Set(activeMembers.map((member) => member.uid))
+    );
+    const standingsByMemberId = new Map(
+      visibleStandings.map((standing) => [standing.memberId, standing])
+    );
 
     return activeMembers
       .map<LeaderboardEntry>((activeMember) => {
@@ -135,8 +140,8 @@ export default function LeaderboardPage() {
         return {
           memberId: activeMember.uid,
           memberName: activeMember.displayName,
-          currentRank: standing?.currentRank ?? null,
-          previousRank: standing?.previousRank ?? null,
+          currentRank: standing?.displayCurrentRank ?? null,
+          previousRank: standing?.displayPreviousRank ?? null,
           totalPoints: standing?.totalPoints ?? (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
           grossSeasonPoints: standing?.grossSeasonPoints ?? (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
           roundsPlayed,

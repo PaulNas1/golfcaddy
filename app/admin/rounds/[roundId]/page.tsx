@@ -79,6 +79,42 @@ function extractGolfCourseApiId(
   return null;
 }
 
+function getRoundAlertRecipientIds(
+  round: Round,
+  rsvps: RoundRsvp[],
+  teeTimes: TeeTime[]
+) {
+  const ids = new Set<string>();
+
+  rsvps
+    .filter((rsvp) => rsvp.status === "accepted")
+    .forEach((rsvp) => ids.add(rsvp.memberId));
+
+  teeTimes.forEach((teeTime) => {
+    teeTime.playerIds.forEach((playerId) => ids.add(playerId));
+  });
+
+  if (ids.size === 0) {
+    round.teeTimes.forEach((teeTime) => {
+      teeTime.playerIds.forEach((playerId) => ids.add(playerId));
+    });
+  }
+
+  return Array.from(ids);
+}
+
+function getTeeTimeSignature(teeTimes: TeeTime[]) {
+  return JSON.stringify(
+    teeTimes.map((teeTime) => ({
+      id: teeTime.id,
+      time: teeTime.time,
+      playerIds: [...teeTime.playerIds].sort(),
+      guestNames: [...teeTime.guestNames].sort(),
+      notes: teeTime.notes ?? null,
+    }))
+  );
+}
+
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const router = useRouter();
@@ -527,6 +563,19 @@ export default function AdminRoundDetailPage() {
           validTeeSetIds.has(teeId)
       )
     );
+    const alertRecipientIds = getRoundAlertRecipientIds(
+      round,
+      rsvps,
+      savedTeeTimes
+    );
+    const teeTimesChanged =
+      getTeeTimeSignature(round.teeTimes) !==
+      getTeeTimeSignature(savedTeeTimes);
+    const courseChanged =
+      round.courseName !== courseName.trim() ||
+      round.courseId !== savedCourseId ||
+      round.teeSetId !== savedDefaultTeeSetId ||
+      round.date.getTime() !== newDate.getTime();
 
     const updatedRound: Round = {
       ...round,
@@ -569,6 +618,33 @@ export default function AdminRoundDetailPage() {
       });
     }
 
+    if (alertRecipientIds.length > 0 && teeTimesChanged) {
+      await createNotificationsForUsers({
+        recipientUserIds: alertRecipientIds,
+        groupId: round.groupId,
+        type: "change_alert",
+        title: "Tee times updated",
+        body: `Round ${parsedRoundNumber} tee times or groups have changed. Check your latest slot in GolfCaddy.`,
+        deepLink: `/rounds/${round.id}`,
+        roundId: round.id,
+      });
+    }
+
+    if (alertRecipientIds.length > 0 && courseChanged) {
+      await createNotificationsForUsers({
+        recipientUserIds: alertRecipientIds,
+        groupId: round.groupId,
+        type: "change_alert",
+        title: "Round details changed",
+        body: `Round ${parsedRoundNumber} is now set for ${courseName.trim()} on ${format(
+          newDate,
+          "EEE d MMM yyyy"
+        )}.`,
+        deepLink: `/rounds/${round.id}`,
+        roundId: round.id,
+      });
+    }
+
     setRound(updatedRound);
     setPlayerTeeAssignments(savedPlayerTeeAssignments);
 
@@ -579,6 +655,44 @@ export default function AdminRoundDetailPage() {
     );
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
+  };
+
+  const handleSendScoreReminder = async () => {
+    if (!round) return;
+
+    const recipientIds = Array.from(
+      new Set(
+        [
+          ...rsvps
+            .filter((rsvp) => rsvp.status === "accepted")
+            .map((rsvp) => rsvp.memberId),
+          ...scorecards.map((scorecard) => scorecard.markerId),
+        ].filter(Boolean)
+      )
+    );
+
+    if (recipientIds.length === 0) {
+      setDetailsError("No accepted players are available to notify yet.");
+      setTimeout(() => setDetailsError(""), 3000);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createNotificationsForUsers({
+        recipientUserIds: recipientIds,
+        groupId: round.groupId,
+        type: "score_reminder",
+        title: "Score reminder",
+        body: `Round ${round.roundNumber} is live. Keep your scorecard up to date in GolfCaddy.`,
+        deepLink: `/rounds/${round.id}/scorecard`,
+        roundId: round.id,
+      });
+      setSuccess("Score reminder sent.");
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleRefreshCourseData = async () => {
@@ -1287,6 +1401,16 @@ export default function AdminRoundDetailPage() {
           Setting to &quot;Live&quot; opens scoring. Use Save & Notify Players
           above when members need an alert.
         </p>
+        {round.status === "live" && (
+          <button
+            type="button"
+            onClick={handleSendScoreReminder}
+            disabled={saving}
+            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:text-gray-300"
+          >
+            {saving ? "Sending..." : "Send score reminder"}
+          </button>
+        )}
       </div>
 
       {/* Live leaderboard (summary) */}

@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getRoundRsvp,
+  subscribeActiveMembers,
   subscribeGroup,
   subscribeRoundsForGroup,
   subscribeSeasonStandings,
 } from "@/lib/firestore";
+import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
-import type { Group, Round, RoundRsvp, SeasonStanding } from "@/types";
+import type { AppUser, Group, Round, RoundRsvp, SeasonStanding } from "@/types";
 
 export default function HomePage() {
   const { appUser } = useAuth();
@@ -20,6 +22,7 @@ export default function HomePage() {
   const [liveRound, setLiveRound] = useState<Round | null>(null);
   const [group, setGroup] = useState<Group | null>(null);
   const [season, setSeason] = useState(new Date().getFullYear());
+  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
   const [standings, setStandings] = useState<SeasonStanding[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,6 +78,16 @@ export default function HomePage() {
   }, [appUser?.groupId]);
 
   useEffect(() => {
+    const groupId = appUser?.groupId ?? "fourplay";
+
+    return subscribeActiveMembers(
+      groupId,
+      setActiveMembers,
+      (err) => console.warn("Unable to subscribe to active members", err)
+    );
+  }, [appUser?.groupId]);
+
+  useEffect(() => {
     if (!nextRound?.id || !appUser?.uid) {
       setNextRoundRsvp(null);
       return;
@@ -94,6 +107,15 @@ export default function HomePage() {
       cancelled = true;
     };
   }, [appUser?.uid, nextRound?.id]);
+
+  const visibleStandings = useMemo(
+    () =>
+      getVisibleSeasonStandings(
+        standings,
+        new Set(activeMembers.map((member) => member.uid))
+      ),
+    [activeMembers, standings]
+  );
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
 
@@ -224,7 +246,7 @@ export default function HomePage() {
           </div>
           <Link href="/leaderboard" className="text-green-600 text-sm">View all</Link>
         </div>
-        {standings.length === 0 ? (
+        {visibleStandings.length === 0 ? (
           <div className="flex items-center justify-center py-6 text-gray-300">
           <div className="text-center">
             <div className="text-3xl mb-1">🏌️</div>
@@ -233,14 +255,14 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {standings.slice(0, 3).map((standing) => (
+            {visibleStandings.slice(0, 3).map((standing) => (
               <div
                 key={standing.id}
                 className="flex items-center justify-between py-2 text-sm"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="w-7 text-xs font-semibold text-gray-400">
-                    #{standing.currentRank}
+                    #{standing.displayCurrentRank}
                   </span>
                   <div className="min-w-0">
                     <p className="font-medium text-gray-800 truncate">

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { waitForPendingWrites } from "firebase/firestore";
 import {
   getRound,
   getLiveRound,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/courseData";
 import { getEligibleScorecardMembers } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
+import { db } from "@/lib/firebase";
 import type { Round, Scorecard, HoleScore, AppUser, RoundRsvp } from "@/types";
 import { calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
 
@@ -52,7 +54,47 @@ export default function ScorecardPage() {
   const [savingHole, setSavingHole] = useState<number | null>(null);
   const [signing, setSigning] = useState(false);
   const [reopening, setReopening] = useState(false);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator === "undefined" ? true : navigator.onLine
+  );
+  const [hasPendingSync, setHasPendingSync] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [error, setError] = useState("");
+  const pendingSyncRunRef = useRef(0);
+
+  const confirmPendingSync = (runId: number) => {
+    void waitForPendingWrites(db)
+      .then(() => {
+        if (pendingSyncRunRef.current !== runId) return;
+        setHasPendingSync(false);
+        setLastSyncedAt(new Date());
+      })
+      .catch((syncError) => {
+        console.warn("Unable to confirm score sync", syncError);
+      });
+  };
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasPendingSync || !isOnline) return;
+    confirmPendingSync(pendingSyncRunRef.current);
+  }, [hasPendingSync, isOnline]);
+
+  useEffect(() => {
+    if (!scorecard?.updatedAt || hasPendingSync) return;
+    setLastSyncedAt(scorecard.updatedAt);
+  }, [hasPendingSync, scorecard?.updatedAt]);
 
   useEffect(() => {
     if (!roundId || !appUser || !isActive) return;
@@ -184,6 +226,14 @@ export default function ScorecardPage() {
     [scorecard, round, appUser]
   );
 
+  const markSyncPending = () => {
+    pendingSyncRunRef.current += 1;
+    setHasPendingSync(true);
+    if (typeof navigator === "undefined" || navigator.onLine) {
+      confirmPendingSync(pendingSyncRunRef.current);
+    }
+  };
+
   const handleStartCard = async () => {
     if (!round || !appUser) return;
     if (round.status !== "live") {
@@ -295,6 +345,7 @@ export default function ScorecardPage() {
       };
       setScorecard(card);
       setHoles(buildInitialHoles(round, handicap, playerToMarkId));
+      markSyncPending();
     } catch {
       setError("Failed to start scorecard. Please try again.");
     } finally {
@@ -320,6 +371,7 @@ export default function ScorecardPage() {
         stablefordPoints: null,
       });
       await syncTotals(scorecard.id, updated, round.format);
+      markSyncPending();
       return;
     }
 
@@ -368,6 +420,7 @@ export default function ScorecardPage() {
         isT3: roundSpecialHoles.t3 === holeNumber,
       });
       await syncTotals(scorecard.id, updated, round.format);
+      markSyncPending();
     } finally {
       setSavingHole(null);
     }
@@ -409,6 +462,7 @@ export default function ScorecardPage() {
       isT3: hole.isT3,
     });
     await syncTotals(scorecard.id, updated, round.format);
+    markSyncPending();
   };
 
   const syncTotals = async (
@@ -455,6 +509,7 @@ export default function ScorecardPage() {
         signedOff: true,
         submittedAt: new Date(),
       });
+      markSyncPending();
     } catch {
       setError("Failed to submit card. Please try again.");
     } finally {
@@ -482,6 +537,7 @@ export default function ScorecardPage() {
         signedOff: false,
         submittedAt: null,
       });
+      markSyncPending();
     } catch {
       setError("Failed to re-open card. Please try again.");
     } finally {
@@ -533,6 +589,38 @@ export default function ScorecardPage() {
   const teeTimesWithPlayers = round.teeTimes.some(
     (teeTime) => teeTime.playerIds.length > 0
   );
+  const syncStatus = hasPendingSync
+    ? isOnline
+      ? {
+          tone: "border-blue-200 bg-blue-50 text-blue-800",
+          title: "Syncing changes",
+          body: "Scores are saved on this phone and uploading in the background.",
+        }
+      : {
+          tone: "border-amber-200 bg-amber-50 text-amber-800",
+          title: "Saved on this phone",
+          body: "Signal dropped. Your latest scores will sync automatically when you reconnect.",
+        }
+    : !isOnline
+    ? {
+        tone: "border-gray-200 bg-gray-50 text-gray-700",
+        title: "Offline",
+        body: "You can keep entering scores. GolfCaddy will sync them when the connection is back.",
+      }
+    : lastSyncedAt
+    ? {
+        tone: "border-green-200 bg-green-50 text-green-800",
+        title: "All changes synced",
+        body: `Last synced ${lastSyncedAt.toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        })}.`,
+      }
+    : {
+        tone: "border-green-200 bg-green-50 text-green-800",
+        title: "Ready to score",
+        body: "Scores save on this phone first and sync automatically.",
+      };
 
   return (
     <div className="px-4 py-6 space-y-4 pb-20">
@@ -546,6 +634,11 @@ export default function ScorecardPage() {
       <h1 className="text-2xl font-bold text-gray-800">
         Scorecard · {round.courseName}
       </h1>
+
+      <div className={`rounded-2xl border px-4 py-3 text-sm ${syncStatus.tone}`}>
+        <p className="font-semibold">{syncStatus.title}</p>
+        <p className="mt-1 text-xs opacity-90">{syncStatus.body}</p>
+      </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">

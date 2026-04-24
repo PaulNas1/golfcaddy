@@ -22,6 +22,8 @@ import {
   DocumentSnapshot,
   DocumentData,
   WriteBatch,
+  Query,
+  DocumentReference,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -171,6 +173,26 @@ export const toDate = (val: Timestamp | Date | null | undefined): Date => {
   if (val instanceof Timestamp) return val.toDate();
   return val;
 };
+
+async function getDocWithServerFallback(
+  ref: DocumentReference<DocumentData>
+) {
+  try {
+    return await getDocFromServer(ref);
+  } catch {
+    return await getDoc(ref);
+  }
+}
+
+async function getDocsWithServerFallback(
+  ref: Query<DocumentData>
+) {
+  try {
+    return await getDocsFromServer(ref);
+  } catch {
+    return await getDocs(ref);
+  }
+}
 
 const mapRound = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
@@ -710,7 +732,7 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
     orderBy("date", "desc"),
     limit(20)
   );
-  const snap = await getDocsFromServer(q);
+  const snap = await getDocsWithServerFallback(q);
   return snap.docs
     .map(mapRound)
     .sort((a, b) => {
@@ -745,7 +767,7 @@ export const subscribeRoundsForGroup = (
 };
 
 export const getRound = async (roundId: string): Promise<Round | null> => {
-  const snap = await getDocFromServer(doc(db, "rounds", roundId));
+  const snap = await getDocWithServerFallback(doc(db, "rounds", roundId));
   if (!snap.exists()) return null;
   return mapRound(snap);
 };
@@ -1259,7 +1281,7 @@ export const getLiveRound = async (groupId: string): Promise<Round | null> => {
     where("groupId", "==", groupId),
     where("status", "==", "live")
   );
-  const snap = await getDocsFromServer(q);
+  const snap = await getDocsWithServerFallback(q);
   if (snap.empty) return null;
   return snap.docs
     .map(mapRound)
@@ -1897,12 +1919,14 @@ export const createFeedPost = async ({
   groupId,
   author,
   content,
+  type = "general",
   photoUrls = [],
   photoPaths = [],
 }: {
   groupId: string;
   author: AppUser;
   content: string;
+  type?: Post["type"];
   photoUrls?: string[];
   photoPaths?: string[];
 }) => {
@@ -1911,15 +1935,15 @@ export const createFeedPost = async ({
     throw new Error("Write something or attach at least one image.");
   }
 
-  await addDoc(collection(db, "posts"), {
+  const postRef = await addDoc(collection(db, "posts"), {
     groupId,
     authorId: author.uid,
     authorName: author.displayName,
     authorAvatarUrl: author.avatarUrl ?? null,
-    type: "general",
+    type,
     content: trimmed,
     roundId: null,
-    pinned: false,
+    pinned: type === "announcement",
     photoUrls,
     photoPaths,
     reactionCounts: {},
@@ -1927,6 +1951,23 @@ export const createFeedPost = async ({
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  if (type === "announcement") {
+    const preview =
+      trimmed.length > 88 ? `${trimmed.slice(0, 85).trimEnd()}...` : trimmed;
+    const activeUsers = await getActiveMembers(groupId);
+    await createNotificationsForUsers({
+      recipientUserIds: activeUsers
+        .map((user) => user.uid)
+        .filter((uid) => uid !== author.uid),
+      groupId,
+      type: "announcement",
+      title: "New announcement",
+      body: preview || `${author.displayName} posted a new announcement.`,
+      deepLink: "/feed",
+      postId: postRef.id,
+    });
+  }
 };
 
 export const updateFeedPost = async ({
