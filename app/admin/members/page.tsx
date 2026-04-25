@@ -17,7 +17,15 @@ import {
   updateUser,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import type { AppUser, Group, Member, MemberInvite, UserRole, UserStatus } from "@/types";
+import type {
+  AppUser,
+  Group,
+  HandicapStatus,
+  Member,
+  MemberInvite,
+  UserRole,
+  UserStatus,
+} from "@/types";
 
 export default function AdminMembersPage() {
   const { appUser } = useAuth();
@@ -40,6 +48,11 @@ export default function AdminMembersPage() {
   const [inviteContact, setInviteContact] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [pendingRoleDrafts, setPendingRoleDrafts] = useState<Record<string, UserRole>>({});
+  const [pendingHandicapStatusDrafts, setPendingHandicapStatusDrafts] = useState<
+    Record<string, HandicapStatus>
+  >({});
+  const [pendingStartingHandicapDrafts, setPendingStartingHandicapDrafts] =
+    useState<Record<string, string>>({});
   const [activeMenuUserId, setActiveMenuUserId] = useState<string | null>(null);
   const [activeInviteMenuId, setActiveInviteMenuId] = useState<string | null>(null);
   const [activeSearch, setActiveSearch] = useState("");
@@ -114,8 +127,33 @@ export default function AdminMembersPage() {
 
   const handleApprove = async (uid: string) => {
     const role = pendingRoleDrafts[uid] ?? "member";
+    const handicapStatus = pendingHandicapStatusDrafts[uid] ?? "provisional";
+    const startingHandicapInput = pendingStartingHandicapDrafts[uid] ?? "";
+    const startingHandicap =
+      handicapStatus === "official"
+        ? Number(startingHandicapInput)
+        : null;
+
+    if (
+      handicapStatus === "official" &&
+      (!Number.isFinite(startingHandicap) ||
+        startingHandicap == null ||
+        startingHandicap < 0 ||
+        startingHandicap > 54)
+    ) {
+      setError("Official members need a starting handicap between 0 and 54.");
+      return;
+    }
+
     setActioning(uid);
-    await approveMember(uid, role);
+    setError("");
+    await approveMember({
+      uid,
+      role,
+      handicapStatus,
+      startingHandicap:
+        handicapStatus === "official" ? Number(startingHandicap!.toFixed(1)) : null,
+    });
     await load();
     setActioning(null);
   };
@@ -590,6 +628,47 @@ export default function AdminMembersPage() {
                       ))}
                     </select>
                   </label>
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-600">
+                      Handicap status
+                    </span>
+                    <select
+                      value={pendingHandicapStatusDrafts[user.uid] ?? "provisional"}
+                      onChange={(event) =>
+                        setPendingHandicapStatusDrafts((current) => ({
+                          ...current,
+                          [user.uid]: event.target.value as HandicapStatus,
+                        }))
+                      }
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="provisional">Probationary</option>
+                      <option value="official">Official</option>
+                    </select>
+                  </label>
+                  {(pendingHandicapStatusDrafts[user.uid] ?? "provisional") ===
+                    "official" && (
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-medium text-gray-600">
+                        Starting handicap
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="54"
+                        step="0.1"
+                        value={pendingStartingHandicapDrafts[user.uid] ?? ""}
+                        onChange={(event) =>
+                          setPendingStartingHandicapDrafts((current) => ({
+                            ...current,
+                            [user.uid]: event.target.value,
+                          }))
+                        }
+                        placeholder="e.g. 18.4"
+                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </label>
+                  )}
                 </div>
                 <div className="flex gap-2 mt-3">
                   <button

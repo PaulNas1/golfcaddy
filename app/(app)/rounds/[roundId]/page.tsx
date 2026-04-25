@@ -412,7 +412,9 @@ export default function RoundDetailPage() {
                       : `${ranking.grossTotal} strokes`}
                   </p>
                   <p className="text-[11px] text-green-700">
-                    {ranking.pointsAwarded} ladder pts
+                    {ranking.pointsEligible === false
+                      ? ranking.pointsIneligibleReason ?? "Provisional - no ladder points yet"
+                      : `${ranking.pointsAwarded} ladder pts`}
                   </p>
                 </div>
               </div>

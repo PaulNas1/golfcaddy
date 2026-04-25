@@ -800,7 +800,11 @@ export default function ProfilePage() {
                           {roundResult.courseName}
                         </p>
                         <p className="text-xs text-gray-400">
-                          Finish #{roundResult.finish} · Result {roundResult.pointsAwarded} pts
+                          Finish #{roundResult.finish} ·{" "}
+                          {roundResult.pointsEligible === false
+                            ? roundResult.pointsIneligibleReason ??
+                              "Provisional - no ladder points yet"
+                            : `Result ${roundResult.pointsAwarded} pts`}
                         </p>
                       </div>
                       <div className="text-right">

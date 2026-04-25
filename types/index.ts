@@ -4,6 +4,7 @@ export type UserRole = "member" | "moderator" | "admin";
 export type UserStatus = "pending" | "active" | "retired" | "suspended";
 export type UserGender = "male" | "female";
 export type HandicapMode = "local" | "slope_adjusted";
+export type HandicapStatus = "provisional" | "official";
 
 export interface AppUser {
   uid: string;
@@ -81,6 +82,8 @@ export interface Member {
   displayName: string;
   avatarUrl: string | null;
   currentHandicap: number;
+  handicapStatus?: HandicapStatus;
+  officialHandicapAssignedAt?: Date | null;
   seasonYear: number;
   seasonPoints: number;
   seasonRank: number | null;
@@ -270,6 +273,8 @@ export interface PlayerRanking {
   stablefordTotal: number;
   handicap: number;
   pointsAwarded: number;
+  pointsEligible?: boolean;
+  pointsIneligibleReason?: string | null;
   countbackDetail: string | null;
 }
 
@@ -320,6 +325,8 @@ export interface RoundResult {
   finish: number;
   stableford: number;
   pointsAwarded: number;
+  pointsEligible?: boolean;
+  pointsIneligibleReason?: string | null;
   countsForSeason: boolean;
 }
 
@@ -355,6 +362,7 @@ export interface HandicapHistory {
   newHandicap: number;
   reason: string;
   source: "manual_admin" | "published_round";
+  changeType?: "movement" | "initial_allocation";
   changedBy: string | null;
   changedByName: string | null;
   createdAt: Date;

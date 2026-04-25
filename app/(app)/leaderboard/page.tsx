@@ -118,6 +118,7 @@ export default function LeaderboardPage() {
   const leaderboardEntries = useMemo(() => {
     const membersById = new Map(groupMembers.map((member) => [member.id, member]));
     const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 3;
+    const minimumRoundsForPoints = group?.settings.minimumRoundsForPoints ?? 3;
     const visibleStandings = getVisibleSeasonStandings(
       standings,
       new Set(activeMembers.map((member) => member.uid))
@@ -133,9 +134,17 @@ export default function LeaderboardPage() {
         const memberSeasonMatches = member?.seasonYear === selectedSeason;
         const roundsPlayed = standing?.roundsPlayed ?? (memberSeasonMatches ? member?.roundsPlayed ?? 0 : 0);
         const currentHandicap = member?.currentHandicap ?? null;
+        const isOfficial =
+          member?.handicapStatus === "official" ||
+          (member?.handicapStatus == null && (currentHandicap ?? 0) > 0);
         const probation =
           !member ||
-          ((currentHandicap ?? 0) <= 0 && roundsPlayed < handicapRoundsWindow);
+          (!isOfficial &&
+            (roundsPlayed < minimumRoundsForPoints ||
+              member?.handicapStatus === "provisional" ||
+              (member?.handicapStatus == null &&
+                (currentHandicap ?? 0) <= 0 &&
+                roundsPlayed < handicapRoundsWindow)));
 
         return {
           memberId: activeMember.uid,
@@ -161,7 +170,14 @@ export default function LeaderboardPage() {
         if (a.hasStanding !== b.hasStanding) return a.hasStanding ? -1 : 1;
         return a.memberName.localeCompare(b.memberName);
       });
-  }, [activeMembers, group?.settings.handicapRoundsWindow, groupMembers, selectedSeason, standings]);
+  }, [
+    activeMembers,
+    group?.settings.handicapRoundsWindow,
+    group?.settings.minimumRoundsForPoints,
+    groupMembers,
+    selectedSeason,
+    standings,
+  ]);
 
   const activeMemberIds = useMemo(
     () => new Set(activeMembers.map((member) => member.uid)),

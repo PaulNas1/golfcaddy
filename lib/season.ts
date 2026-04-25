@@ -1,5 +1,6 @@
 import type {
   GroupSettings,
+  HandicapStatus,
   Results,
   Round,
   RoundResult,
@@ -88,6 +89,8 @@ export function buildSeasonStandings({
         finish: ranking.rank,
         stableford: ranking.stablefordTotal,
         pointsAwarded: ranking.pointsAwarded,
+        pointsEligible: ranking.pointsEligible ?? true,
+        pointsIneligibleReason: ranking.pointsIneligibleReason ?? null,
         countsForSeason: true,
       });
     });
@@ -282,4 +285,32 @@ export function calculateNextHandicap(
     nextHandicap: currentHandicap,
     reason: `Last three Stableford average is ${recentAverage}.`,
   };
+}
+
+export function calculateInitialHandicap(
+  roundResults: RoundResult[],
+  window = 3
+) {
+  const recentAverage = getRecentStablefordAverage(roundResults, window);
+  if (recentAverage == null) {
+    return null;
+  }
+
+  const nextHandicap = Math.max(0, Math.round(36 - recentAverage));
+
+  return {
+    nextHandicap,
+    reason: `Initial handicap allocated from first ${window} Stableford rounds (average ${recentAverage}).`,
+  };
+}
+
+export function inferHandicapStatus(
+  currentHandicap: number | null | undefined,
+  handicapStatus?: HandicapStatus
+): HandicapStatus {
+  if (handicapStatus === "official" || handicapStatus === "provisional") {
+    return handicapStatus;
+  }
+
+  return (currentHandicap ?? 0) > 0 ? "official" : "provisional";
 }

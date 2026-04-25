@@ -619,6 +619,12 @@ export default function AdminRoundLeaderboardPage() {
                       {ranking.countbackDetail}
                     </p>
                   )}
+                  {ranking.pointsEligible === false && (
+                    <p className="text-[11px] text-amber-700">
+                      {ranking.pointsIneligibleReason ??
+                        "Provisional - no ladder points yet"}
+                    </p>
+                  )}
                 </div>
                 <span className="font-semibold">
                   {round.format === "stableford"

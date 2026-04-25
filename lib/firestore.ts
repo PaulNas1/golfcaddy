@@ -53,10 +53,12 @@ import type {
 } from "@/types";
 import {
   buildSeasonStandings,
+  calculateInitialHandicap,
   calculateNextHandicap,
   getAverageStableford,
   getBestStableford,
   getSeasonStandingId,
+  inferHandicapStatus,
 } from "./season";
 import { withSeededCourseData } from "./courseData";
 import { normaliseGroupSettings } from "./settings";
@@ -419,6 +421,13 @@ const mapMember = (
   return {
     id: d.id,
     ...data,
+    handicapStatus: inferHandicapStatus(
+      typeof data.currentHandicap === "number" ? data.currentHandicap : 0,
+      data.handicapStatus
+    ),
+    officialHandicapAssignedAt: data.officialHandicapAssignedAt
+      ? toDate(data.officialHandicapAssignedAt)
+      : null,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   } as Member;
@@ -462,6 +471,10 @@ export const subscribeMembersForGroup = (
   );
 };
 
+function hasOfficialHandicap(member: Member | null | undefined, handicap: number) {
+  return inferHandicapStatus(handicap, member?.handicapStatus) === "official";
+}
+
 export const updateMemberStartingHandicap = async ({
   memberUser,
   handicap,
@@ -475,6 +488,10 @@ export const updateMemberStartingHandicap = async ({
 }) => {
   const existingMember = await getMember(memberUser.uid);
   const previousHandicap = existingMember?.currentHandicap ?? 0;
+  const existingOfficialHandicap = hasOfficialHandicap(
+    existingMember,
+    previousHandicap
+  );
   const batch = writeBatch(db);
   const memberRef = doc(db, "members", memberUser.uid);
   const historyRef = doc(collection(db, "handicapHistory"));
@@ -487,6 +504,9 @@ export const updateMemberStartingHandicap = async ({
       displayName: memberUser.displayName,
       avatarUrl: memberUser.avatarUrl,
       currentHandicap: handicap,
+      handicapStatus: "official",
+      officialHandicapAssignedAt:
+        existingMember?.officialHandicapAssignedAt ?? new Date(),
       seasonYear: existingMember?.seasonYear ?? season,
       seasonPoints: existingMember?.seasonPoints ?? 0,
       seasonRank: existingMember?.seasonRank ?? null,
@@ -513,6 +533,7 @@ export const updateMemberStartingHandicap = async ({
     newHandicap: handicap,
     reason: "Admin-entered GolfCaddy starting handicap.",
     source: "manual_admin",
+    changeType: existingOfficialHandicap ? "movement" : "initial_allocation",
     changedBy: changedBy?.uid ?? null,
     changedByName: changedBy?.displayName ?? null,
     createdAt: serverTimestamp(),
@@ -695,7 +716,17 @@ export const subscribeActiveMembers = (
   );
 };
 
-export const approveMember = async (uid: string, role: UserRole = "member") => {
+export const approveMember = async ({
+  uid,
+  role = "member",
+  handicapStatus = "provisional",
+  startingHandicap = null,
+}: {
+  uid: string;
+  role?: UserRole;
+  handicapStatus?: "provisional" | "official";
+  startingHandicap?: number | null;
+}) => {
   const userSnap = await getDoc(doc(db, "users", uid));
   await updateDoc(doc(db, "users", uid), {
     role,
@@ -705,6 +736,35 @@ export const approveMember = async (uid: string, role: UserRole = "member") => {
 
   const user = userSnap.exists() ? mapUser(userSnap) : null;
   if (user?.groupId) {
+    const group = await getGroup(user.groupId);
+    await setDoc(
+      doc(db, "members", uid),
+      {
+        userId: uid,
+        groupId: user.groupId,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        currentHandicap:
+          handicapStatus === "official" ? startingHandicap ?? 0 : 0,
+        handicapStatus,
+        officialHandicapAssignedAt:
+          handicapStatus === "official" ? serverTimestamp() : null,
+        seasonYear: group?.currentSeason ?? new Date().getFullYear(),
+        seasonPoints: 0,
+        seasonRank: null,
+        roundsPlayed: 0,
+        ntpWins: 0,
+        ldWins: 0,
+        t2Wins: 0,
+        t3Wins: 0,
+        avgStableford: null,
+        bestStableford: null,
+        bestRoundId: null,
+        updatedAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
     await createNotificationsForUsers({
       recipientUserIds: [uid],
       groupId: user.groupId,
@@ -1054,6 +1114,7 @@ export const deleteRoundCascade = async (roundId: string) => {
         getGroup(round.groupId),
       ])
     : [[], [], [], null];
+  const groupSettings = normaliseGroupSettings(group?.settings);
   const remainingSeasonResults = seasonResults.filter(
     (result) => result.roundId !== round.id
   );
@@ -1079,6 +1140,7 @@ export const deleteRoundCascade = async (roundId: string) => {
   );
   const membersById = new Map(groupMembers.map((member) => [member.id, member]));
   const deletedRoundHandicapBase = new Map<string, number>();
+  const deletedInitialAllocationMemberIds = new Set<string>();
   handicapHistorySnap.docs.forEach((historyDoc) => {
     const data = historyDoc.data();
     if (
@@ -1087,6 +1149,9 @@ export const deleteRoundCascade = async (roundId: string) => {
       typeof data.previousHandicap === "number"
     ) {
       deletedRoundHandicapBase.set(data.memberId, data.previousHandicap);
+      if (data.changeType === "initial_allocation") {
+        deletedInitialAllocationMemberIds.add(data.memberId);
+      }
     }
   });
 
@@ -1166,9 +1231,29 @@ export const deleteRoundCascade = async (roundId: string) => {
       deletedRoundHandicapBase.get(standing.memberId) ??
       member?.currentHandicap ??
       0;
-    const { nextHandicap } = hadDeletedRoundHandicapMovement
-      ? calculateNextHandicap(baseHandicap, standing.roundResults)
-      : { nextHandicap: baseHandicap };
+    const memberWasOfficial =
+      !deletedInitialAllocationMemberIds.has(standing.memberId) &&
+      hasOfficialHandicap(member, baseHandicap);
+    const initialHandicapAllocation = memberWasOfficial
+      ? null
+      : calculateInitialHandicap(
+          standing.roundResults,
+          groupSettings.handicapRoundsWindow
+        );
+    const nextHandicap = initialHandicapAllocation
+      ? initialHandicapAllocation.nextHandicap
+      : hadDeletedRoundHandicapMovement && memberWasOfficial
+        ? calculateNextHandicap(
+            baseHandicap,
+            standing.roundResults,
+            groupSettings.handicapRoundsWindow
+          ).nextHandicap
+        : baseHandicap;
+    const handicapStatus = initialHandicapAllocation
+      ? "official"
+      : memberWasOfficial
+        ? "official"
+        : "provisional";
 
     await writer.queue((batch) =>
       batch.set(
@@ -1189,6 +1274,11 @@ export const deleteRoundCascade = async (roundId: string) => {
           displayName: standing.memberName,
           avatarUrl: member?.avatarUrl ?? null,
           currentHandicap: nextHandicap,
+          handicapStatus,
+          officialHandicapAssignedAt:
+            handicapStatus === "official"
+              ? member?.officialHandicapAssignedAt ?? new Date()
+              : null,
           seasonYear: round.season,
           seasonPoints: standing.totalPoints,
           seasonRank: standing.currentRank,
@@ -1221,11 +1311,21 @@ export const deleteRoundCascade = async (roundId: string) => {
     const member = membersById.get(memberId);
     const fallbackHandicap =
       deletedRoundHandicapBase.get(memberId) ?? member?.currentHandicap ?? 0;
+    const handicapStatus =
+      deletedInitialAllocationMemberIds.has(memberId) ||
+      !hasOfficialHandicap(member, fallbackHandicap)
+        ? "provisional"
+        : "official";
     await writer.queue((batch) =>
       batch.set(
         doc(db, "members", memberId),
         {
           currentHandicap: fallbackHandicap,
+          handicapStatus,
+          officialHandicapAssignedAt:
+            handicapStatus === "official"
+              ? member?.officialHandicapAssignedAt ?? null
+              : null,
           seasonYear: round.season,
           seasonPoints: 0,
           seasonRank: null,
@@ -1492,6 +1592,13 @@ const mapResults = (
   return {
     id: d.id,
     ...data,
+    rankings: Array.isArray(data.rankings)
+      ? data.rankings.map((ranking: DocumentData) => ({
+          ...ranking,
+          pointsEligible: ranking.pointsEligible ?? true,
+          pointsIneligibleReason: ranking.pointsIneligibleReason ?? null,
+        }))
+      : [],
     publishedAt: toDate(data.publishedAt),
     createdAt: toDate(data.createdAt),
   } as Results;
@@ -1562,10 +1669,43 @@ export const publishRoundResultsWithStage3 = async ({
       getMembersForGroup(round.groupId),
       getGroup(round.groupId),
     ]);
+  const groupSettings = normaliseGroupSettings(group?.settings);
+  const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+  const previousRoundsPlayedByMember = new Map<string, number>();
+
+  seasonResults
+    .filter((result) => result.roundId !== round.id)
+    .forEach((result) => {
+      result.rankings.forEach((ranking) => {
+        previousRoundsPlayedByMember.set(
+          ranking.playerId,
+          (previousRoundsPlayedByMember.get(ranking.playerId) ?? 0) + 1
+        );
+      });
+    });
+
+  const rankings = results.rankings.map((ranking) => {
+    const completedRoundsBefore =
+      previousRoundsPlayedByMember.get(ranking.playerId) ?? 0;
+    const member = membersById.get(ranking.playerId);
+    const pointsEligible =
+      hasOfficialHandicap(member, member?.currentHandicap ?? ranking.handicap) ||
+      completedRoundsBefore >= groupSettings.minimumRoundsForPoints;
+
+    return {
+      ...ranking,
+      pointsAwarded: pointsEligible ? ranking.pointsAwarded : 0,
+      pointsEligible,
+      pointsIneligibleReason: pointsEligible
+        ? null
+        : `Needs ${groupSettings.minimumRoundsForPoints} completed rounds or an official handicap before earning ladder points.`,
+    };
+  });
 
   const officialResults: Results = {
     id: round.id,
     ...results,
+    rankings,
     createdAt: publishedAt,
   };
   const allSeasonResults = [
@@ -1587,15 +1727,15 @@ export const publishRoundResultsWithStage3 = async ({
     roundsById,
     previousStandings,
     updatedAt: publishedAt,
-    settings: group?.settings,
+    settings: groupSettings,
   });
   const usersById = new Map(activeUsers.map((user) => [user.uid, user]));
-  const membersById = new Map(groupMembers.map((member) => [member.id, member]));
   const batch = writeBatch(db);
   const author = publishedBy ?? activeUsers.find((user) => user.role === "admin");
   const handicapChangedMemberIds: string[] = [];
   batch.set(doc(db, "results", round.id), {
     ...results,
+    rankings,
     createdAt: serverTimestamp(),
   });
   batch.update(doc(db, "rounds", round.id), {
@@ -1625,18 +1765,50 @@ export const publishRoundResultsWithStage3 = async ({
         (ranking) => ranking.playerId === standing.memberId
       )?.handicap ??
       0;
-    const { nextHandicap, reason } = calculateNextHandicap(
-      currentHandicap,
-      standing.roundResults,
-      group?.settings.handicapRoundsWindow ?? 3
-    );
+    const memberAlreadyOfficial = hasOfficialHandicap(member, currentHandicap);
+    const initialHandicapAllocation = memberAlreadyOfficial
+      ? null
+      : calculateInitialHandicap(
+          standing.roundResults,
+          groupSettings.handicapRoundsWindow
+        );
+    const handicapOutcome = initialHandicapAllocation
+      ? {
+          nextHandicap: initialHandicapAllocation.nextHandicap,
+          reason: initialHandicapAllocation.reason,
+          handicapStatus: "official" as const,
+          officialHandicapAssignedAt:
+            member?.officialHandicapAssignedAt ?? publishedAt,
+          initialHandicapAssigned: true,
+        }
+      : memberAlreadyOfficial
+        ? {
+            ...calculateNextHandicap(
+              currentHandicap,
+              standing.roundResults,
+              groupSettings.handicapRoundsWindow
+            ),
+            handicapStatus: "official" as const,
+            officialHandicapAssignedAt:
+              member?.officialHandicapAssignedAt ?? null,
+            initialHandicapAssigned: false,
+          }
+        : {
+            nextHandicap: currentHandicap,
+            reason: `Needs ${groupSettings.handicapRoundsWindow} Stableford rounds before a formal handicap is allocated.`,
+            handicapStatus: "provisional" as const,
+            officialHandicapAssignedAt: null,
+            initialHandicapAssigned: false,
+          };
     const memberRef = doc(db, "members", standing.memberId);
     const memberStats = {
       userId: standing.memberId,
       groupId: round.groupId,
       displayName: standing.memberName,
       avatarUrl: user?.avatarUrl ?? member?.avatarUrl ?? null,
-      currentHandicap: nextHandicap,
+      currentHandicap: handicapOutcome.nextHandicap,
+      handicapStatus: handicapOutcome.handicapStatus,
+      officialHandicapAssignedAt: handicapOutcome.officialHandicapAssignedAt,
       seasonYear: round.season,
       seasonPoints: standing.totalPoints,
       seasonRank: standing.currentRank,
@@ -1666,7 +1838,10 @@ export const publishRoundResultsWithStage3 = async ({
       { merge: true }
     );
 
-    if (nextHandicap !== currentHandicap) {
+    if (
+      handicapOutcome.nextHandicap !== currentHandicap ||
+      handicapOutcome.initialHandicapAssigned
+    ) {
       handicapChangedMemberIds.push(standing.memberId);
       batch.set(doc(db, "handicapHistory", `${round.id}_${standing.memberId}`), {
         groupId: round.groupId,
@@ -1675,9 +1850,12 @@ export const publishRoundResultsWithStage3 = async ({
         roundId: round.id,
         season: round.season,
         previousHandicap: currentHandicap,
-        newHandicap: nextHandicap,
-        reason,
+        newHandicap: handicapOutcome.nextHandicap,
+        reason: handicapOutcome.reason,
         source: "published_round",
+        changeType: handicapOutcome.initialHandicapAssigned
+          ? "initial_allocation"
+          : "movement",
         changedBy: author?.uid ?? null,
         changedByName: author?.displayName ?? null,
         createdAt: serverTimestamp(),
@@ -1687,7 +1865,9 @@ export const publishRoundResultsWithStage3 = async ({
         groupId: round.groupId,
         type: "handicap_updated",
         title: "Handicap updated",
-        body: `Your handicap moved from ${currentHandicap} to ${nextHandicap}.`,
+        body: handicapOutcome.initialHandicapAssigned
+          ? `Your formal handicap is now ${handicapOutcome.nextHandicap}.`
+          : `Your handicap moved from ${currentHandicap} to ${handicapOutcome.nextHandicap}.`,
         deepLink: "/profile",
         read: false,
         roundId: round.id,
@@ -1748,6 +1928,8 @@ const mapSeasonStanding = (
       (roundResult: DocumentData) => ({
         ...roundResult,
         date: toDate(roundResult.date),
+        pointsEligible: roundResult.pointsEligible ?? true,
+        pointsIneligibleReason: roundResult.pointsIneligibleReason ?? null,
         countsForSeason: roundResult.countsForSeason ?? true,
       })
     ),
