@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   EmailAuthProvider,
   reauthenticateWithCredential,
@@ -13,18 +13,24 @@ import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import {
   getLatestHandicapHistoryForMemberSeason,
+  subscribeActiveMembers,
   subscribeGroup,
   subscribeMember,
   subscribeRoundsForGroup,
-  subscribeSeasonStandingForMember,
+  subscribeSeasonStandings,
   updateUser,
 } from "@/lib/firestore";
+import {
+  getVisibleSeasonStandings,
+  type VisibleSeasonStanding,
+} from "@/lib/standingsDisplay";
 import {
   deleteStoredImage,
   uploadUserAvatarImage,
   validateImageFile,
 } from "@/lib/storageUploads";
 import type {
+  AppUser,
   HandicapHistory,
   Member,
   SeasonStanding,
@@ -34,8 +40,9 @@ import type {
 export default function ProfilePage() {
   const { appUser, firebaseUser, signOut } = useAuth();
   const router = useRouter();
+  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
   const [member, setMember] = useState<Member | null>(null);
-  const [standing, setStanding] = useState<SeasonStanding | null>(null);
+  const [seasonStandings, setSeasonStandings] = useState<SeasonStanding[]>([]);
   const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
@@ -104,11 +111,17 @@ export default function ProfilePage() {
       setMember,
       (err) => console.warn("Unable to subscribe to member stats", err)
     );
+    const activeMembersUnsubscribe = subscribeActiveMembers(
+      appUser.groupId,
+      setActiveMembers,
+      (err) => console.warn("Unable to subscribe to active members", err)
+    );
 
     return () => {
       groupUnsubscribe();
       roundsUnsubscribe();
       memberUnsubscribe();
+      activeMembersUnsubscribe();
     };
   }, [appUser?.groupId, appUser?.uid]);
 
@@ -116,16 +129,15 @@ export default function ProfilePage() {
     if (!appUser?.uid || !appUser.groupId || selectedSeason == null) return;
 
     setLoadingStats(true);
-    return subscribeSeasonStandingForMember(
+    return subscribeSeasonStandings(
       appUser.groupId,
       selectedSeason,
-      appUser.uid,
-      (seasonStanding) => {
-        setStanding(seasonStanding);
+      (nextStandings) => {
+        setSeasonStandings(nextStandings);
         setLoadingStats(false);
       },
       (err) => {
-        console.warn("Unable to subscribe to season standing", err);
+        console.warn("Unable to subscribe to season standings", err);
         setLoadingStats(false);
       }
     );
@@ -204,6 +216,14 @@ export default function ProfilePage() {
     ])
   ).sort((a, b) => b - a);
   const activeSeason = selectedSeason ?? currentSeason;
+  const standing = useMemo(
+    () =>
+      getVisibleSeasonStandings(
+        seasonStandings,
+        new Set(activeMembers.map((member) => member.uid))
+      ).find((entry) => entry.memberId === appUser?.uid) ?? null,
+    [activeMembers, appUser?.uid, seasonStandings]
+  );
   const statRounds = standing?.roundResults ?? [];
   const displayedHandicap =
     latestHandicapHistory?.newHandicap ?? member?.currentHandicap ?? "—";
@@ -711,7 +731,7 @@ export default function ProfilePage() {
             <div className="grid grid-cols-2 gap-3">
               <StatCard
                 label="Rank"
-                value={standing ? `#${standing.currentRank}` : "—"}
+                value={standing ? `#${standing.displayCurrentRank}` : "—"}
                 trend={rankTrend}
               />
               <StatCard
@@ -1031,11 +1051,11 @@ function StatCard({
 }
 
 function getRankTrend(
-  standing: SeasonStanding | null
+  standing: VisibleSeasonStanding | null
 ): StatTrend | null {
   if (!standing) return { label: "Unranked", tone: "neutral" };
-  if (standing.previousRank == null) return { label: "New", tone: "neutral" };
-  const diff = standing.previousRank - standing.currentRank;
+  if (standing.displayPreviousRank == null) return { label: "New", tone: "neutral" };
+  const diff = standing.displayPreviousRank - standing.displayCurrentRank;
   if (diff > 0) {
     return {
       label: `Up ${diff} ${diff === 1 ? "place" : "places"}`,

@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
+import { auth } from "@/lib/firebase";
 import {
+  getActiveMembers,
   getGroup,
+  getPendingMembers,
+  getRetiredMembers,
+  getSuspendedMembers,
   updateGroupCurrentSeason,
   updateGroupProfile,
   updateGroupSettings,
@@ -16,7 +21,13 @@ import {
   validateImageFile,
 } from "@/lib/storageUploads";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Group, GroupSettings, HandicapMode } from "@/types";
+import type { AppUser, Group, GroupSettings, HandicapMode } from "@/types";
+
+type ResetAction =
+  | "clear_feed"
+  | "clear_notifications"
+  | "remove_selected_members"
+  | "full_reset_except_me";
 
 export default function AdminSettingsPage() {
   const { appUser, isAdmin } = useAuth();
@@ -34,10 +45,43 @@ export default function AdminSettingsPage() {
   const [updatingSeason, setUpdatingSeason] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [resettingAction, setResettingAction] = useState<ResetAction | "">("");
+  const [removablePlayers, setRemovablePlayers] = useState<AppUser[]>([]);
+  const [showRemovePlayersModal, setShowRemovePlayersModal] = useState(false);
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [expandedSections, setExpandedSections] = useState({
     ladderPoints: false,
     handicapRules: false,
   });
+
+  const loadRemovablePlayers = async (groupId?: string, currentUserId?: string) => {
+    if (!groupId) return;
+
+    try {
+      const [active, pending, retired, suspended] = await Promise.all([
+        getActiveMembers(groupId),
+        getPendingMembers(groupId),
+        getRetiredMembers(groupId),
+        getSuspendedMembers(groupId),
+      ]);
+
+      const combined = [...active, ...pending, ...retired, ...suspended];
+      const uniqueByUid = new Map<string, AppUser>();
+      combined.forEach((user) => {
+        if (user.uid === currentUserId) return;
+        if (user.role === "admin") return;
+        uniqueByUid.set(user.uid, user);
+      });
+
+      setRemovablePlayers(
+        Array.from(uniqueByUid.values()).sort((a, b) =>
+          a.displayName.localeCompare(b.displayName)
+        )
+      );
+    } catch {
+      setError("Failed to load players for removal.");
+    }
+  };
 
   useEffect(() => {
     getGroup(appUser?.groupId)
@@ -54,7 +98,8 @@ export default function AdminSettingsPage() {
       })
       .catch(() => setError("Failed to load settings."))
       .finally(() => setLoading(false));
-  }, [appUser?.groupId]);
+    loadRemovablePlayers(appUser?.groupId, appUser?.uid);
+  }, [appUser?.groupId, appUser?.uid]);
 
   useEffect(() => {
     return () => {
@@ -216,6 +261,120 @@ export default function AdminSettingsPage() {
       setError("Failed to update the active season. Please try again.");
     } finally {
       setUpdatingSeason(false);
+    }
+  };
+
+  const handleDangerAction = async ({
+    action,
+    label,
+    confirmation,
+    confirmationWord,
+    userIds = [],
+  }: {
+    action: ResetAction;
+    label: string;
+    confirmation: string;
+    confirmationWord: "CLEAR" | "REMOVE" | "RESET";
+    userIds?: string[];
+  }) => {
+    const typed = window.prompt(
+      `${confirmation}\n\nType ${confirmationWord} to continue.`
+    );
+    if (typed == null) return false;
+    if (typed.trim().toUpperCase() !== confirmationWord) {
+      setError(`You must type "${confirmationWord}" to continue.`);
+      setSuccess("");
+      return false;
+    }
+
+    const idToken = await auth.currentUser?.getIdToken();
+    if (!idToken) {
+      setError("You need to be signed in again before using this tool.");
+      setSuccess("");
+      return false;
+    }
+
+    setResettingAction(action);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch("/api/admin/reset", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ action, userIds }),
+      });
+
+      const result = (await response.json().catch(() => null)) as
+        | { message?: string; error?: string; summary?: Record<string, number> }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(result?.error ?? "Reset failed.");
+      }
+
+      const summaryText = Object.entries(result?.summary ?? {})
+        .filter(([, value]) => typeof value === "number" && value > 0)
+        .map(([key, value]) => `${value} ${formatResetSummaryKey(key)}`)
+        .join(" · ");
+
+      setSuccess(
+        [result?.message ?? `${label} complete.`, summaryText].filter(Boolean).join(" ")
+      );
+      await loadRemovablePlayers(appUser?.groupId, appUser?.uid);
+      return true;
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error ? resetError.message : "Reset failed."
+      );
+      setSuccess("");
+      return false;
+    } finally {
+      setResettingAction("");
+    }
+  };
+
+  const handleOpenRemovePlayers = () => {
+    setSelectedPlayerIds([]);
+    setShowRemovePlayersModal(true);
+  };
+
+  const handleTogglePlayerSelection = (userId: string) => {
+    setSelectedPlayerIds((current) =>
+      current.includes(userId)
+        ? current.filter((id) => id !== userId)
+        : [...current, userId]
+    );
+  };
+
+  const handleRemoveSelectedPlayers = async () => {
+    if (selectedPlayerIds.length === 0) {
+      setError("Choose at least one player to remove.");
+      setSuccess("");
+      return;
+    }
+
+    const selectedNames = removablePlayers
+      .filter((player) => selectedPlayerIds.includes(player.uid))
+      .map((player) => player.displayName)
+      .join(", ");
+
+    const completed = await handleDangerAction({
+      action: "remove_selected_members",
+      label: "Remove selected players",
+      confirmation: `Remove ${selectedPlayerIds.length} player${
+        selectedPlayerIds.length === 1 ? "" : "s"
+      } from this group?\n\n${selectedNames}`,
+      confirmationWord: "REMOVE",
+      userIds: selectedPlayerIds,
+    });
+
+    if (completed) {
+      setShowRemovePlayersModal(false);
+      setSelectedPlayerIds([]);
     }
   };
 
@@ -515,6 +674,139 @@ export default function AdminSettingsPage() {
       >
         {saving ? "Saving..." : "Save Settings"}
       </button>
+
+      <section className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
+        <h2 className="font-semibold text-red-700">Danger Zone</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          These tools are admin-only and destructive. Each action will ask for a confirmation word before it runs.
+        </p>
+        <div className="mt-4 space-y-3">
+          <DangerActionCard
+            title="Clear feed"
+            description="Deletes all feed posts, comments, reactions, and feed-related alerts."
+            buttonLabel="Clear"
+            busy={resettingAction === "clear_feed"}
+            onClick={() =>
+              handleDangerAction({
+                action: "clear_feed",
+                label: "Clear feed",
+                confirmation:
+                  "Delete every post, comment, reaction, and feed announcement for this group?",
+                confirmationWord: "CLEAR",
+              })
+            }
+          />
+
+          <DangerActionCard
+            title="Clear notifications"
+            description="Deletes every notification in this group for every member."
+            buttonLabel="Clear"
+            busy={resettingAction === "clear_notifications"}
+            onClick={() =>
+              handleDangerAction({
+                action: "clear_notifications",
+                label: "Clear notifications",
+                confirmation:
+                  "Delete every notification for this group?",
+                confirmationWord: "CLEAR",
+              })
+            }
+          />
+
+          <DangerActionCard
+            title="Remove players"
+            description="Choose one or more players to remove from Firebase Auth and Firestore."
+            buttonLabel="Manage"
+            busy={false}
+            onClick={handleOpenRemovePlayers}
+          />
+
+          <DangerActionCard
+            title="Factory reset"
+            description="Clears members, rounds, scorecards, results, ladder history, feed, notifications, and invites while preserving your admin account and access."
+            buttonLabel="Reset"
+            busy={resettingAction === "full_reset_except_me"}
+            onClick={() =>
+              handleDangerAction({
+                action: "full_reset_except_me",
+                label: "Factory reset",
+                confirmation:
+                  "Fully reset this group and keep only your admin account? This deletes rounds, results, feed, notifications, invites, and all other members.",
+                confirmationWord: "RESET",
+              })
+            }
+          />
+        </div>
+      </section>
+
+      {showRemovePlayersModal && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
+          <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="border-b border-gray-100 px-4 py-4">
+              <h3 className="text-lg font-semibold text-gray-800">Remove Players</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Select one or more players to remove from this group.
+              </p>
+            </div>
+
+            <div className="max-h-[50vh] overflow-y-auto px-4 py-3">
+              {removablePlayers.length === 0 ? (
+                <p className="text-sm text-gray-500">No removable players found.</p>
+              ) : (
+                <div className="space-y-2">
+                  {removablePlayers.map((player) => (
+                    <label
+                      key={player.uid}
+                      className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedPlayerIds.includes(player.uid)}
+                        onChange={() => handleTogglePlayerSelection(player.uid)}
+                        className="mt-1 h-4 w-4 accent-red-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-gray-800">
+                          {player.displayName}
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          {formatPlayerStatus(player)}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 border-t border-gray-100 px-4 py-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRemovePlayersModal(false);
+                  setSelectedPlayerIds([]);
+                }}
+                className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveSelectedPlayers}
+                disabled={
+                  resettingAction === "remove_selected_members" ||
+                  selectedPlayerIds.length === 0
+                }
+                className="flex-1 rounded-xl border border-red-200 bg-red-50 py-2.5 text-sm font-semibold text-red-700 disabled:border-red-100 disabled:text-red-300"
+              >
+                {resettingAction === "remove_selected_members"
+                  ? "Removing..."
+                  : "Remove selected"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -628,6 +920,85 @@ function ModeButton({
       <span className="block text-xs text-gray-500">{description}</span>
     </button>
   );
+}
+
+function DangerActionCard({
+  title,
+  description,
+  buttonLabel,
+  busy,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  buttonLabel: string;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-red-100 bg-red-50/40 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-800">{title}</p>
+          <p className="mt-1 text-xs text-gray-500">{description}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={busy}
+          className="shrink-0 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:text-red-300"
+        >
+          {busy ? "Working..." : buttonLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatResetSummaryKey(key: string) {
+  switch (key) {
+    case "postsDeleted":
+      return "posts removed";
+    case "commentsDeleted":
+      return "comments removed";
+    case "reactionsDeleted":
+      return "reactions removed";
+    case "notificationsDeleted":
+      return "notifications removed";
+    case "usersDeleted":
+      return "users removed";
+    case "roundsDeleted":
+      return "rounds removed";
+    case "resultsDeleted":
+      return "results removed";
+    case "scorecardsDeleted":
+      return "scorecards removed";
+    case "holeScoresDeleted":
+      return "hole scores removed";
+    case "seasonStandingsDeleted":
+      return "ladder records removed";
+    case "handicapHistoryDeleted":
+      return "handicap entries removed";
+    case "invitesDeleted":
+      return "invites removed";
+    case "rsvpsDeleted":
+      return "RSVPs removed";
+    default:
+      return key;
+  }
+}
+
+function formatPlayerStatus(player: AppUser) {
+  const roleLabel =
+    player.role === "moderator"
+      ? "Moderator"
+      : player.role === "admin"
+      ? "Admin"
+      : "Member";
+  const statusLabel =
+    player.status.charAt(0).toUpperCase() + player.status.slice(1);
+
+  return `${roleLabel} · ${statusLabel}`;
 }
 
 function getSeasonActionLabel(
