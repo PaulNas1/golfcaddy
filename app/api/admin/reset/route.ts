@@ -99,8 +99,9 @@ async function clearFeed({
   groupId: string;
 }) {
   const writer = createBatchWriter(adminDb);
-  const [postsSnap, notificationsSnap] = await Promise.all([
+  const [postsSnap, photosSnap, notificationsSnap] = await Promise.all([
     adminDb.collection("posts").where("groupId", "==", groupId).get(),
+    adminDb.collection("photos").where("groupId", "==", groupId).get(),
     adminDb.collection("notifications").where("groupId", "==", groupId).get(),
   ]);
   const [commentDocs, reactionDocs] = await Promise.all([
@@ -117,11 +118,13 @@ async function clearFeed({
       return Boolean(data.postId) || FEED_NOTIFICATION_TYPES.has(data.type);
     })
   );
+  await deleteDocuments(writer, photosSnap.docs);
   await deleteDocuments(writer, postsSnap.docs);
   await writer.flush();
 
   return {
     postsDeleted: postsSnap.size,
+    photosDeleted: photosSnap.size,
     commentsDeleted: commentDocs.length,
     reactionsDeleted: reactionDocs.length,
   };
@@ -276,6 +279,7 @@ async function fullResetExceptMe({
     handicapHistorySnap,
     notificationsSnap,
     postsSnap,
+    photosSnap,
     invitesSnap,
     usersSnap,
   ] = await Promise.all([
@@ -292,6 +296,7 @@ async function fullResetExceptMe({
       .get(),
     adminDb.collection("notifications").where("groupId", "==", groupId).get(),
     adminDb.collection("posts").where("groupId", "==", groupId).get(),
+    adminDb.collection("photos").where("groupId", "==", groupId).get(),
     adminDb.collection("memberInvites").where("groupId", "==", groupId).get(),
     adminDb.collection("users").where("groupId", "==", groupId).get(),
   ]);
@@ -315,6 +320,7 @@ async function fullResetExceptMe({
   }
   await deleteDocuments(writer, notificationsSnap.docs);
   await deleteDocuments(writer, postsSnap.docs);
+  await deleteDocuments(writer, photosSnap.docs);
   await deleteDocuments(writer, resultsSnap.docs);
   await deleteDocuments(writer, standingsSnap.docs);
   await deleteDocuments(writer, handicapHistorySnap.docs);
@@ -378,6 +384,7 @@ async function fullResetExceptMe({
     handicapHistoryDeleted: handicapHistorySnap.size,
     notificationsDeleted: notificationsSnap.size,
     postsDeleted: postsSnap.size,
+    photosDeleted: photosSnap.size,
     commentsDeleted: commentDocs.length,
     reactionsDeleted: reactionDocs.length,
     usersDeleted: usersToDelete.length,

@@ -7,7 +7,6 @@ import {
   getDocsFromServer,
   setDoc,
   updateDoc,
-  deleteDoc,
   addDoc,
   writeBatch,
   query,
@@ -45,6 +44,7 @@ import type {
   GroupSettings,
   UserRole,
   UserStatus,
+  Photo,
   PostReaction,
   PostReactionType,
   PostComment,
@@ -1867,6 +1867,23 @@ const mapPost = (
   } as Post;
 };
 
+const mapPhoto = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): Photo => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    photoPath: data.photoPath ?? null,
+    roundId: data.roundId ?? null,
+    roundNumber: typeof data.roundNumber === "number" ? data.roundNumber : null,
+    courseId: data.courseId ?? null,
+    courseName: data.courseName ?? null,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  } as Photo;
+};
+
 export const getFeedPosts = async (
   groupId: string,
   limitCount = 20
@@ -1929,6 +1946,75 @@ export const subscribePinnedAnnouncement = (
   );
 };
 
+export const subscribeGroupPhotos = (
+  groupId: string,
+  onChange: (photos: Photo[]) => void,
+  options?: { limitCount?: number; onError?: (error: Error) => void }
+) => {
+  const q = query(collection(db, "photos"), where("groupId", "==", groupId));
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapPhoto)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, options?.limitCount ?? 200)
+      ),
+    options?.onError
+  );
+};
+
+export const syncGroupPhotoLibrary = async (groupId: string) => {
+  const [postsSnap, roundsSnap] = await Promise.all([
+    getDocsWithServerFallback(query(collection(db, "posts"), where("groupId", "==", groupId))),
+    getDocsWithServerFallback(query(collection(db, "rounds"), where("groupId", "==", groupId))),
+  ]);
+  const roundsById = new Map(roundsSnap.docs.map((roundDoc) => {
+    const round = mapRound(roundDoc);
+    return [round.id, round] as const;
+  }));
+  const writer = createBatchedWriter();
+  let writes = 0;
+
+  const postsWithPhotos = postsSnap.docs
+    .map(mapPost)
+    .filter((post) => post.photoUrls.length > 0);
+
+  for (const post of postsWithPhotos) {
+    const linkedRound = post.roundId ? roundsById.get(post.roundId) ?? null : null;
+
+    for (const [index, photoUrl] of post.photoUrls.entries()) {
+      const photoRef = doc(db, "photos", `${post.id}_${index}`);
+      await writer.queue((batch) => {
+        batch.set(
+          photoRef,
+          {
+            groupId: post.groupId,
+            postId: post.id,
+            uploaderId: post.authorId,
+            uploaderName: post.authorName,
+            photoUrl,
+            photoPath: post.photoPaths[index] ?? null,
+            roundId: linkedRound?.id ?? post.roundId ?? null,
+            roundNumber: linkedRound?.roundNumber ?? null,
+            courseId: linkedRound?.courseId ?? null,
+            courseName: linkedRound?.courseName ?? null,
+            createdAt: post.createdAt,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      });
+      writes += 1;
+    }
+  }
+
+  if (writes > 0) {
+    await writer.commit();
+  }
+};
+
 const mapPostReaction = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
 ): PostReaction => {
@@ -1946,6 +2032,7 @@ export const createFeedPost = async ({
   author,
   content,
   type = "general",
+  roundId = null,
   photoUrls = [],
   photoPaths = [],
 }: {
@@ -1953,6 +2040,7 @@ export const createFeedPost = async ({
   author: AppUser;
   content: string;
   type?: Post["type"];
+  roundId?: string | null;
   photoUrls?: string[];
   photoPaths?: string[];
 }) => {
@@ -1961,6 +2049,8 @@ export const createFeedPost = async ({
     throw new Error("Write something or attach at least one image.");
   }
 
+  const linkedRound = roundId ? await getRound(roundId) : null;
+
   const nextPost = {
     groupId,
     authorId: author.uid,
@@ -1968,7 +2058,7 @@ export const createFeedPost = async ({
     authorAvatarUrl: author.avatarUrl ?? null,
     type,
     content: trimmed,
-    roundId: null,
+    roundId: linkedRound?.id ?? null,
     pinned: type === "announcement",
     photoUrls,
     photoPaths,
@@ -2021,6 +2111,30 @@ export const createFeedPost = async ({
       deepLink: "/feed",
       postId,
     });
+  }
+
+  if (photoUrls.length > 0) {
+    const batch = writeBatch(db);
+
+    photoUrls.forEach((photoUrl, index) => {
+      const photoRef = doc(db, "photos", `${postId}_${index}`);
+      batch.set(photoRef, {
+        groupId,
+        postId,
+        uploaderId: author.uid,
+        uploaderName: author.displayName,
+        photoUrl,
+        photoPath: photoPaths[index] ?? null,
+        roundId: linkedRound?.id ?? null,
+        roundNumber: linkedRound?.roundNumber ?? null,
+        courseId: linkedRound?.courseId ?? null,
+        courseName: linkedRound?.courseName ?? null,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+
+    await batch.commit();
   }
 };
 
@@ -2091,7 +2205,17 @@ export const updateFeedPost = async ({
 };
 
 export const deleteFeedPost = async (postId: string) => {
-  await deleteDoc(doc(db, "posts", postId));
+  const linkedPhotosSnap = await getDocsWithServerFallback(
+    query(collection(db, "photos"), where("postId", "==", postId))
+  );
+  const batch = writeBatch(db);
+
+  linkedPhotosSnap.docs.forEach((photoDoc) => {
+    batch.delete(photoDoc.ref);
+  });
+  batch.delete(doc(db, "posts", postId));
+
+  await batch.commit();
 };
 
 const mapPostComment = (

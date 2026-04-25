@@ -388,6 +388,22 @@ export interface Post {
   updatedAt: Date;
 }
 
+export interface Photo {
+  id: string;
+  groupId: string;
+  postId: string;
+  uploaderId: string;
+  uploaderName: string;
+  photoUrl: string;
+  photoPath: string | null;
+  roundId: string | null;
+  roundNumber: number | null;
+  courseId: string | null;
+  courseName: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface PostReaction {
   id: string;
   postId: string;

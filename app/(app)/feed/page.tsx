@@ -15,6 +15,7 @@ import {
   subscribePinnedAnnouncement,
   subscribePostComments,
   subscribePostReaction,
+  subscribeRoundsForGroup,
   updateFeedPost,
 } from "@/lib/firestore";
 import {
@@ -27,6 +28,7 @@ import type {
   PostComment,
   PostReaction,
   PostReactionType,
+  Round,
 } from "@/types";
 
 const POST_LABELS: Record<Post["type"], string> = {
@@ -53,9 +55,11 @@ export default function FeedPage() {
   const { appUser, isAdmin } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
+  const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [postType, setPostType] = useState<Post["type"]>("general");
+  const [linkedRoundId, setLinkedRoundId] = useState("");
   const [postImages, setPostImages] = useState<File[]>([]);
   const [postImagePreviews, setPostImagePreviews] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
@@ -104,6 +108,15 @@ export default function FeedPage() {
       appUser.groupId,
       setPinnedAnnouncement,
       (err) => console.warn("Unable to subscribe to pinned announcement", err)
+    );
+  }, [appUser?.groupId]);
+
+  useEffect(() => {
+    if (!appUser?.groupId) return;
+    return subscribeRoundsForGroup(
+      appUser.groupId,
+      setRounds,
+      (err) => console.warn("Unable to subscribe to rounds for feed", err)
     );
   }, [appUser?.groupId]);
 
@@ -240,11 +253,13 @@ export default function FeedPage() {
         author: appUser,
         content: draft,
         type: isAdmin && postType === "announcement" ? "announcement" : "general",
+        roundId: linkedRoundId || null,
         photoUrls: uploads.map((upload) => upload.url),
         photoPaths: uploads.map((upload) => upload.path),
       });
       setDraft("");
       setPostType("general");
+      setLinkedRoundId("");
       replacePostImages([]);
     } catch (error) {
       await Promise.all(uploadedImagePaths.map((path) => deleteStoredImage(path)));
@@ -481,6 +496,26 @@ export default function FeedPage() {
               ))}
             </div>
           )}
+        </div>
+        <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-3">
+          <label className="block text-xs font-semibold text-gray-700">
+            Link to round
+          </label>
+          <p className="mt-1 text-[11px] text-gray-400">
+            Optional. Linked photos will appear in the photo library under that round and course.
+          </p>
+          <select
+            value={linkedRoundId}
+            onChange={(event) => setLinkedRoundId(event.target.value)}
+            className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">No round linked</option>
+            {rounds.map((round) => (
+              <option key={round.id} value={round.id}>
+                {`Round ${round.roundNumber} - ${round.courseName}`}
+              </option>
+            ))}
+          </select>
         </div>
         {postError && (
           <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>
