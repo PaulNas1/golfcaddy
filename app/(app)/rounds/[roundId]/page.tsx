@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   getLiveRound,
   getActiveMembers,
@@ -17,6 +17,7 @@ import {
   subscribeRoundRsvps,
   subscribeResultsForRound,
   subscribeRound,
+  subscribeRoundLinkedPosts,
   subscribeSideClaimsForRound,
 } from "@/lib/firestore";
 import {
@@ -31,6 +32,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   AppUser,
+  Post,
   Results,
   Round,
   RoundRsvp,
@@ -47,6 +49,7 @@ export default function RoundDetailPage() {
   const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
+  const [roundPosts, setRoundPosts] = useState<Post[]>([]);
   const [savingRsvp, setSavingRsvp] = useState(false);
   const [savingClaim, setSavingClaim] = useState("");
   const [loading, setLoading] = useState(true);
@@ -139,6 +142,19 @@ export default function RoundDetailPage() {
       roundId,
       setSideClaims,
       (err) => console.warn("Unable to subscribe to side claims", err)
+    );
+  }, [roundId]);
+
+  useEffect(() => {
+    if (!roundId) return;
+    return subscribeRoundLinkedPosts(
+      roundId,
+      setRoundPosts,
+      {
+        limitCount: 6,
+        onError: (err) =>
+          console.warn("Unable to subscribe to round-linked posts", err),
+      }
     );
   }, [roundId]);
 
@@ -297,6 +313,23 @@ export default function RoundDetailPage() {
         }`}>
           {round.format === "stableford" ? "🏌️ Stableford" : "📊 Stroke Play"}
         </span>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-800">Round updates</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Share photos or a quick update tied directly to this round.
+            </p>
+          </div>
+          <Link
+            href={`/feed?roundId=${round.id}`}
+            className="shrink-0 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white"
+          >
+            Post update
+          </Link>
+        </div>
       </div>
 
       {round.rsvpOpen && round.status !== "completed" && (
@@ -526,6 +559,63 @@ export default function RoundDetailPage() {
           <p className="text-gray-600 text-sm whitespace-pre-wrap">{round.notes}</p>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-gray-800">Round activity</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Updates and photos posted for this round.
+            </p>
+          </div>
+          <Link href={`/feed?roundId=${round.id}`} className="text-sm font-medium text-green-700">
+            Open feed
+          </Link>
+        </div>
+        {roundPosts.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">
+            No round updates yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {roundPosts.map((post) => (
+              <div key={post.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-gray-800">
+                      {post.authorName}
+                    </p>
+                    <p className="text-[11px] text-gray-400">
+                      {formatDistanceToNow(post.createdAt, { addSuffix: true })}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                    {post.commentCount} replies
+                  </span>
+                </div>
+                {post.content ? (
+                  <p className="mt-2 text-sm leading-relaxed text-gray-700">
+                    {post.content}
+                  </p>
+                ) : null}
+                {post.photoUrls.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {post.photoUrls.slice(0, 3).map((photoUrl) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={photoUrl}
+                        src={photoUrl}
+                        alt=""
+                        className="aspect-square rounded-xl object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Admin quick link */}
       {canAccessAdmin && (

@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   createFeedPost,
@@ -53,6 +55,7 @@ const MAX_POST_IMAGES = 3;
 
 export default function FeedPage() {
   const { appUser, isAdmin } = useAuth();
+  const searchParams = useSearchParams();
   const [posts, setPosts] = useState<Post[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -124,6 +127,17 @@ export default function FeedPage() {
     const nextPosts = pinnedAnnouncement ? [pinnedAnnouncement, ...posts] : posts;
     return Array.from(new Map(nextPosts.map((post) => [post.id, post])).values());
   }, [pinnedAnnouncement, posts]);
+  const roundsById = useMemo(
+    () => new Map(rounds.map((round) => [round.id, round])),
+    [rounds]
+  );
+  const linkedRound = linkedRoundId ? roundsById.get(linkedRoundId) ?? null : null;
+
+  useEffect(() => {
+    const roundIdFromQuery = searchParams.get("roundId");
+    if (!roundIdFromQuery || !roundsById.has(roundIdFromQuery)) return;
+    setLinkedRoundId((current) => current || roundIdFromQuery);
+  }, [roundsById, searchParams]);
 
   useEffect(() => {
     if (!appUser?.uid) return;
@@ -252,7 +266,12 @@ export default function FeedPage() {
         groupId: appUser.groupId,
         author: appUser,
         content: draft,
-        type: isAdmin && postType === "announcement" ? "announcement" : "general",
+        type:
+          isAdmin && postType === "announcement"
+            ? "announcement"
+            : linkedRoundId
+            ? "round_linked"
+            : "general",
         roundId: linkedRoundId || null,
         photoUrls: uploads.map((upload) => upload.url),
         photoPaths: uploads.map((upload) => upload.path),
@@ -430,6 +449,8 @@ export default function FeedPage() {
         <p className="mt-1 text-xs text-gray-500">
           {isAdmin && postType === "announcement"
             ? "Announcements notify members and stay clearly labeled in the feed."
+            : linkedRound
+            ? `Posting as a round update for Round ${linkedRound.roundNumber} at ${linkedRound.courseName}.`
             : "Banter, wrap-up notes, photos from the day, or general club chat."}
         </p>
         {isAdmin && (
@@ -460,6 +481,8 @@ export default function FeedPage() {
           placeholder={
             isAdmin && postType === "announcement"
               ? "Share an update members should not miss..."
+              : linkedRound
+              ? "Share an update from this round..."
               : "What’s happening in the group?"
           }
           className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -516,6 +539,25 @@ export default function FeedPage() {
               </option>
             ))}
           </select>
+          {linkedRound && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-green-700">
+                  Round update
+                </p>
+                <p className="truncate text-sm font-medium text-green-900">
+                  {`Round ${linkedRound.roundNumber} - ${linkedRound.courseName}`}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLinkedRoundId("")}
+                className="shrink-0 rounded-full border border-green-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700"
+              >
+                Clear
+              </button>
+            </div>
+          )}
         </div>
         {postError && (
           <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>
@@ -531,6 +573,8 @@ export default function FeedPage() {
               ? "Posting..."
               : isAdmin && postType === "announcement"
               ? "Post announcement"
+              : linkedRound
+              ? "Post round update"
               : "Post"}
           </button>
         </div>
@@ -559,6 +603,10 @@ export default function FeedPage() {
             const isEditing = editingPostId === post.id;
             const isMenuOpen = openMenuPostId === post.id;
             const isPinnedAnnouncement = pinnedAnnouncement?.id === post.id;
+            const postRound =
+              post.roundId && roundsById.has(post.roundId)
+                ? roundsById.get(post.roundId) ?? null
+                : null;
             return (
               <div
                 key={post.id}
@@ -671,6 +719,17 @@ export default function FeedPage() {
                         </span>
                       )}
                     </div>
+                    {post.type === "round_linked" && postRound && (
+                      <Link
+                        href={`/rounds/${postRound.id}`}
+                        className="mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-medium text-green-800"
+                      >
+                        <span>{`Round ${postRound.roundNumber}`}</span>
+                        <span className="text-green-400">•</span>
+                        <span className="truncate">{postRound.courseName}</span>
+                        <span aria-hidden="true">↗</span>
+                      </Link>
+                    )}
                     {isEditing ? (
                       <div className="mt-3 space-y-2">
                         <textarea

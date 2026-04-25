@@ -1895,7 +1895,6 @@ export const getFeedPosts = async (
   const snap = await getDocs(q);
   return snap.docs
     .map(mapPost)
-    .filter((post) => post.type !== "round_linked")
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .slice(0, limitCount);
 };
@@ -1912,9 +1911,32 @@ export const subscribeFeedPosts = (
       onChange(
         snap.docs
           .map(mapPost)
-          .filter((post) => post.type !== "round_linked")
           .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           .slice(0, options?.limitCount ?? 20)
+      ),
+    options?.onError
+  );
+};
+
+export const subscribeRoundLinkedPosts = (
+  roundId: string,
+  onChange: (posts: Post[]) => void,
+  options?: { limitCount?: number; onError?: (error: Error) => void }
+) => {
+  const q = query(
+    collection(db, "posts"),
+    where("roundId", "==", roundId),
+    where("type", "==", "round_linked")
+  );
+
+  return onSnapshot(
+    q,
+    (snap) =>
+      onChange(
+        snap.docs
+          .map(mapPost)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, options?.limitCount ?? 10)
       ),
     options?.onError
   );
