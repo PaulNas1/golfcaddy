@@ -554,89 +554,88 @@ export default function FeedPage() {
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate font-semibold text-gray-800">
-                          {post.authorName}
-                        </p>
-                        <span className="rounded-full bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-500">
-                          💬 {post.commentCount}
-                        </span>
-                      </div>
-                      <div className="relative flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[11px] ${
-                            isPinnedAnnouncement
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-gray-100 text-gray-500"
-                          }`}
-                        >
-                          {POST_LABELS[post.type]}
-                        </span>
-                        {canDeletePost && (
-                          <div className="relative" data-feed-menu-root>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setOpenMenuPostId((current) =>
-                                  current === post.id ? "" : post.id
-                                )
-                              }
-                              className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
-                              aria-label="Post actions"
-                            >
-                              <EllipsisIcon className="h-4 w-4" />
-                            </button>
-                            {isMenuOpen && (
-                              <div className="absolute right-0 top-9 z-10 min-w-[128px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
-                                {isAdmin && post.type === "announcement" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleAnnouncementPin(post)}
-                                    disabled={pinningPostId === post.id}
-                                    className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:text-amber-300"
-                                  >
-                                    {pinningPostId === post.id
-                                      ? isPinnedAnnouncement
-                                        ? "Unpinning..."
-                                        : "Pinning..."
-                                      : isPinnedAnnouncement
-                                      ? "Unpin announcement"
-                                      : "Pin announcement"}
-                                  </button>
-                                )}
-                                {isAuthor && (
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      isEditing
-                                        ? setEditingPostId("")
-                                        : handleStartEdit(post)
-                                    }
-                                    className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                  >
-                                  {isEditing ? "Cancel edit" : "Edit post"}
-                                  </button>
-                                )}
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 truncate font-semibold text-gray-800">
+                        {post.authorName}
+                      </p>
+                      {canDeletePost && (
+                        <div className="relative shrink-0" data-feed-menu-root>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOpenMenuPostId((current) =>
+                                current === post.id ? "" : post.id
+                              )
+                            }
+                            className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
+                            aria-label="Post actions"
+                          >
+                            <EllipsisIcon className="h-4 w-4" />
+                          </button>
+                          {isMenuOpen && (
+                            <div className="absolute right-0 top-9 z-10 min-w-[128px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
+                              {isAdmin && post.type === "announcement" && (
                                 <button
                                   type="button"
-                                  onClick={() => handleDeletePost(post)}
-                                  disabled={deleteBusyPostId === post.id}
-                                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
+                                  onClick={() => handleToggleAnnouncementPin(post)}
+                                  disabled={pinningPostId === post.id}
+                                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:text-amber-300"
                                 >
-                                  {deleteBusyPostId === post.id
-                                    ? "Deleting..."
-                                    : "Delete post"}
+                                  {pinningPostId === post.id
+                                    ? isPinnedAnnouncement
+                                      ? "Unpinning..."
+                                      : "Pinning..."
+                                    : isPinnedAnnouncement
+                                    ? "Unpin announcement"
+                                    : "Pin announcement"}
                                 </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              )}
+                              {isAuthor && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    isEditing
+                                      ? setEditingPostId("")
+                                      : handleStartEdit(post)
+                                  }
+                                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                {isEditing ? "Cancel edit" : "Edit post"}
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePost(post)}
+                                disabled={deleteBusyPostId === post.id}
+                                className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
+                              >
+                                {deleteBusyPostId === post.id
+                                  ? "Deleting..."
+                                  : "Delete post"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      {formatDistanceToNow(post.createdAt, { addSuffix: true })}
-                    </p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-400">
+                      <span>
+                        {formatDistanceToNow(post.createdAt, { addSuffix: true })}
+                      </span>
+                      <span className="rounded-full bg-gray-50 px-2 py-0.5 font-medium text-gray-500">
+                        💬 {post.commentCount}
+                      </span>
+                      {post.type === "announcement" && !isPinnedAnnouncement && (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
+                          Announcement
+                        </span>
+                      )}
+                      {post.type === "round_linked" && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600">
+                          {POST_LABELS[post.type]}
+                        </span>
+                      )}
+                    </div>
                     {isEditing ? (
                       <div className="mt-3 space-y-2">
                         <textarea
