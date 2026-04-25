@@ -1984,7 +1984,8 @@ export const syncGroupPhotoLibrary = async (groupId: string) => {
   for (const post of postsWithPhotos) {
     const linkedRound = post.roundId ? roundsById.get(post.roundId) ?? null : null;
 
-    for (const [index, photoUrl] of post.photoUrls.entries()) {
+    for (let index = 0; index < post.photoUrls.length; index += 1) {
+      const photoUrl = post.photoUrls[index];
       const photoRef = doc(db, "photos", `${post.id}_${index}`);
       await writer.queue((batch) => {
         batch.set(
@@ -1995,7 +1996,7 @@ export const syncGroupPhotoLibrary = async (groupId: string) => {
             uploaderId: post.authorId,
             uploaderName: post.authorName,
             photoUrl,
-            photoPath: post.photoPaths[index] ?? null,
+            photoPath: post.photoPaths?.[index] ?? null,
             roundId: linkedRound?.id ?? post.roundId ?? null,
             roundNumber: linkedRound?.roundNumber ?? null,
             courseId: linkedRound?.courseId ?? null,

@@ -90,7 +90,12 @@ export default function PhotosPage() {
       new Map(
         photos
           .filter((photo) => photo.roundId)
-          .map((photo) => [photo.roundId as string, getRoundLabel(photo, roundsById)])
+          .map(
+            (photo): [string, string] => [
+              photo.roundId as string,
+              getRoundLabel(photo, roundsById),
+            ]
+          )
       ).entries()
     );
   }, [photos, roundsById]);
@@ -99,7 +104,12 @@ export default function PhotosPage() {
     return Array.from(
       new Map(
         photos
-          .map((photo) => [getCourseFilterKey(photo, roundsById), getCourseLabel(photo, roundsById)])
+          .map(
+            (photo): [string, string] => [
+              getCourseFilterKey(photo, roundsById),
+              getCourseLabel(photo, roundsById),
+            ]
+          )
           .filter(([courseKey, courseLabel]) => courseKey.length > 0 && courseLabel.length > 0)
       ).entries()
     );
