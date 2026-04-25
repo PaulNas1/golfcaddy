@@ -5,6 +5,10 @@ import { storage } from "./firebase";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
+function formatFileSize(bytes: number) {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function getFileExtension(file: File) {
   const nameExtension = file.name.split(".").pop()?.trim().toLowerCase();
   if (nameExtension) return nameExtension;
@@ -20,7 +24,9 @@ function buildStoragePath(basePath: string, file: File) {
 export function validateImageFile(file: File | null | undefined) {
   if (!file) return "Select an image file.";
   if (!file.type.startsWith("image/")) return "Only image files are supported.";
-  if (file.size > MAX_IMAGE_BYTES) return "Images must be smaller than 5 MB.";
+  if (file.size > MAX_IMAGE_BYTES) {
+    return `${file.name} is ${formatFileSize(file.size)}. Images must be 5.0 MB or smaller.`;
+  }
   return null;
 }
 

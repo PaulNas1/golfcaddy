@@ -56,6 +56,7 @@ const MAX_POST_IMAGES = 3;
 export default function FeedPage() {
   const { appUser, isAdmin } = useAuth();
   const searchParams = useSearchParams();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [rounds, setRounds] = useState<Round[]>([]);
@@ -221,11 +222,21 @@ export default function FeedPage() {
     setPostImagePreviews(files.map((file) => URL.createObjectURL(file)));
   };
 
+  const resetFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handlePostImagesChange = (files: FileList | null) => {
     const nextFiles = Array.from(files ?? []);
-    if (nextFiles.length === 0) return;
+    if (nextFiles.length === 0) {
+      resetFileInput();
+      return;
+    }
     if (nextFiles.length > MAX_POST_IMAGES) {
       setPostError(`Attach up to ${MAX_POST_IMAGES} images per post.`);
+      resetFileInput();
       return;
     }
 
@@ -233,12 +244,14 @@ export default function FeedPage() {
       const validationError = validateImageFile(file);
       if (validationError) {
         setPostError(validationError);
+        resetFileInput();
         return;
       }
     }
 
     setPostError("");
     replacePostImages(nextFiles);
+    resetFileInput();
   };
 
   const handleRemoveComposerImage = (index: number) => {
@@ -489,6 +502,7 @@ export default function FeedPage() {
         />
         <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
           <input
+            ref={fileInputRef}
             type="file"
             accept="image/*"
             multiple
