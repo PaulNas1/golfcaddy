@@ -2,24 +2,33 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   getRoundRsvp,
   subscribeActiveMembers,
   subscribeGroup,
+  subscribePinnedAnnouncement,
   subscribeRoundsForGroup,
   subscribeSeasonStandings,
 } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
-import type { AppUser, Group, Round, RoundRsvp, SeasonStanding } from "@/types";
+import type {
+  AppUser,
+  Group,
+  Post,
+  Round,
+  RoundRsvp,
+  SeasonStanding,
+} from "@/types";
 
 export default function HomePage() {
   const { appUser } = useAuth();
   const [nextRound, setNextRound] = useState<Round | null>(null);
   const [nextRoundRsvp, setNextRoundRsvp] = useState<RoundRsvp | null>(null);
   const [liveRound, setLiveRound] = useState<Round | null>(null);
+  const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [group, setGroup] = useState<Group | null>(null);
   const [season, setSeason] = useState(new Date().getFullYear());
   const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
@@ -88,6 +97,19 @@ export default function HomePage() {
   }, [appUser?.groupId]);
 
   useEffect(() => {
+    if (!appUser?.groupId) {
+      setPinnedAnnouncement(null);
+      return;
+    }
+
+    return subscribePinnedAnnouncement(
+      appUser.groupId,
+      setPinnedAnnouncement,
+      (err) => console.warn("Unable to subscribe to pinned announcement", err)
+    );
+  }, [appUser?.groupId]);
+
+  useEffect(() => {
     if (!nextRound?.id || !appUser?.uid) {
       setNextRoundRsvp(null);
       return;
@@ -118,6 +140,13 @@ export default function HomePage() {
   );
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
+  const pinnedAnnouncementSummary =
+    pinnedAnnouncement?.content.trim() ||
+    (pinnedAnnouncement?.photoUrls.length
+      ? `${pinnedAnnouncement.photoUrls.length} photo${
+          pinnedAnnouncement.photoUrls.length === 1 ? "" : "s"
+        } attached`
+      : "An admin shared an announcement in the feed.");
 
   return (
     <div className="px-4 py-6 space-y-5">
@@ -209,6 +238,32 @@ export default function HomePage() {
           )}
         </div>
       </div>
+
+      {pinnedAnnouncement && (
+        <Link href="/feed" prefetch={false}>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">
+                  Pinned announcement
+                </p>
+                <p className="mt-1 text-sm font-semibold text-amber-950">
+                  {pinnedAnnouncement.authorName}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-amber-900">
+                  {pinnedAnnouncementSummary}
+                </p>
+                <p className="mt-3 text-xs text-amber-700">
+                  {formatDistanceToNow(pinnedAnnouncement.createdAt, {
+                    addSuffix: true,
+                  })}
+                </p>
+              </div>
+              <div className="text-2xl">📌</div>
+            </div>
+          </div>
+        </Link>
+      )}
 
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-3">

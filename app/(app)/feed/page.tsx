@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,8 +9,10 @@ import {
   createPostComment,
   deletePostComment,
   deleteFeedPost,
+  setAnnouncementPinnedState,
   setPostReaction,
   subscribeFeedPosts,
+  subscribePinnedAnnouncement,
   subscribePostComments,
   subscribePostReaction,
   updateFeedPost,
@@ -50,6 +52,7 @@ const MAX_POST_IMAGES = 3;
 export default function FeedPage() {
   const { appUser, isAdmin } = useAuth();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [postType, setPostType] = useState<Post["type"]>("general");
@@ -72,6 +75,7 @@ export default function FeedPage() {
   const [editingBusyPostId, setEditingBusyPostId] = useState("");
   const [deleteBusyPostId, setDeleteBusyPostId] = useState("");
   const [deleteCommentBusyId, setDeleteCommentBusyId] = useState("");
+  const [pinningPostId, setPinningPostId] = useState("");
   const [openMenuPostId, setOpenMenuPostId] = useState("");
   const [openCommentMenuId, setOpenCommentMenuId] = useState("");
   const [selectedImageUrl, setSelectedImageUrl] = useState("");
@@ -95,14 +99,28 @@ export default function FeedPage() {
   }, [appUser?.groupId]);
 
   useEffect(() => {
+    if (!appUser?.groupId) return;
+    return subscribePinnedAnnouncement(
+      appUser.groupId,
+      setPinnedAnnouncement,
+      (err) => console.warn("Unable to subscribe to pinned announcement", err)
+    );
+  }, [appUser?.groupId]);
+
+  const visiblePosts = useMemo(() => {
+    const nextPosts = pinnedAnnouncement ? [pinnedAnnouncement, ...posts] : posts;
+    return Array.from(new Map(nextPosts.map((post) => [post.id, post])).values());
+  }, [pinnedAnnouncement, posts]);
+
+  useEffect(() => {
     if (!appUser?.uid) return;
-    if (posts.length === 0) {
+    if (visiblePosts.length === 0) {
       setMyReactionsByPostId({});
       setCommentsByPostId({});
       return;
     }
 
-    const reactionUnsubscribes = posts.map((post) =>
+    const reactionUnsubscribes = visiblePosts.map((post) =>
       subscribePostReaction(
         post.id,
         appUser.uid,
@@ -116,7 +134,7 @@ export default function FeedPage() {
       )
     );
 
-    const commentUnsubscribes = posts.map((post) =>
+    const commentUnsubscribes = visiblePosts.map((post) =>
       subscribePostComments(
         post.id,
         (comments) => {
@@ -133,7 +151,7 @@ export default function FeedPage() {
       reactionUnsubscribes.forEach((unsubscribe) => unsubscribe());
       commentUnsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [appUser?.uid, posts]);
+  }, [appUser?.uid, visiblePosts]);
 
   useEffect(() => {
     return () => {
@@ -347,6 +365,24 @@ export default function FeedPage() {
     }
   };
 
+  const handleToggleAnnouncementPin = async (post: Post) => {
+    if (!appUser?.groupId || !isAdmin || post.type !== "announcement") return;
+
+    setOpenMenuPostId("");
+    setPinningPostId(post.id);
+    try {
+      await setAnnouncementPinnedState({
+        postId: post.id,
+        groupId: appUser.groupId,
+        pinned: pinnedAnnouncement?.id !== post.id,
+      });
+    } catch (error) {
+      console.error("Failed to update announcement pin state", error);
+    } finally {
+      setPinningPostId("");
+    }
+  };
+
   const handleDeleteComment = async (post: Post, comment: PostComment) => {
     const confirmed = window.confirm("Delete this reply?");
     if (!confirmed) return;
@@ -471,7 +507,7 @@ export default function FeedPage() {
             <div key={i} className="h-28 rounded-2xl bg-white p-4" />
           ))}
         </div>
-      ) : posts.length === 0 ? (
+      ) : visiblePosts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
           <div className="mb-4 text-5xl">💬</div>
           <p className="mb-1 font-medium text-gray-500">No social posts yet</p>
@@ -481,17 +517,29 @@ export default function FeedPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {posts.map((post) => {
+          {visiblePosts.map((post) => {
             const comments = commentsByPostId[post.id] ?? [];
             const isAuthor = post.authorId === appUser?.uid;
             const canDeletePost = isAuthor || isAdmin;
             const isEditing = editingPostId === post.id;
             const isMenuOpen = openMenuPostId === post.id;
+            const isPinnedAnnouncement = pinnedAnnouncement?.id === post.id;
             return (
               <div
                 key={post.id}
-                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+                className={`rounded-2xl border p-4 shadow-sm ${
+                  isPinnedAnnouncement
+                    ? "border-amber-200 bg-amber-50/70"
+                    : "border-gray-100 bg-white"
+                }`}
               >
+                {isPinnedAnnouncement && (
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-800">
+                      Pinned announcement
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-start gap-3">
                   {post.authorAvatarUrl ? (
                     <div
@@ -516,7 +564,13 @@ export default function FeedPage() {
                         </span>
                       </div>
                       <div className="relative flex items-center gap-2">
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-500">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[11px] ${
+                            isPinnedAnnouncement
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
                           {POST_LABELS[post.type]}
                         </span>
                         {canDeletePost && (
@@ -535,6 +589,22 @@ export default function FeedPage() {
                             </button>
                             {isMenuOpen && (
                               <div className="absolute right-0 top-9 z-10 min-w-[128px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
+                                {isAdmin && post.type === "announcement" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleAnnouncementPin(post)}
+                                    disabled={pinningPostId === post.id}
+                                    className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:text-amber-300"
+                                  >
+                                    {pinningPostId === post.id
+                                      ? isPinnedAnnouncement
+                                        ? "Unpinning..."
+                                        : "Pinning..."
+                                      : isPinnedAnnouncement
+                                      ? "Unpin announcement"
+                                      : "Pin announcement"}
+                                  </button>
+                                )}
                                 {isAuthor && (
                                   <button
                                     type="button"

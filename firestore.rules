@@ -195,8 +195,15 @@ service cloud.firestore {
         request.resource.data.type != 'announcement' || isAdmin()
       );
       allow update: if isActiveUser() && (
-        resource.data.authorId == request.auth.uid ||
         isAdmin() ||
+        (
+          resource.data.authorId == request.auth.uid &&
+          isSameGroupId(resource.data.groupId) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'content',
+            'updatedAt'
+          ])
+        ) ||
         (
           isSameGroupId(resource.data.groupId) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly([

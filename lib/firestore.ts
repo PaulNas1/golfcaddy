@@ -1903,6 +1903,32 @@ export const subscribeFeedPosts = (
   );
 };
 
+export const subscribePinnedAnnouncement = (
+  groupId: string,
+  onChange: (post: Post | null) => void,
+  onError?: (error: Error) => void
+) => {
+  const q = query(
+    collection(db, "posts"),
+    where("groupId", "==", groupId),
+    where("type", "==", "announcement"),
+    where("pinned", "==", true)
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => {
+      const latestPinnedAnnouncement =
+        snap.docs
+          .map(mapPost)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ??
+        null;
+      onChange(latestPinnedAnnouncement);
+    },
+    onError
+  );
+};
+
 const mapPostReaction = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
 ): PostReaction => {
@@ -1935,7 +1961,7 @@ export const createFeedPost = async ({
     throw new Error("Write something or attach at least one image.");
   }
 
-  const postRef = await addDoc(collection(db, "posts"), {
+  const nextPost = {
     groupId,
     authorId: author.uid,
     authorName: author.displayName,
@@ -1950,7 +1976,35 @@ export const createFeedPost = async ({
     commentCount: 0,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  let postId = "";
+
+  if (type === "announcement") {
+    const pinnedAnnouncementsSnap = await getDocsWithServerFallback(
+      query(
+        collection(db, "posts"),
+        where("groupId", "==", groupId),
+        where("type", "==", "announcement"),
+        where("pinned", "==", true)
+      )
+    );
+    const nextPostRef = doc(collection(db, "posts"));
+    const batch = writeBatch(db);
+
+    pinnedAnnouncementsSnap.docs.forEach((announcementDoc) => {
+      batch.update(announcementDoc.ref, {
+        pinned: false,
+        updatedAt: serverTimestamp(),
+      });
+    });
+
+    batch.set(nextPostRef, nextPost);
+    await batch.commit();
+    postId = nextPostRef.id;
+  } else {
+    const postRef = await addDoc(collection(db, "posts"), nextPost);
+    postId = postRef.id;
+  }
 
   if (type === "announcement") {
     const preview =
@@ -1965,9 +2019,57 @@ export const createFeedPost = async ({
       title: "New announcement",
       body: preview || `${author.displayName} posted a new announcement.`,
       deepLink: "/feed",
-      postId: postRef.id,
+      postId,
     });
   }
+};
+
+export const setAnnouncementPinnedState = async ({
+  postId,
+  groupId,
+  pinned,
+}: {
+  postId: string;
+  groupId: string;
+  pinned: boolean;
+}) => {
+  const postRef = doc(db, "posts", postId);
+  const postSnap = await getDocWithServerFallback(postRef);
+
+  if (!postSnap.exists()) {
+    throw new Error("Announcement not found.");
+  }
+
+  const post = mapPost(postSnap);
+  if (post.groupId !== groupId || post.type !== "announcement") {
+    throw new Error("Only announcement posts can be pinned.");
+  }
+
+  const pinnedAnnouncementsSnap = await getDocsWithServerFallback(
+    query(
+      collection(db, "posts"),
+      where("groupId", "==", groupId),
+      where("type", "==", "announcement"),
+      where("pinned", "==", true)
+    )
+  );
+  const batch = writeBatch(db);
+
+  pinnedAnnouncementsSnap.docs.forEach((announcementDoc) => {
+    batch.update(announcementDoc.ref, {
+      pinned: false,
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  if (pinned) {
+    batch.update(postRef, {
+      pinned: true,
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
 };
 
 export const updateFeedPost = async ({
