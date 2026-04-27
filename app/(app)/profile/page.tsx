@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
+import { hasRoundScorecards } from "@/lib/roundDisplay";
 import {
   getHandicapHistoryForMemberSeason,
   getSeasonStandingForMember,
@@ -277,12 +278,16 @@ export default function ProfilePage() {
   const fallbackLdWins = memberSeasonMatches ? member?.ldWins ?? 0 : 0;
   const fallbackT2Wins = memberSeasonMatches ? member?.t2Wins ?? 0 : 0;
   const fallbackT3Wins = memberSeasonMatches ? member?.t3Wins ?? 0 : 0;
-  const seasonOptions = Array.from(
-    new Set([
-      ...(availableSeasons.length > 0 ? availableSeasons : [currentSeason]),
-      currentSeason,
-    ])
-  ).sort((a, b) => b - a);
+  const seasonOptions = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...(availableSeasons.length > 0 ? availableSeasons : [currentSeason]),
+          currentSeason,
+        ])
+      ).sort((a, b) => b - a),
+    [availableSeasons, currentSeason]
+  );
   const activeSeason = selectedSeason ?? currentSeason;
   const roundsById = useMemo(
     () => new Map(rounds.map((round) => [round.id, round])),
@@ -336,13 +341,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     setArchiveSeasonOpen((current) => {
+      let changed = false;
       const next = { ...current };
       archiveSeasons.forEach((season) => {
         if (next[season] == null) {
           next[season] = false;
+          changed = true;
         }
       });
-      return next;
+      return changed ? next : current;
     });
   }, [archiveSeasons]);
 
@@ -1075,7 +1082,8 @@ export default function ProfilePage() {
 
                 {!loadingHistory && (
                   <p className="text-[11px] text-gray-400">
-                    Each row links to the round and your archived scorecard.
+                    Each row links to the round. Imported summary-only results
+                    will not have an archived scorecard.
                   </p>
                 )}
               </div>
@@ -1460,6 +1468,7 @@ function RoundHistoryRow({
           <div className="flex items-center gap-2">
             <Link
               href={`/rounds/${roundResult.roundId}`}
+              prefetch={false}
               className="truncate font-medium text-gray-800 underline-offset-2 hover:underline"
             >
               {roundResult.courseName}
@@ -1472,7 +1481,11 @@ function RoundHistoryRow({
           </div>
           <p className="text-xs text-gray-400">
             {format(roundResult.date, "EEE d MMM yyyy")} · Finish #{roundResult.finish}
-            {round?.roundNumber ? ` · Round ${round.roundNumber}` : ""}
+            {round?.roundName
+              ? ` · ${round.roundName}`
+              : round?.roundNumber
+                ? ` · Round ${round.roundNumber}`
+                : ""}
           </p>
           <p className="mt-1 text-xs text-gray-500">
             {roundResult.pointsEligible === false
@@ -1488,12 +1501,19 @@ function RoundHistoryRow({
               ? `${roundResult.stableford} stb`
               : `${roundResult.pointsAwarded} pts`}
           </p>
+          {round && hasRoundScorecards(round) ? (
           <Link
             href={`/rounds/${roundResult.roundId}/my-card`}
+            prefetch={false}
             className="mt-1 inline-block text-[11px] font-semibold text-green-700 underline-offset-2 hover:underline"
           >
             My card
           </Link>
+          ) : (
+            <p className="mt-1 text-[11px] font-semibold text-gray-400">
+              Results only
+            </p>
+          )}
         </div>
       </div>
     </div>

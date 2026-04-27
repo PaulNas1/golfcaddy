@@ -24,6 +24,7 @@ import {
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { getEffectiveSpecialHoles } from "@/lib/courseData";
+import { getRoundLabel } from "@/lib/roundDisplay";
 import { buildPlayerRankings } from "@/lib/results";
 import type {
   Round,
@@ -461,7 +462,7 @@ export default function AdminRoundLeaderboardPage() {
     <div className="space-y-4 pb-8">
       <div>
         <p className="text-xs text-gray-500 mb-1">
-          Round {round.roundNumber} · {round.season}
+          {getRoundLabel(round)} · {round.season}
         </p>
         <h1 className="text-xl font-bold text-gray-800">
           Live Leaderboard

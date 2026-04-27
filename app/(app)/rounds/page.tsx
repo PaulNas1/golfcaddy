@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { subscribeGroup, subscribeRoundsForGroup } from "@/lib/firestore";
+import { getRoundLabel } from "@/lib/roundDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Round, RoundStatus } from "@/types";
@@ -135,7 +136,7 @@ export default function RoundsPage() {
                       {STATUS_LABEL[round.status]}
                     </span>
                     <span className="text-xs text-gray-400">
-                      Round {round.roundNumber}
+                      {getRoundLabel(round)}
                     </span>
                   </div>
                   <h3 className="font-semibold text-gray-800">{round.courseName}</h3>

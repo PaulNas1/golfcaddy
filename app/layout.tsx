@@ -7,7 +7,7 @@ import PushNotificationsManager from "@/components/PushNotificationsManager";
 export const metadata: Metadata = {
   title: "GolfCaddy",
   description: "Private golf group competition and community app",
-  manifest: "/manifest.json",
+  manifest: process.env.NODE_ENV === "production" ? "/manifest.json" : undefined,
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

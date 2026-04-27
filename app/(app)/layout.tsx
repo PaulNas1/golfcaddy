@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { firebaseUser, appUser, loading, canAccessAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const contentRef = useRef<HTMLElement | null>(null);
   const [group, setGroup] = useState<Group | null>(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
 
@@ -64,6 +65,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, appUser, router]);
 
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [pathname]);
+
   if (loading || !appUser || appUser.status !== "active") {
     return (
       <div className="min-h-screen bg-green-700 flex items-center justify-center">
@@ -98,12 +103,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {canAccessAdmin && (
             <Link
               href="/admin"
+              prefetch={false}
               className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1 rounded-full transition-colors"
             >
               Admin
             </Link>
           )}
-          <Link href="/notifications" className="relative p-1">
+          <Link
+            href="/notifications"
+            prefetch={false}
+            className="relative p-1"
+            aria-label="Notifications"
+          >
             <BellIcon className="w-6 h-6" />
             {hasUnreadNotifications && (
               <span className="absolute right-0 top-0 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-green-700" />
@@ -113,7 +124,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Page content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main key={pathname} ref={contentRef} className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
 
@@ -126,6 +137,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Link
                 key={href}
                 href={href}
+                prefetch={false}
                 className={`flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${
                   active ? "text-green-600" : "text-gray-400 hover:text-gray-600"
                 }`}

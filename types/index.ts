@@ -177,6 +177,7 @@ export interface Round {
   groupId: string;
   courseId: string;
   courseName: string;
+  roundName?: string | null;
   teeSetId: string | null;
   teeSetName: string | null;
   coursePar: number | null;
@@ -197,6 +198,7 @@ export interface Round {
   rsvpNotifiedAt: Date | null;
   holeOverrides: HoleOverride[];
   specialHoles: SpecialHoles;
+  scorecardsAvailable: boolean;
   resultsPublished: boolean;
   resultsPublishedAt: Date | null;
   createdBy: string;

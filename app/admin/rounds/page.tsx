@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { subscribeGroup, subscribeRoundsForGroup } from "@/lib/firestore";
+import { getRoundLabel } from "@/lib/roundDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Round, RoundStatus } from "@/types";
@@ -140,7 +141,7 @@ export default function AdminRoundsPage() {
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[round.status]}`}>
                         {round.status === "live" ? "● Live" : round.status.charAt(0).toUpperCase() + round.status.slice(1)}
                       </span>
-                      <span className="text-xs text-gray-400">Round {round.roundNumber}</span>
+                      <span className="text-xs text-gray-400">{getRoundLabel(round)}</span>
                     </div>
                     <h3 className="font-semibold text-gray-800">{round.courseName}</h3>
                     <p className="text-gray-500 text-sm">

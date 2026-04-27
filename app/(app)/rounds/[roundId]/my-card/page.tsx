@@ -9,6 +9,7 @@ import {
   getEffectiveSpecialHoles,
   getFallbackCourseHoles,
 } from "@/lib/courseData";
+import { hasRoundScorecards } from "@/lib/roundDisplay";
 import {
   getRound,
   getLiveRound,
@@ -124,6 +125,26 @@ export default function MyCardPage() {
     return (
       <div className="px-4 py-6 text-sm text-gray-500">
         Round not found. Tried round ID: {roundId}
+      </div>
+    );
+  }
+
+  if (!hasRoundScorecards(round)) {
+    return (
+      <div className="px-4 py-6 space-y-4">
+        <button
+          onClick={() => router.back()}
+          className="text-xs text-gray-500"
+        >
+          ← Back
+        </button>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">No scorecard archive for this round</p>
+          <p className="mt-1 text-amber-800">
+            This historical round was imported from summary results only, so
+            there is no hole-by-hole card to display.
+          </p>
+        </div>
       </div>
     );
   }

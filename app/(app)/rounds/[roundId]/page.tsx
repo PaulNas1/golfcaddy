@@ -24,6 +24,7 @@ import {
   getEffectiveSpecialHoles,
   withSeededCourseData,
 } from "@/lib/courseData";
+import { getRoundLabel, hasRoundScorecards } from "@/lib/roundDisplay";
 import {
   formatTeeTime,
   getFirstTeeTimeLabel,
@@ -295,7 +296,7 @@ export default function RoundDetailPage() {
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor}`}>
             {statusLabel}
           </span>
-          <span className="text-xs text-gray-400">Round {round.roundNumber} · {round.season}</span>
+          <span className="text-xs text-gray-400">{getRoundLabel(round)} · {round.season}</span>
         </div>
         <h1 className="text-2xl font-bold text-gray-800 leading-tight">{round.courseName}</h1>
         <p className="text-gray-500 mt-1">
@@ -421,6 +422,16 @@ export default function RoundDetailPage() {
             ))}
           </div>
           <SideResultsList results={results} />
+        </div>
+      )}
+
+      {!hasRoundScorecards(round) && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-semibold text-amber-900">Historical import</p>
+          <p className="mt-1 text-sm text-amber-800">
+            This round was imported as published results only. Hole-by-hole
+            scorecards are not available.
+          </p>
         </div>
       )}
 

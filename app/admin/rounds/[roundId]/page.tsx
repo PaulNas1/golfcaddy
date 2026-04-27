@@ -32,6 +32,7 @@ import {
   getPreferredDefaultTeeSet,
   getRoundTeeSets,
 } from "@/lib/courseData";
+import { getRoundLabel } from "@/lib/roundDisplay";
 import {
   formatShortMemberName,
   getTeeTimeGroupLabel,
@@ -1016,7 +1017,7 @@ export default function AdminRoundDetailPage() {
     <div className="space-y-4 pb-8">
       <div>
         <div className="text-xs text-gray-500 mb-1">
-          Round {round.roundNumber} · {round.season}
+          {getRoundLabel(round)} · {round.season}
         </div>
         <h1 className="text-xl font-bold text-gray-800">{round.courseName}</h1>
         <p className="text-gray-500 text-sm">{format(round.date, "EEE d MMM yyyy")}</p>
