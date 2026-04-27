@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  subscribeActiveMembers,
-  subscribeGroup,
-  subscribeMembersForGroup,
-  subscribeRoundsForGroup,
+  getActiveMembers,
+  getGroup,
+  getMembersForGroup,
+  getRounds,
   subscribeSeasonStandings,
 } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
@@ -39,56 +39,48 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (!appUser?.groupId) return;
+    let cancelled = false;
 
-    const groupUnsubscribe = subscribeGroup(
-      appUser.groupId,
-      (group) => {
+    Promise.all([getGroup(appUser.groupId), getRounds(appUser.groupId)])
+      .then(([group, rounds]) => {
+        if (cancelled) return;
         setGroup(group);
         const nextCurrentSeason =
           group?.currentSeason ?? new Date().getFullYear();
         setCurrentSeason(nextCurrentSeason);
         setSelectedSeason((current) => current ?? nextCurrentSeason);
-      },
-      (err) => {
-        console.warn("Unable to subscribe to group", err);
-        setLoading(false);
-      }
-    );
-
-    const roundsUnsubscribe = subscribeRoundsForGroup(
-      appUser.groupId,
-      (rounds) => {
         const seasons = Array.from(new Set(rounds.map((round) => round.season))).sort(
           (a, b) => b - a
         );
         setAvailableSeasons(seasons);
-      },
-      (err) => console.warn("Unable to subscribe to rounds", err)
-    );
+      })
+      .catch((err) => {
+        console.warn("Unable to load leaderboard reference data", err);
+        if (!cancelled) setLoading(false);
+      });
 
     return () => {
-      groupUnsubscribe();
-      roundsUnsubscribe();
+      cancelled = true;
     };
   }, [appUser?.groupId]);
 
   useEffect(() => {
     if (!appUser?.groupId) return;
+    let cancelled = false;
 
-    const activeMembersUnsubscribe = subscribeActiveMembers(
-      appUser.groupId,
-      setActiveMembers,
-      (err) => console.warn("Unable to subscribe to active members", err)
-    );
-    const groupMembersUnsubscribe = subscribeMembersForGroup(
-      appUser.groupId,
-      setGroupMembers,
-      (err) => console.warn("Unable to subscribe to member stats", err)
-    );
+    Promise.all([
+      getActiveMembers(appUser.groupId),
+      getMembersForGroup(appUser.groupId),
+    ])
+      .then(([activeUsers, members]) => {
+        if (cancelled) return;
+        setActiveMembers(activeUsers);
+        setGroupMembers(members);
+      })
+      .catch((err) => console.warn("Unable to load leaderboard members", err));
 
     return () => {
-      activeMembersUnsubscribe();
-      groupMembersUnsubscribe();
+      cancelled = true;
     };
   }, [appUser?.groupId]);
 

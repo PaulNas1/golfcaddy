@@ -11,13 +11,13 @@ import {
   createPostComment,
   deletePostComment,
   deleteFeedPost,
+  getRounds,
   setAnnouncementPinnedState,
   setPostReaction,
   subscribeFeedPosts,
   subscribePinnedAnnouncement,
   subscribePostComments,
   subscribePostReaction,
-  subscribeRoundsForGroup,
   updateFeedPost,
 } from "@/lib/firestore";
 import {
@@ -86,6 +86,7 @@ export default function FeedPage() {
   const [pinningPostId, setPinningPostId] = useState("");
   const [openMenuPostId, setOpenMenuPostId] = useState("");
   const [openCommentMenuId, setOpenCommentMenuId] = useState("");
+  const [openRepliesByPostId, setOpenRepliesByPostId] = useState<Record<string, boolean>>({});
   const [selectedImageUrl, setSelectedImageUrl] = useState("");
   const [selectedImageLabel, setSelectedImageLabel] = useState("");
 
@@ -117,11 +118,16 @@ export default function FeedPage() {
 
   useEffect(() => {
     if (!appUser?.groupId) return;
-    return subscribeRoundsForGroup(
-      appUser.groupId,
-      setRounds,
-      (err) => console.warn("Unable to subscribe to rounds for feed", err)
-    );
+    let cancelled = false;
+    getRounds(appUser.groupId)
+      .then((groupRounds) => {
+        if (!cancelled) setRounds(groupRounds);
+      })
+      .catch((err) => console.warn("Unable to load rounds for feed", err));
+
+    return () => {
+      cancelled = true;
+    };
   }, [appUser?.groupId]);
 
   const visiblePosts = useMemo(() => {
@@ -162,7 +168,9 @@ export default function FeedPage() {
       )
     );
 
-    const commentUnsubscribes = visiblePosts.map((post) =>
+    const commentUnsubscribes = visiblePosts
+      .filter((post) => openRepliesByPostId[post.id])
+      .map((post) =>
       subscribePostComments(
         post.id,
         (comments) => {
@@ -179,7 +187,7 @@ export default function FeedPage() {
       reactionUnsubscribes.forEach((unsubscribe) => unsubscribe());
       commentUnsubscribes.forEach((unsubscribe) => unsubscribe());
     };
-  }, [appUser?.uid, visiblePosts]);
+  }, [appUser?.uid, openRepliesByPostId, visiblePosts]);
 
   useEffect(() => {
     return () => {
@@ -453,6 +461,13 @@ export default function FeedPage() {
     setSelectedImageLabel(label);
   };
 
+  const toggleReplies = (postId: string) => {
+    setOpenRepliesByPostId((current) => ({
+      ...current,
+      [postId]: !current[postId],
+    }));
+  };
+
   return (
     <div className="px-4 py-6 pb-8">
       <h1 className="mb-5 text-2xl font-bold text-gray-800">Social Feed</h1>
@@ -612,6 +627,7 @@ export default function FeedPage() {
         <div className="space-y-3">
           {visiblePosts.map((post) => {
             const comments = commentsByPostId[post.id] ?? [];
+            const repliesOpen = openRepliesByPostId[post.id] ?? false;
             const isAuthor = post.authorId === appUser?.uid;
             const canDeletePost = isAuthor || isAdmin;
             const isEditing = editingPostId === post.id;
@@ -826,125 +842,138 @@ export default function FeedPage() {
                       })}
                     </div>
                     <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                      <p className="text-xs font-semibold text-gray-700">
-                        Replies
-                      </p>
-                      <div className="mt-3 space-y-3">
-                        {comments.length === 0 ? (
-                          <p className="text-[11px] text-gray-400">
-                            No replies yet.
-                          </p>
-                        ) : (
-                          comments.map((comment) => {
-                            const canManageComment =
-                              comment.authorId === appUser?.uid || isAdmin;
-                            const commentMenuId = `${post.id}:${comment.id}`;
-                            const isCommentMenuOpen =
-                              openCommentMenuId === commentMenuId;
+                      <button
+                        type="button"
+                        onClick={() => toggleReplies(post.id)}
+                        className="flex w-full items-center justify-between text-left"
+                      >
+                        <p className="text-xs font-semibold text-gray-700">
+                          Replies
+                        </p>
+                        <span className="text-[11px] font-medium text-gray-400">
+                          {repliesOpen ? "Hide" : `Show (${post.commentCount})`}
+                        </span>
+                      </button>
+                      {repliesOpen && (
+                        <>
+                          <div className="mt-3 space-y-3">
+                            {comments.length === 0 ? (
+                              <p className="text-[11px] text-gray-400">
+                                No replies yet.
+                              </p>
+                            ) : (
+                              comments.map((comment) => {
+                                const canManageComment =
+                                  comment.authorId === appUser?.uid || isAdmin;
+                                const commentMenuId = `${post.id}:${comment.id}`;
+                                const isCommentMenuOpen =
+                                  openCommentMenuId === commentMenuId;
 
-                            return (
-                              <div
-                                key={comment.id}
-                                className="rounded-xl border border-gray-100 bg-white px-3 py-2"
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex min-w-0 items-start gap-2">
-                                    {comment.authorAvatarUrl ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img
-                                        src={comment.authorAvatarUrl}
-                                        alt=""
-                                        className="h-7 w-7 shrink-0 rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-[11px] font-bold text-green-700">
-                                        {comment.authorName.charAt(0).toUpperCase()}
+                                return (
+                                  <div
+                                    key={comment.id}
+                                    className="rounded-xl border border-gray-100 bg-white px-3 py-2"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex min-w-0 items-start gap-2">
+                                        {comment.authorAvatarUrl ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img
+                                            src={comment.authorAvatarUrl}
+                                            alt=""
+                                            className="h-7 w-7 shrink-0 rounded-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-[11px] font-bold text-green-700">
+                                            {comment.authorName.charAt(0).toUpperCase()}
+                                          </div>
+                                        )}
+                                        <div className="min-w-0">
+                                          <p className="truncate text-xs font-semibold text-gray-700">
+                                            {comment.authorName}
+                                          </p>
+                                          <p className="text-[11px] text-gray-400">
+                                            {formatDistanceToNow(comment.createdAt, {
+                                              addSuffix: true,
+                                            })}
+                                          </p>
+                                        </div>
                                       </div>
-                                    )}
-                                    <div className="min-w-0">
-                                      <p className="truncate text-xs font-semibold text-gray-700">
-                                        {comment.authorName}
-                                      </p>
-                                      <p className="text-[11px] text-gray-400">
-                                        {formatDistanceToNow(comment.createdAt, {
-                                          addSuffix: true,
-                                        })}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  {canManageComment && (
-                                    <div className="relative shrink-0" data-feed-menu-root>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setOpenCommentMenuId((current) =>
-                                            current === commentMenuId ? "" : commentMenuId
-                                          )
-                                        }
-                                        className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
-                                        aria-label="Reply actions"
-                                      >
-                                        <EllipsisIcon className="h-4 w-4" />
-                                      </button>
-                                      {isCommentMenuOpen && (
-                                        <div className="absolute right-0 top-9 z-10 min-w-[124px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
+                                      {canManageComment && (
+                                        <div className="relative shrink-0" data-feed-menu-root>
                                           <button
                                             type="button"
-                                            onClick={() => handleDeleteComment(post, comment)}
-                                            disabled={deleteCommentBusyId === comment.id}
-                                            className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
+                                            onClick={() =>
+                                              setOpenCommentMenuId((current) =>
+                                                current === commentMenuId ? "" : commentMenuId
+                                              )
+                                            }
+                                            className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
+                                            aria-label="Reply actions"
                                           >
-                                            {deleteCommentBusyId === comment.id
-                                              ? "Deleting..."
-                                              : "Delete reply"}
+                                            <EllipsisIcon className="h-4 w-4" />
                                           </button>
+                                          {isCommentMenuOpen && (
+                                            <div className="absolute right-0 top-9 z-10 min-w-[124px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteComment(post, comment)}
+                                                disabled={deleteCommentBusyId === comment.id}
+                                                className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
+                                              >
+                                                {deleteCommentBusyId === comment.id
+                                                  ? "Deleting..."
+                                                  : "Delete reply"}
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       )}
                                     </div>
-                                  )}
-                                </div>
-                                <p className="mt-1 text-sm text-gray-700">
-                                  {comment.content}
-                                </p>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                      <div className="mt-3 space-y-2">
-                        <textarea
-                          value={commentDrafts[post.id] ?? ""}
-                          onChange={(event) =>
-                            setCommentDrafts((current) => ({
-                              ...current,
-                              [post.id]: event.target.value,
-                            }))
-                          }
-                          rows={2}
-                          placeholder="Write a reply..."
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        />
-                        {commentErrors[post.id] && (
-                          <p className="text-xs font-medium text-red-600">
-                            {commentErrors[post.id]}
-                          </p>
-                        )}
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleCreateComment(post)}
-                            disabled={
-                              postingCommentPostId === post.id ||
-                              (commentDrafts[post.id] ?? "").trim().length === 0
-                            }
-                            className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 disabled:border-gray-100 disabled:bg-gray-100 disabled:text-gray-400"
-                          >
-                            {postingCommentPostId === post.id
-                              ? "Posting..."
-                              : "Reply"}
-                          </button>
-                        </div>
-                      </div>
+                                    <p className="mt-1 text-sm text-gray-700">
+                                      {comment.content}
+                                    </p>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                          <div className="mt-3 space-y-2">
+                            <textarea
+                              value={commentDrafts[post.id] ?? ""}
+                              onChange={(event) =>
+                                setCommentDrafts((current) => ({
+                                  ...current,
+                                  [post.id]: event.target.value,
+                                }))
+                              }
+                              rows={2}
+                              placeholder="Write a reply..."
+                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                            {commentErrors[post.id] && (
+                              <p className="text-xs font-medium text-red-600">
+                                {commentErrors[post.id]}
+                              </p>
+                            )}
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleCreateComment(post)}
+                                disabled={
+                                  postingCommentPostId === post.id ||
+                                  (commentDrafts[post.id] ?? "").trim().length === 0
+                                }
+                                className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 disabled:border-gray-100 disabled:bg-gray-100 disabled:text-gray-400"
+                              >
+                                {postingCommentPostId === post.id
+                                  ? "Posting..."
+                                  : "Reply"}
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
