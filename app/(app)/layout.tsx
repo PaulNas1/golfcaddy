@@ -122,7 +122,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Page content */}
-      <main key={pathname} ref={contentRef} className="flex-1 overflow-y-auto pb-20">
+      <main ref={contentRef} className="flex-1 overflow-y-auto pb-20">
         {children}
       </main>
 

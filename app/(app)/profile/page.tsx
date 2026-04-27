@@ -61,12 +61,14 @@ export default function ProfilePage() {
   const [latestHandicapHistory, setLatestHandicapHistory] =
     useState<HandicapHistory | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
-  const [loadingHistory, setLoadingHistory] = useState(true);
   const [recentResultsOpen, setRecentResultsOpen] = useState(false);
   const [seasonArchiveOpen, setSeasonArchiveOpen] = useState(false);
   const [archiveSeasonOpen, setArchiveSeasonOpen] = useState<Record<number, boolean>>(
     {}
   );
+  const [archiveLoadingSeasons, setArchiveLoadingSeasons] = useState<
+    Record<number, boolean>
+  >({});
   const [editingProfile, setEditingProfile] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState("");
@@ -190,44 +192,6 @@ export default function ProfilePage() {
   }, [appUser?.groupId, appUser?.uid, selectedSeason]);
 
   useEffect(() => {
-    if (!appUser?.uid || !appUser.groupId) {
-      setLoadingHistory(false);
-      return;
-    }
-
-    let cancelled = false;
-    const seasons = Array.from(
-      new Set([
-        ...(availableSeasons.length > 0 ? availableSeasons : [currentSeason]),
-        currentSeason,
-      ])
-    ).sort((a, b) => b - a);
-
-    setLoadingHistory(true);
-    Promise.all(
-      seasons.map(async (season) => [
-        season,
-        await getSeasonStandingForMember(appUser.groupId, season, appUser.uid),
-      ] as const)
-    )
-      .then((entries) => {
-        if (cancelled) return;
-        setHistoryStandingsBySeason(Object.fromEntries(entries));
-      })
-      .catch((err) => {
-        console.warn("Unable to load round history", err);
-        if (!cancelled) setHistoryStandingsBySeason({});
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingHistory(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [appUser?.groupId, appUser?.uid, availableSeasons, currentSeason]);
-
-  useEffect(() => {
     if (selectedSeason == null || !appUser?.uid) return;
 
     setHistoryStandingsBySeason((current) => ({
@@ -330,13 +294,8 @@ export default function ProfilePage() {
     [currentSeason, historyStandingsBySeason]
   );
   const archiveSeasons = useMemo(
-    () =>
-      seasonOptions.filter(
-        (season) =>
-          season !== currentSeason &&
-          (historyStandingsBySeason[season]?.roundResults?.length ?? 0) > 0
-      ),
-    [currentSeason, historyStandingsBySeason, seasonOptions]
+    () => seasonOptions.filter((season) => season !== currentSeason),
+    [currentSeason, seasonOptions]
   );
 
   useEffect(() => {
@@ -356,6 +315,33 @@ export default function ProfilePage() {
   const handleSignOut = async () => {
     await signOut();
     router.replace("/signin");
+  };
+
+  const ensureArchiveSeasonLoaded = async (season: number) => {
+    if (!appUser?.uid || !appUser.groupId) return;
+    if (season === currentSeason) return;
+    if (season in historyStandingsBySeason || archiveLoadingSeasons[season]) return;
+
+    setArchiveLoadingSeasons((current) => ({ ...current, [season]: true }));
+    try {
+      const seasonStanding = await getSeasonStandingForMember(
+        appUser.groupId,
+        season,
+        appUser.uid
+      );
+      setHistoryStandingsBySeason((current) => ({
+        ...current,
+        [season]: seasonStanding,
+      }));
+    } catch (err) {
+      console.warn("Unable to load archived season history", err);
+      setHistoryStandingsBySeason((current) => ({
+        ...current,
+        [season]: null,
+      }));
+    } finally {
+      setArchiveLoadingSeasons((current) => ({ ...current, [season]: false }));
+    }
   };
 
   const resetProfileForm = () => {
@@ -1022,7 +1008,9 @@ export default function ProfilePage() {
                       : "No archived seasons yet"
                   }
                   open={seasonArchiveOpen}
-                  onToggle={() => setSeasonArchiveOpen((current) => !current)}
+                  onToggle={() =>
+                    setSeasonArchiveOpen((current) => !current)
+                  }
                 >
                   {archiveSeasons.length > 0 ? (
                     <div className="space-y-3">
@@ -1030,6 +1018,8 @@ export default function ProfilePage() {
                         const seasonResults =
                           historyStandingsBySeason[season]?.roundResults ?? [];
                         const seasonOpen = archiveSeasonOpen[season] ?? false;
+                        const seasonLoaded = season in historyStandingsBySeason;
+                        const seasonLoading = archiveLoadingSeasons[season] ?? false;
                         return (
                           <div
                             key={season}
@@ -1037,12 +1027,16 @@ export default function ProfilePage() {
                           >
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={() => {
+                                const nextOpen = !seasonOpen;
                                 setArchiveSeasonOpen((current) => ({
                                   ...current,
-                                  [season]: !seasonOpen,
-                                }))
-                              }
+                                  [season]: nextOpen,
+                                }));
+                                if (nextOpen) {
+                                  void ensureArchiveSeasonLoaded(season);
+                                }
+                              }}
                               className="flex w-full items-center justify-between gap-3 px-3 py-3 text-left"
                             >
                               <div>
@@ -1050,7 +1044,11 @@ export default function ProfilePage() {
                                   {season}
                                 </p>
                                 <p className="text-[11px] text-gray-400">
-                                  {seasonResults.length} rounds
+                                  {seasonLoading
+                                    ? "Loading..."
+                                    : seasonLoaded
+                                      ? `${seasonResults.length} rounds`
+                                      : "Tap to load"}
                                 </p>
                               </div>
                               <span className="text-xs font-semibold text-gray-400">
@@ -1058,15 +1056,27 @@ export default function ProfilePage() {
                               </span>
                             </button>
                             {seasonOpen && (
-                              <div className="divide-y divide-gray-100 border-t border-gray-100">
-                                {seasonResults.map((roundResult) => (
-                                  <RoundHistoryRow
-                                    key={`${season}-${roundResult.roundId}`}
-                                    roundResult={roundResult}
-                                    round={roundsById.get(roundResult.roundId) ?? null}
-                                    archiveLabel="Archive"
-                                  />
-                                ))}
+                              <div className="border-t border-gray-100">
+                                {seasonLoading ? (
+                                  <div className="px-3 py-4 text-sm text-gray-500">
+                                    Loading archived results...
+                                  </div>
+                                ) : seasonResults.length > 0 ? (
+                                  <div className="divide-y divide-gray-100">
+                                    {seasonResults.map((roundResult) => (
+                                      <RoundHistoryRow
+                                        key={`${season}-${roundResult.roundId}`}
+                                        roundResult={roundResult}
+                                        round={roundsById.get(roundResult.roundId) ?? null}
+                                        archiveLabel="Archive"
+                                      />
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="px-3 py-4 text-sm text-gray-500">
+                                    No archived results for this season.
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -1080,12 +1090,10 @@ export default function ProfilePage() {
                   )}
                 </CollapsibleHistorySection>
 
-                {!loadingHistory && (
-                  <p className="text-[11px] text-gray-400">
-                    Each row links to the round. Imported summary-only results
-                    will not have an archived scorecard.
-                  </p>
-                )}
+                <p className="text-[11px] text-gray-400">
+                  Each row links to the round. Imported summary-only results
+                  will not have an archived scorecard.
+                </p>
               </div>
             )}
 
