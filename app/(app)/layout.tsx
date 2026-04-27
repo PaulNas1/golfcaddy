@@ -103,7 +103,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {canAccessAdmin && (
             <Link
               href="/admin"
-              prefetch={false}
               className="bg-white/20 hover:bg-white/30 text-white text-xs font-medium px-3 py-1 rounded-full transition-colors"
             >
               Admin
@@ -111,7 +110,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
           <Link
             href="/notifications"
-            prefetch={false}
             className="relative p-1"
             aria-label="Notifications"
           >
@@ -137,7 +135,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <Link
                 key={href}
                 href={href}
-                prefetch={false}
                 className={`flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${
                   active ? "text-green-600" : "text-gray-400 hover:text-gray-600"
                 }`}
