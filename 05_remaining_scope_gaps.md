@@ -62,23 +62,38 @@ This document lists only items that are still missing or only partially delivere
 
 ## 4. Handicap / Stats / History Gaps
 
-- The handicap feature is only partially aligned with the planning docs.
-  Remaining alignment gaps:
-  - the original plan says average of the last N Stableford rounds, defaulting to 6 and configurable
-  - the current implementation uses a simplified movement model with a default window of 3 in [lib/settings.ts](/Users/paulnasrallah/Documents/Claude/Projects/GolfCaddy/golfcaddy/lib/settings.ts:15) and [lib/season.ts](/Users/paulnasrallah/Documents/Claude/Projects/GolfCaddy/golfcaddy/lib/season.ts:254)
+This section is now largely implemented in the app.
 
-- A proper handicap history chart is not implemented yet.
+- Handicap logic is aligned to the rolling average model from the planning docs.
+  Current state:
+  - default `handicapRoundsWindow` is `6` and remains configurable per group
+  - the simplified last-3 threshold model has been replaced by the rolling Stableford window engine
+  - manual admin handicap entries are treated as official, not provisional
 
-- Full round-by-round player history is not implemented yet.
-  Current state: profile shows only a short recent-results slice, not a full history view.
+- Handicap trend history is implemented on profile.
+  Current state:
+  - players can view handicap movement over time from stored `handicapHistory`
+  - the UI includes a sensible single-entry state before a true trend exists
 
-- Full scorecard history browsing is not implemented yet.
+- Full round-by-round player history is implemented on profile.
+  Current state:
+  - active-season results are available in the `Recent Results` section
+  - previous seasons are grouped in a collapsible `Season Archive`
 
-- Deeper stats from the long-term roadmap are still missing.
+- Full scorecard history browsing is implemented.
+  Current state:
+  - history rows link through to read-only past scorecards
+
+- Admin recalculation tooling is implemented for season handicap history.
+  Current state:
+  - admins can preview and apply a season handicap recalculation after rule changes or historical imports
+  - this recalculation rebuilds handicap history only; it does not retroactively rescore old rounds between `local` and `slope-adjusted`
+
+- Deeper analytics from the long-term roadmap are still intentionally out of scope for this phase.
   Examples:
   - hole-by-hole trends
   - consistency / most improved style metrics
-  - podium finish tracking
+  - expanded trophy-style stat surfaces
 
 ## 5. Admin / Audit Gaps
 
@@ -100,12 +115,11 @@ This document lists only items that are still missing or only partially delivere
 
 - Full player profile depth is not complete yet.
   Missing items from Stage 5:
-  - full historical stats view
-  - full scorecard history
-  - richer historical player views beyond recent results
+  - richer historical stats beyond the current wins / top-3 / history surfaces
+  - deeper analytics and trend views beyond the current handicap and results history
 
 - A dedicated season archive experience is not clearly implemented as a first-class feature.
-  Current state: parts of prior-season data are viewable via season selectors, but there is no explicit archive flow matching the planning docs.
+  Current state: prior seasons are now grouped in the profile archive flow, but broader archive UX across the whole app may still need polish.
 
 - A formal UI polish / hardening pass is still outstanding.
   This is a delivery phase rather than a single feature, but it is still an unticked box from the staged plan.
@@ -165,7 +179,11 @@ If we want the remaining scope ordered by practical impact rather than by docume
 
 ## 11. Step 4 Execution Plan — Handicap / Stats / History
 
-This section turns the gaps in section 4 into a concrete delivery plan.
+Status update:
+- the main product work from this plan is now implemented
+- what remains is mostly documentation / governance follow-up rather than core app functionality
+
+This section records the delivery plan that was used to close the original section 4 gaps.
 
 ### Recommended framing
 

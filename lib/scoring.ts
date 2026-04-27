@@ -1,4 +1,4 @@
-import type { HoleScore, ScoringFormat } from "@/types";
+import type { HandicapMode, HoleScore, ScoringFormat } from "@/types";
 
 // Basic Stableford + stroke-play helpers for now.
 // Once full course data is wired in, we can swap the placeholders.
@@ -13,6 +13,38 @@ export function calculateStrokesReceived(
   let strokes = base;
   if (strokeIndex <= remainder) strokes += 1;
   return strokes;
+}
+
+export function calculatePlayingHandicap({
+  handicap,
+  mode,
+  slopeRating,
+  courseRating,
+  coursePar,
+}: {
+  handicap: number;
+  mode: HandicapMode;
+  slopeRating?: number | null;
+  courseRating?: number | null;
+  coursePar?: number | null;
+}) {
+  if (!Number.isFinite(handicap)) return 0;
+  if (mode !== "slope_adjusted") {
+    return Math.max(0, Math.round(handicap));
+  }
+
+  let adjusted = handicap;
+  if (typeof slopeRating === "number" && slopeRating > 0) {
+    adjusted = (adjusted * slopeRating) / 113;
+  }
+  if (
+    typeof courseRating === "number" &&
+    typeof coursePar === "number"
+  ) {
+    adjusted += courseRating - coursePar;
+  }
+
+  return Math.max(0, Math.round(adjusted));
 }
 
 export function calculateStablefordPoints(
@@ -51,4 +83,3 @@ export function aggregateTotals(
       format === "stableford" && hasAnyStableford ? stableford : null,
   };
 }
-

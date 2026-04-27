@@ -188,6 +188,12 @@ export default function MyCardPage() {
                 </span>
                 {markerName && <> · Marker: {markerName}</>}
               </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Playing HCP:{" "}
+                <span className="font-semibold text-gray-800">
+                  {card.handicapAtTime}
+                </span>
+              </p>
               {markedCard && markedPlayerName && (
                 <button
                   type="button"

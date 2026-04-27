@@ -46,7 +46,7 @@ export interface MemberInvite {
 
 export interface GroupSettings {
   pointsTable: Record<string, number>; // "1" → 10, "2" → 9, etc.
-  handicapRoundsWindow: number;         // default 3
+  handicapRoundsWindow: number;         // default 6
   minimumRoundsForPoints: number;       // default 3
   handicapMode: HandicapMode;
   bestXofY: {
@@ -357,12 +357,21 @@ export interface HandicapHistory {
   memberId: string;
   memberName: string;
   roundId: string | null;
+  roundDate?: Date | null;
   season: number;
   previousHandicap: number;
   newHandicap: number;
   reason: string;
   source: "manual_admin" | "published_round";
-  changeType?: "movement" | "initial_allocation";
+  changeType?:
+    | "movement"
+    | "initial_allocation"
+    | "provisional_update"
+    | "manual_override";
+  calculationWindow?: number | null;
+  qualifyingRoundCount?: number;
+  calculationRoundIds?: string[];
+  officialAfterChange?: boolean;
   changedBy: string | null;
   changedByName: string | null;
   createdAt: Date;

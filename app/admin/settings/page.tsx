@@ -8,6 +8,8 @@ import {
   getActiveMembers,
   getGroup,
   getPendingMembers,
+  previewSeasonHandicapRebuild,
+  rebuildSeasonHandicaps,
   getRetiredMembers,
   getSuspendedMembers,
   updateGroupCurrentSeason,
@@ -52,7 +54,20 @@ export default function AdminSettingsPage() {
   const [expandedSections, setExpandedSections] = useState({
     ladderPoints: false,
     handicapRules: false,
+    handicapRebuild: false,
   });
+  const [handicapRebuildSeason, setHandicapRebuildSeason] = useState(
+    new Date().getFullYear()
+  );
+  const [handicapRebuildBusy, setHandicapRebuildBusy] = useState(false);
+  const [handicapPreview, setHandicapPreview] = useState<{
+    season: number;
+    standings: number;
+    membersChanged: number;
+    historyRows: number;
+    existingHistoryRows: number;
+    handicapWindow: number;
+  } | null>(null);
 
   const loadRemovablePlayers = async (groupId?: string, currentUserId?: string) => {
     if (!groupId) return;
@@ -93,6 +108,9 @@ export default function AdminSettingsPage() {
         setLogoRemoved(false);
         setSettings(normaliseGroupSettings(groupRecord?.settings));
         setSeasonDraft(
+          groupRecord?.currentSeason ?? new Date().getFullYear()
+        );
+        setHandicapRebuildSeason(
           groupRecord?.currentSeason ?? new Date().getFullYear()
         );
       })
@@ -619,7 +637,7 @@ export default function AdminSettingsPage() {
 
       <CollapsibleSettingsSection
         title="Handicap Rules"
-        description="GolfCaddy handicap movement uses recent Stableford cards."
+        description="GolfCaddy handicap uses the rolling average of recent Stableford cards."
         summary={getHandicapSummary(settings)}
         expanded={expandedSections.handicapRules}
         onToggle={() =>
@@ -642,7 +660,7 @@ export default function AdminSettingsPage() {
               onChange={(event) =>
                 setSettings((current) => ({
                   ...current,
-                  handicapRoundsWindow: Number(event.target.value) || 3,
+                  handicapRoundsWindow: Number(event.target.value) || 6,
                 }))
               }
               className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -658,10 +676,145 @@ export default function AdminSettingsPage() {
             />
             <ModeButton
               label="Slope-adjusted handicap"
-              description="Store this preference now; tee-set slope adjustment will use it when that scoring pass lands."
+              description="Convert each player handicap into a playing handicap using the selected tee-set slope and rating for that round."
               selected={settings.handicapMode === "slope_adjusted"}
               onClick={() => setHandicapMode("slope_adjusted", setSettings)}
             />
+          </div>
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-3 text-xs text-blue-900">
+            <p className="font-medium">How this setting works</p>
+            <p className="mt-1">
+              `Local` and `slope-adjusted` change the playing handicap frozen on
+              new scorecards after you save settings.
+            </p>
+            <p className="mt-1">
+              Switching modes does not retroactively rescore old rounds or
+              recalculate published results.
+            </p>
+          </div>
+        </div>
+      </CollapsibleSettingsSection>
+
+      <CollapsibleSettingsSection
+        title="Recalculate Season Handicaps"
+        description="Use this after changing handicap rules or importing old rounds."
+        summary={
+          handicapPreview
+            ? `${handicapPreview.membersChanged} members changed, ${handicapPreview.historyRows} handicap rows`
+            : `Season ${handicapRebuildSeason}`
+        }
+        expanded={expandedSections.handicapRebuild}
+        onToggle={() =>
+          setExpandedSections((current) => ({
+            ...current,
+            handicapRebuild: !current.handicapRebuild,
+          }))
+        }
+      >
+        <div className="space-y-3">
+          <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3 text-xs text-amber-900">
+            <p className="font-medium">What this tool does</p>
+            <p className="mt-1">
+              Rebuilds the season handicap history from published rounds using
+              the current saved handicap rules.
+            </p>
+            <p className="mt-1">
+              It does not rescore old rounds, recalculate side games, or convert
+              historic rounds between `local` and `slope-adjusted` mode.
+            </p>
+          </div>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-gray-600">
+              Season to recalculate
+            </span>
+            <select
+              value={handicapRebuildSeason}
+              onChange={(event) =>
+                setHandicapRebuildSeason(Number(event.target.value))
+              }
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {getSeasonOptions(group?.currentSeason ?? seasonDraft).map((season) => (
+                <option key={season} value={season}>
+                  {season}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {handicapPreview && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
+              <p>
+                Preview for Season {handicapPreview.season}:{" "}
+                <span className="font-semibold text-gray-800">
+                  {handicapPreview.standings} standings
+                </span>
+              </p>
+              <p className="mt-1">
+                {handicapPreview.membersChanged} member records would change.{" "}
+                {handicapPreview.historyRows} history rows would be rebuilt from{" "}
+                {handicapPreview.existingHistoryRows} existing rows using a{" "}
+                {handicapPreview.handicapWindow}-card window.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                if (!group) return;
+                setHandicapRebuildBusy(true);
+                setError("");
+                setSuccess("");
+                try {
+                  const preview = await previewSeasonHandicapRebuild(
+                    group.id,
+                    handicapRebuildSeason
+                  );
+                  setHandicapPreview(preview);
+                } catch {
+                  setError("Failed to preview the season handicap recalculation.");
+                } finally {
+                  setHandicapRebuildBusy(false);
+                }
+              }}
+              disabled={handicapRebuildBusy || !group}
+              className="rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 disabled:text-gray-300"
+            >
+              {handicapRebuildBusy ? "Working..." : "Preview recalculation"}
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                if (!group) return;
+                const confirmed = confirm(
+                  `Recalculate handicaps for Season ${handicapRebuildSeason}? This will overwrite published-round handicap history for that season.`
+                );
+                if (!confirmed) return;
+                setHandicapRebuildBusy(true);
+                setError("");
+                setSuccess("");
+                try {
+                  const summary = await rebuildSeasonHandicaps({
+                    groupId: group.id,
+                    season: handicapRebuildSeason,
+                  });
+                  setSuccess(
+                    `Recalculated ${summary.historyRows} handicap history rows for Season ${summary.season}.`
+                  );
+                  setHandicapPreview(null);
+                } catch {
+                  setError("Failed to recalculate season handicaps.");
+                } finally {
+                  setHandicapRebuildBusy(false);
+                }
+              }}
+              disabled={handicapRebuildBusy || !group}
+              className="rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
+            >
+              Apply recalculation
+            </button>
           </div>
         </div>
       </CollapsibleSettingsSection>

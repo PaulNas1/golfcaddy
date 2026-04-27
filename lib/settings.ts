@@ -15,7 +15,7 @@ export const DEFAULT_POINTS_TABLE: Record<string, number> = {
 
 export const DEFAULT_GROUP_SETTINGS: GroupSettings = {
   pointsTable: DEFAULT_POINTS_TABLE,
-  handicapRoundsWindow: 3,
+  handicapRoundsWindow: 6,
   minimumRoundsForPoints: 3,
   handicapMode: "local",
   bestXofY: {

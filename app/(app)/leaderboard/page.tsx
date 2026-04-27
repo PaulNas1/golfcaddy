@@ -117,7 +117,7 @@ export default function LeaderboardPage() {
 
   const leaderboardEntries = useMemo(() => {
     const membersById = new Map(groupMembers.map((member) => [member.id, member]));
-    const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 3;
+    const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 6;
     const minimumRoundsForPoints = group?.settings.minimumRoundsForPoints ?? 3;
     const visibleStandings = getVisibleSeasonStandings(
       standings,

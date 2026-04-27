@@ -36,6 +36,7 @@ import type {
   HoleScore,
   Results,
   SeasonStanding,
+  RoundResult,
   Post,
   RoundRsvp,
   RoundRsvpStatus,
@@ -53,8 +54,7 @@ import type {
 } from "@/types";
 import {
   buildSeasonStandings,
-  calculateInitialHandicap,
-  calculateNextHandicap,
+  calculateHandicapTransition,
   getAverageStableford,
   getBestStableford,
   getSeasonStandingId,
@@ -475,6 +475,151 @@ function hasOfficialHandicap(member: Member | null | undefined, handicap: number
   return inferHandicapStatus(handicap, member?.handicapStatus) === "official";
 }
 
+type SeasonHandicapBaseline = {
+  currentHandicap: number;
+  handicapStatus: "official" | "provisional";
+  officialHandicapAssignedAt: Date | null;
+};
+
+type RebuiltSeasonHandicap = {
+  currentHandicap: number;
+  handicapStatus: "official" | "provisional";
+  officialHandicapAssignedAt: Date | null;
+  historyEntries: Array<
+    Omit<HandicapHistory, "id" | "createdAt" | "changedBy" | "changedByName">
+  >;
+};
+
+function getSeasonHandicapBaseline({
+  member,
+  seasonHistory,
+}: {
+  member: Member | null | undefined;
+  seasonHistory: HandicapHistory[];
+}): SeasonHandicapBaseline {
+  const publishedEntries = seasonHistory
+    .filter((entry) => entry.source === "published_round")
+    .slice()
+    .sort((a, b) => getHistorySortTime(a) - getHistorySortTime(b));
+  const firstPublishedEntry = publishedEntries[0];
+
+  if (!firstPublishedEntry) {
+    const currentHandicap = member?.currentHandicap ?? 0;
+    return {
+      currentHandicap,
+      handicapStatus: inferHandicapStatus(
+        currentHandicap,
+        member?.handicapStatus
+      ),
+      officialHandicapAssignedAt: member?.officialHandicapAssignedAt ?? null,
+    };
+  }
+
+  const previousStatus =
+    firstPublishedEntry.changeType === "movement"
+      ? "official"
+      : firstPublishedEntry.changeType === "initial_allocation" ||
+          firstPublishedEntry.changeType === "provisional_update"
+        ? "provisional"
+        : inferHandicapStatus(
+            firstPublishedEntry.previousHandicap,
+            member?.handicapStatus
+          );
+
+  return {
+    currentHandicap: firstPublishedEntry.previousHandicap,
+    handicapStatus: previousStatus,
+    officialHandicapAssignedAt:
+      previousStatus === "official"
+        ? member?.officialHandicapAssignedAt ?? null
+        : null,
+  };
+}
+
+function rebuildSeasonHandicapHistory({
+  standings,
+  membersById,
+  seasonHistory,
+  handicapRoundsWindow,
+}: {
+  standings: SeasonStanding[];
+  membersById: Map<string, Member>;
+  seasonHistory: HandicapHistory[];
+  handicapRoundsWindow: number;
+}) {
+  const seasonHistoryByMember = new Map<string, HandicapHistory[]>();
+  seasonHistory.forEach((entry) => {
+    const existing = seasonHistoryByMember.get(entry.memberId) ?? [];
+    existing.push(entry);
+    seasonHistoryByMember.set(entry.memberId, existing);
+  });
+
+  const rebuilt = new Map<string, RebuiltSeasonHandicap>();
+
+  standings.forEach((standing) => {
+    const member = membersById.get(standing.memberId);
+    const baseline = getSeasonHandicapBaseline({
+      member,
+      seasonHistory: seasonHistoryByMember.get(standing.memberId) ?? [],
+    });
+    const chronologicalResults = standing.roundResults
+      .slice()
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+    const cumulativeResults: RoundResult[] = [];
+    const historyEntries: RebuiltSeasonHandicap["historyEntries"] = [];
+    let currentHandicap = baseline.currentHandicap;
+    let handicapStatus = baseline.handicapStatus;
+    let officialHandicapAssignedAt = baseline.officialHandicapAssignedAt;
+
+    chronologicalResults.forEach((roundResult) => {
+      cumulativeResults.push(roundResult);
+      const transition = calculateHandicapTransition({
+        currentHandicap,
+        handicapStatus,
+        officialHandicapAssignedAt,
+        roundResults: cumulativeResults,
+        window: handicapRoundsWindow,
+        effectiveAt: roundResult.date,
+      });
+
+      historyEntries.push({
+        groupId: standing.groupId,
+        memberId: standing.memberId,
+        memberName: standing.memberName,
+        roundId: roundResult.roundId,
+        roundDate: roundResult.date,
+        season: standing.season,
+        previousHandicap: currentHandicap,
+        newHandicap: transition.nextHandicap,
+        reason: transition.reason,
+        source: "published_round",
+        changeType: transition.changeType,
+        calculationWindow: transition.calculationWindow,
+        qualifyingRoundCount: transition.qualifyingRoundCount,
+        calculationRoundIds: transition.calculationRoundIds,
+        officialAfterChange: transition.handicapStatus === "official",
+      });
+
+      currentHandicap = transition.nextHandicap;
+      handicapStatus = transition.handicapStatus;
+      officialHandicapAssignedAt = transition.officialHandicapAssignedAt;
+    });
+
+    rebuilt.set(standing.memberId, {
+      currentHandicap,
+      handicapStatus,
+      officialHandicapAssignedAt,
+      historyEntries,
+    });
+  });
+
+  return rebuilt;
+}
+
+function getHistorySortTime(entry: Pick<HandicapHistory, "roundDate" | "createdAt">) {
+  return (entry.roundDate ?? entry.createdAt).getTime();
+}
+
 export const updateMemberStartingHandicap = async ({
   memberUser,
   handicap,
@@ -528,12 +673,17 @@ export const updateMemberStartingHandicap = async ({
     memberId: memberUser.uid,
     memberName: memberUser.displayName,
     roundId: null,
+    roundDate: null,
     season,
     previousHandicap,
     newHandicap: handicap,
     reason: "Admin-entered GolfCaddy starting handicap.",
     source: "manual_admin",
-    changeType: existingOfficialHandicap ? "movement" : "initial_allocation",
+    changeType: existingOfficialHandicap ? "manual_override" : "initial_allocation",
+    calculationWindow: null,
+    qualifyingRoundCount: 0,
+    calculationRoundIds: [],
+    officialAfterChange: true,
     changedBy: changedBy?.uid ?? null,
     changedByName: changedBy?.displayName ?? null,
     createdAt: serverTimestamp(),
@@ -1139,20 +1289,29 @@ export const deleteRoundCascade = async (roundId: string) => {
     standings.map((standing) => [standing.memberId, standing])
   );
   const membersById = new Map(groupMembers.map((member) => [member.id, member]));
-  const deletedRoundHandicapBase = new Map<string, number>();
-  const deletedInitialAllocationMemberIds = new Set<string>();
-  handicapHistorySnap.docs.forEach((historyDoc) => {
-    const data = historyDoc.data();
-    if (
-      data.source === "published_round" &&
-      typeof data.memberId === "string" &&
-      typeof data.previousHandicap === "number"
-    ) {
-      deletedRoundHandicapBase.set(data.memberId, data.previousHandicap);
-      if (data.changeType === "initial_allocation") {
-        deletedInitialAllocationMemberIds.add(data.memberId);
-      }
-    }
+  const seasonHandicapHistory = shouldRebuildSeason
+    ? (
+        await getDocs(
+          query(
+            collection(db, "handicapHistory"),
+            where("groupId", "==", round.groupId)
+          )
+        )
+      ).docs
+        .map(mapHandicapHistory)
+        .filter((entry) => entry.season === round.season)
+    : [];
+  const rebuiltHandicaps = rebuildSeasonHandicapHistory({
+    standings,
+    membersById,
+    seasonHistory: seasonHandicapHistory,
+    handicapRoundsWindow: groupSettings.handicapRoundsWindow,
+  });
+  const seasonHistoryByMemberId = new Map<string, HandicapHistory[]>();
+  seasonHandicapHistory.forEach((entry) => {
+    const existing = seasonHistoryByMemberId.get(entry.memberId) ?? [];
+    existing.push(entry);
+    seasonHistoryByMemberId.set(entry.memberId, existing);
   });
 
   const writer = createBatchedWriter();
@@ -1201,8 +1360,13 @@ export const deleteRoundCascade = async (roundId: string) => {
     await writer.queue((batch) => batch.delete(sideClaimDoc.ref));
   }
 
-  for (const historyDoc of handicapHistorySnap.docs) {
-    await writer.queue((batch) => batch.delete(historyDoc.ref));
+  const publishedSeasonHistoryDocs = shouldRebuildSeason
+    ? seasonHandicapHistory.filter((entry) => entry.source === "published_round")
+    : handicapHistorySnap.docs.map(mapHandicapHistory);
+  for (const historyEntry of publishedSeasonHistoryDocs) {
+    await writer.queue((batch) =>
+      batch.delete(doc(db, "handicapHistory", historyEntry.id))
+    );
   }
 
   const existingStandingIds = new Set(
@@ -1224,36 +1388,12 @@ export const deleteRoundCascade = async (roundId: string) => {
     const { bestStableford, bestRoundId } = getBestStableford(
       standing.roundResults
     );
-    const hadDeletedRoundHandicapMovement = deletedRoundHandicapBase.has(
-      standing.memberId
-    );
-    const baseHandicap =
-      deletedRoundHandicapBase.get(standing.memberId) ??
-      member?.currentHandicap ??
-      0;
-    const memberWasOfficial =
-      !deletedInitialAllocationMemberIds.has(standing.memberId) &&
-      hasOfficialHandicap(member, baseHandicap);
-    const initialHandicapAllocation = memberWasOfficial
-      ? null
-      : calculateInitialHandicap(
-          standing.roundResults,
-          groupSettings.handicapRoundsWindow
-        );
-    const nextHandicap = initialHandicapAllocation
-      ? initialHandicapAllocation.nextHandicap
-      : hadDeletedRoundHandicapMovement && memberWasOfficial
-        ? calculateNextHandicap(
-            baseHandicap,
-            standing.roundResults,
-            groupSettings.handicapRoundsWindow
-          ).nextHandicap
-        : baseHandicap;
-    const handicapStatus = initialHandicapAllocation
-      ? "official"
-      : memberWasOfficial
-        ? "official"
-        : "provisional";
+    const rebuiltHandicap = rebuiltHandicaps.get(standing.memberId);
+    const nextHandicap =
+      rebuiltHandicap?.currentHandicap ?? member?.currentHandicap ?? 0;
+    const handicapStatus =
+      rebuiltHandicap?.handicapStatus ??
+      inferHandicapStatus(nextHandicap, member?.handicapStatus);
 
     await writer.queue((batch) =>
       batch.set(
@@ -1276,9 +1416,10 @@ export const deleteRoundCascade = async (roundId: string) => {
           currentHandicap: nextHandicap,
           handicapStatus,
           officialHandicapAssignedAt:
-            handicapStatus === "official"
+            rebuiltHandicap?.officialHandicapAssignedAt ??
+            (handicapStatus === "official"
               ? member?.officialHandicapAssignedAt ?? new Date()
-              : null,
+              : null),
           seasonYear: round.season,
           seasonPoints: standing.totalPoints,
           seasonRank: standing.currentRank,
@@ -1296,6 +1437,17 @@ export const deleteRoundCascade = async (roundId: string) => {
         { merge: true }
       )
     );
+
+    for (const historyEntry of rebuiltHandicap?.historyEntries ?? []) {
+      await writer.queue((batch) =>
+        batch.set(doc(db, "handicapHistory", `${historyEntry.roundId}_${standing.memberId}`), {
+          ...historyEntry,
+          changedBy: null,
+          changedByName: null,
+          createdAt: serverTimestamp(),
+        })
+      );
+    }
   }
 
   for (const standingId of Array.from(existingStandingIds)) {
@@ -1309,22 +1461,19 @@ export const deleteRoundCascade = async (roundId: string) => {
   for (const memberId of Array.from(affectedMemberIds)) {
     if (standingsByMemberId.has(memberId)) continue;
     const member = membersById.get(memberId);
-    const fallbackHandicap =
-      deletedRoundHandicapBase.get(memberId) ?? member?.currentHandicap ?? 0;
-    const handicapStatus =
-      deletedInitialAllocationMemberIds.has(memberId) ||
-      !hasOfficialHandicap(member, fallbackHandicap)
-        ? "provisional"
-        : "official";
+    const baseline = getSeasonHandicapBaseline({
+      member,
+      seasonHistory: seasonHistoryByMemberId.get(memberId) ?? [],
+    });
     await writer.queue((batch) =>
       batch.set(
         doc(db, "members", memberId),
         {
-          currentHandicap: fallbackHandicap,
-          handicapStatus,
+          currentHandicap: baseline.currentHandicap,
+          handicapStatus: baseline.handicapStatus,
           officialHandicapAssignedAt:
-            handicapStatus === "official"
-              ? member?.officialHandicapAssignedAt ?? null
+            baseline.handicapStatus === "official"
+              ? baseline.officialHandicapAssignedAt
               : null,
           seasonYear: round.season,
           seasonPoints: 0,
@@ -1521,6 +1670,19 @@ export const getScorecardsForRound = async (
   roundId: string
 ): Promise<Scorecard[]> => {
   const q = query(collection(db, "scorecards"), where("roundId", "==", roundId));
+  const snap = await getDocs(q);
+  return snap.docs.map(mapScorecard);
+};
+
+export const getScorecardsForPlayer = async (
+  groupId: string,
+  playerId: string
+): Promise<Scorecard[]> => {
+  const q = query(
+    collection(db, "scorecards"),
+    where("groupId", "==", groupId),
+    where("playerId", "==", playerId)
+  );
   const snap = await getDocs(q);
   return snap.docs.map(mapScorecard);
 };
@@ -1765,41 +1927,17 @@ export const publishRoundResultsWithStage3 = async ({
         (ranking) => ranking.playerId === standing.memberId
       )?.handicap ??
       0;
-    const memberAlreadyOfficial = hasOfficialHandicap(member, currentHandicap);
-    const initialHandicapAllocation = memberAlreadyOfficial
-      ? null
-      : calculateInitialHandicap(
-          standing.roundResults,
-          groupSettings.handicapRoundsWindow
-        );
-    const handicapOutcome = initialHandicapAllocation
-      ? {
-          nextHandicap: initialHandicapAllocation.nextHandicap,
-          reason: initialHandicapAllocation.reason,
-          handicapStatus: "official" as const,
-          officialHandicapAssignedAt:
-            member?.officialHandicapAssignedAt ?? publishedAt,
-          initialHandicapAssigned: true,
-        }
-      : memberAlreadyOfficial
-        ? {
-            ...calculateNextHandicap(
-              currentHandicap,
-              standing.roundResults,
-              groupSettings.handicapRoundsWindow
-            ),
-            handicapStatus: "official" as const,
-            officialHandicapAssignedAt:
-              member?.officialHandicapAssignedAt ?? null,
-            initialHandicapAssigned: false,
-          }
-        : {
-            nextHandicap: currentHandicap,
-            reason: `Needs ${groupSettings.handicapRoundsWindow} Stableford rounds before a formal handicap is allocated.`,
-            handicapStatus: "provisional" as const,
-            officialHandicapAssignedAt: null,
-            initialHandicapAssigned: false,
-          };
+    const handicapOutcome = calculateHandicapTransition({
+      currentHandicap,
+      handicapStatus: inferHandicapStatus(
+        currentHandicap,
+        member?.handicapStatus
+      ),
+      officialHandicapAssignedAt: member?.officialHandicapAssignedAt ?? null,
+      roundResults: standing.roundResults,
+      window: groupSettings.handicapRoundsWindow,
+      effectiveAt: publishedAt,
+    });
     const memberRef = doc(db, "members", standing.memberId);
     const memberStats = {
       userId: standing.memberId,
@@ -1838,36 +1976,43 @@ export const publishRoundResultsWithStage3 = async ({
       { merge: true }
     );
 
+    batch.set(doc(db, "handicapHistory", `${round.id}_${standing.memberId}`), {
+      groupId: round.groupId,
+      memberId: standing.memberId,
+      memberName: standing.memberName,
+      roundId: round.id,
+      roundDate: round.date,
+      season: round.season,
+      previousHandicap: currentHandicap,
+      newHandicap: handicapOutcome.nextHandicap,
+      reason: handicapOutcome.reason,
+      source: "published_round",
+      changeType: handicapOutcome.changeType,
+      calculationWindow: handicapOutcome.calculationWindow,
+      qualifyingRoundCount: handicapOutcome.qualifyingRoundCount,
+      calculationRoundIds: handicapOutcome.calculationRoundIds,
+      officialAfterChange: handicapOutcome.handicapStatus === "official",
+      changedBy: author?.uid ?? null,
+      changedByName: author?.displayName ?? null,
+      createdAt: serverTimestamp(),
+    });
+
     if (
       handicapOutcome.nextHandicap !== currentHandicap ||
-      handicapOutcome.initialHandicapAssigned
+      handicapOutcome.handicapStatus !==
+        inferHandicapStatus(currentHandicap, member?.handicapStatus)
     ) {
       handicapChangedMemberIds.push(standing.memberId);
-      batch.set(doc(db, "handicapHistory", `${round.id}_${standing.memberId}`), {
-        groupId: round.groupId,
-        memberId: standing.memberId,
-        memberName: standing.memberName,
-        roundId: round.id,
-        season: round.season,
-        previousHandicap: currentHandicap,
-        newHandicap: handicapOutcome.nextHandicap,
-        reason: handicapOutcome.reason,
-        source: "published_round",
-        changeType: handicapOutcome.initialHandicapAssigned
-          ? "initial_allocation"
-          : "movement",
-        changedBy: author?.uid ?? null,
-        changedByName: author?.displayName ?? null,
-        createdAt: serverTimestamp(),
-      });
       batch.set(doc(db, "notifications", `${round.id}_handicap_${standing.memberId}`), {
         recipientId: standing.memberId,
         groupId: round.groupId,
         type: "handicap_updated",
         title: "Handicap updated",
-        body: handicapOutcome.initialHandicapAssigned
+        body: handicapOutcome.changeType === "initial_allocation"
           ? `Your formal handicap is now ${handicapOutcome.nextHandicap}.`
-          : `Your handicap moved from ${currentHandicap} to ${handicapOutcome.nextHandicap}.`,
+          : handicapOutcome.nextHandicap !== currentHandicap
+            ? `Your handicap moved from ${currentHandicap} to ${handicapOutcome.nextHandicap}.`
+            : `Your handicap remains ${handicapOutcome.nextHandicap}.`,
         deepLink: "/profile",
         read: false,
         roundId: round.id,
@@ -2005,8 +2150,36 @@ const mapHandicapHistory = (
   return {
     id: d.id,
     ...data,
+    roundDate: data.roundDate ? toDate(data.roundDate) : null,
+    calculationWindow:
+      typeof data.calculationWindow === "number" ? data.calculationWindow : null,
+    qualifyingRoundCount:
+      typeof data.qualifyingRoundCount === "number"
+        ? data.qualifyingRoundCount
+        : 0,
+    calculationRoundIds: Array.isArray(data.calculationRoundIds)
+      ? data.calculationRoundIds
+      : [],
+    officialAfterChange: Boolean(data.officialAfterChange),
     createdAt: toDate(data.createdAt),
   } as HandicapHistory;
+};
+
+export const getHandicapHistoryForMemberSeason = async (
+  groupId: string,
+  memberId: string,
+  season: number
+): Promise<HandicapHistory[]> => {
+  const q = query(
+    collection(db, "handicapHistory"),
+    where("groupId", "==", groupId),
+    where("memberId", "==", memberId)
+  );
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(mapHandicapHistory)
+    .filter((entry) => entry.season === season)
+    .sort((a, b) => getHistorySortTime(b) - getHistorySortTime(a));
 };
 
 export const getLatestHandicapHistoryForMemberSeason = async (
@@ -2014,18 +2187,207 @@ export const getLatestHandicapHistoryForMemberSeason = async (
   memberId: string,
   season: number
 ): Promise<HandicapHistory | null> => {
-  const q = query(
-    collection(db, "handicapHistory"),
-    where("groupId", "==", groupId),
-    where("memberId", "==", memberId)
+  const history = await getHandicapHistoryForMemberSeason(groupId, memberId, season);
+  return history[0] ?? null;
+};
+
+export const previewSeasonHandicapRebuild = async (
+  groupId: string,
+  season: number
+) => {
+  const [seasonResults, previousStandings, groupMembers, group, historySnap] =
+    await Promise.all([
+      getResultsForSeason(groupId, season),
+      getSeasonStandings(groupId, season),
+      getMembersForGroup(groupId),
+      getGroup(groupId),
+      getDocs(query(collection(db, "handicapHistory"), where("groupId", "==", groupId))),
+    ]);
+  const rounds = await Promise.all(
+    seasonResults.map(async (result) => [result.roundId, await getRound(result.roundId)] as const)
   );
-  const snap = await getDocs(q);
-  return (
-    snap.docs
-      .map(mapHandicapHistory)
-      .filter((entry) => entry.season === season)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null
+  const roundsById = new Map(
+    rounds
+      .filter((entry): entry is readonly [string, Round] => Boolean(entry[1]))
+      .map(([roundId, round]) => [roundId, round])
   );
+  const standings = buildSeasonStandings({
+    groupId,
+    season,
+    results: seasonResults,
+    roundsById,
+    previousStandings,
+    updatedAt: new Date(),
+    settings: group?.settings,
+  });
+  const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+  const seasonHistory = historySnap.docs
+    .map(mapHandicapHistory)
+    .filter((entry) => entry.season === season);
+  const rebuilt = rebuildSeasonHandicapHistory({
+    standings,
+    membersById,
+    seasonHistory,
+    handicapRoundsWindow: normaliseGroupSettings(group?.settings).handicapRoundsWindow,
+  });
+
+  let membersChanged = 0;
+  let historyRows = 0;
+  standings.forEach((standing) => {
+    const rebuiltEntry = rebuilt.get(standing.memberId);
+    const member = membersById.get(standing.memberId);
+    if (!rebuiltEntry) return;
+    historyRows += rebuiltEntry.historyEntries.length;
+    if (
+      !member ||
+      member.currentHandicap !== rebuiltEntry.currentHandicap ||
+      member.handicapStatus !== rebuiltEntry.handicapStatus
+    ) {
+      membersChanged += 1;
+    }
+  });
+
+  return {
+    season,
+    standings: standings.length,
+    membersChanged,
+    historyRows,
+    existingHistoryRows: seasonHistory.filter((entry) => entry.source === "published_round").length,
+    handicapWindow: normaliseGroupSettings(group?.settings).handicapRoundsWindow,
+  };
+};
+
+export const rebuildSeasonHandicaps = async ({
+  groupId,
+  season,
+}: {
+  groupId: string;
+  season: number;
+}) => {
+  const [seasonResults, previousStandings, groupMembers, group, historySnap] =
+    await Promise.all([
+      getResultsForSeason(groupId, season),
+      getSeasonStandings(groupId, season),
+      getMembersForGroup(groupId),
+      getGroup(groupId),
+      getDocs(query(collection(db, "handicapHistory"), where("groupId", "==", groupId))),
+    ]);
+  const rounds = await Promise.all(
+    seasonResults.map(async (result) => [result.roundId, await getRound(result.roundId)] as const)
+  );
+  const roundsById = new Map(
+    rounds
+      .filter((entry): entry is readonly [string, Round] => Boolean(entry[1]))
+      .map(([roundId, round]) => [roundId, round])
+  );
+  const standings = buildSeasonStandings({
+    groupId,
+    season,
+    results: seasonResults,
+    roundsById,
+    previousStandings,
+    updatedAt: new Date(),
+    settings: group?.settings,
+  });
+  const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+  const seasonHistory = historySnap.docs
+    .map(mapHandicapHistory)
+    .filter((entry) => entry.season === season);
+  const rebuilt = rebuildSeasonHandicapHistory({
+    standings,
+    membersById,
+    seasonHistory,
+    handicapRoundsWindow: normaliseGroupSettings(group?.settings).handicapRoundsWindow,
+  });
+  const writer = createBatchedWriter();
+  const existingStandingIds = new Set(previousStandings.map((standing) => standing.id));
+  const nextStandingIds = new Set(standings.map((standing) => standing.id));
+
+  for (const historyEntry of seasonHistory.filter((entry) => entry.source === "published_round")) {
+    await writer.queue((batch) =>
+      batch.delete(doc(db, "handicapHistory", historyEntry.id))
+    );
+  }
+
+  for (const standing of standings) {
+    const member = membersById.get(standing.memberId);
+    const averageStableford = getAverageStableford(standing.roundResults);
+    const { bestStableford, bestRoundId } = getBestStableford(standing.roundResults);
+    const rebuiltEntry = rebuilt.get(standing.memberId);
+
+    await writer.queue((batch) =>
+      batch.set(
+        doc(db, "seasonStandings", standing.id),
+        {
+          ...standing,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      )
+    );
+    await writer.queue((batch) =>
+      batch.set(
+        doc(db, "members", standing.memberId),
+        {
+          userId: standing.memberId,
+          groupId,
+          displayName: standing.memberName,
+          avatarUrl: member?.avatarUrl ?? null,
+          currentHandicap: rebuiltEntry?.currentHandicap ?? member?.currentHandicap ?? 0,
+          handicapStatus:
+            rebuiltEntry?.handicapStatus ??
+            inferHandicapStatus(member?.currentHandicap ?? 0, member?.handicapStatus),
+          officialHandicapAssignedAt:
+            rebuiltEntry?.officialHandicapAssignedAt ??
+            member?.officialHandicapAssignedAt ??
+            null,
+          seasonYear: season,
+          seasonPoints: standing.totalPoints,
+          seasonRank: standing.currentRank,
+          roundsPlayed: standing.roundsPlayed,
+          ntpWins: standing.ntpWinsSeason,
+          ldWins: standing.ldWinsSeason,
+          t2Wins: standing.t2WinsSeason,
+          t3Wins: standing.t3WinsSeason,
+          avgStableford: averageStableford,
+          bestStableford,
+          bestRoundId,
+          updatedAt: serverTimestamp(),
+          ...(member ? {} : { createdAt: serverTimestamp() }),
+        },
+        { merge: true }
+      )
+    );
+
+    for (const historyEntry of rebuiltEntry?.historyEntries ?? []) {
+      await writer.queue((batch) =>
+        batch.set(doc(db, "handicapHistory", `${historyEntry.roundId}_${standing.memberId}`), {
+          ...historyEntry,
+          changedBy: null,
+          changedByName: null,
+          createdAt: serverTimestamp(),
+        })
+      );
+    }
+  }
+
+  for (const standingId of Array.from(existingStandingIds)) {
+    if (nextStandingIds.has(standingId)) continue;
+    await writer.queue((batch) =>
+      batch.delete(doc(db, "seasonStandings", standingId))
+    );
+  }
+
+  await writer.commit();
+
+  return {
+    season,
+    standingsRebuilt: standings.length,
+    historyRows: Array.from(rebuilt.values()).reduce(
+      (sum, item) => sum + item.historyEntries.length,
+      0
+    ),
+  };
 };
 
 // ─── Posts & Feed ───────────────────────────────────────────────────────────

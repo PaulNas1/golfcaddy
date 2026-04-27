@@ -8,6 +8,7 @@ import {
   getLiveRound,
   getMember,
   getActiveMembers,
+  getGroup,
   getRoundRsvps,
   getScorecardForPlayer,
   getScorecardForMarker,
@@ -30,7 +31,8 @@ import { getEligibleScorecardMembers } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
 import type { Round, Scorecard, HoleScore, AppUser, RoundRsvp } from "@/types";
-import { calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
+import { calculatePlayingHandicap, calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
+import { normaliseGroupSettings } from "@/lib/settings";
 
 interface CourseHoleLite {
   number: number;
@@ -265,15 +267,13 @@ export default function ScorecardPage() {
       if (existingPlayerCard) {
         if (existingPlayerCard.markerId === appUser.uid) {
           setScorecard(existingPlayerCard);
-          const playerMember = await getMember(existingPlayerCard.playerId);
           const existingHoles = await getHoleScores(existingPlayerCard.id);
           setHoles(
             existingHoles.length > 0
               ? existingHoles
               : buildInitialHoles(
                   round,
-                  playerMember?.currentHandicap ??
-                    existingPlayerCard.handicapAtTime,
+                  existingPlayerCard.handicapAtTime,
                   existingPlayerCard.playerId
                 )
           );
@@ -289,20 +289,31 @@ export default function ScorecardPage() {
         return;
       }
 
-      const playerMember = await getMember(playerToMarkId);
-      const handicap = playerMember?.currentHandicap ?? 0;
+      const [playerMember, group] = await Promise.all([
+        getMember(playerToMarkId),
+        getGroup(appUser.groupId),
+      ]);
+      const groupSettings = normaliseGroupSettings(group?.settings);
+      const baseHandicap = playerMember?.currentHandicap ?? 0;
       const playerTeeSet = getPlayerTeeSet(round, playerToMarkId);
       const playerCourseHoles = getEffectiveCourseHoles(round, playerToMarkId);
       const playerCoursePar =
         playerTeeSet?.par ??
         playerCourseHoles.reduce((total, hole) => total + hole.par, 0);
+      const playingHandicap = calculatePlayingHandicap({
+        handicap: baseHandicap,
+        mode: groupSettings.handicapMode,
+        slopeRating: playerTeeSet?.slopeRating ?? round.slopeRating,
+        courseRating: playerTeeSet?.courseRating ?? round.courseRating,
+        coursePar: playerCoursePar,
+      });
 
       const id = await createScorecard({
         roundId: round.id,
         groupId: appUser.groupId,
         playerId: playerToMarkId,
         markerId: appUser.uid,
-        handicapAtTime: handicap,
+        handicapAtTime: playingHandicap,
         teeSetId: playerTeeSet?.id ?? round.teeSetId,
         teeSetName: playerTeeSet?.name ?? round.teeSetName,
         coursePar: playerCoursePar,
@@ -325,7 +336,7 @@ export default function ScorecardPage() {
         groupId: appUser.groupId,
         playerId: playerToMarkId,
         markerId: appUser.uid,
-        handicapAtTime: handicap,
+        handicapAtTime: playingHandicap,
         teeSetId: playerTeeSet?.id ?? round.teeSetId,
         teeSetName: playerTeeSet?.name ?? round.teeSetName,
         coursePar: playerCoursePar,
@@ -344,7 +355,7 @@ export default function ScorecardPage() {
         updatedAt: new Date(),
       };
       setScorecard(card);
-      setHoles(buildInitialHoles(round, handicap, playerToMarkId));
+      setHoles(buildInitialHoles(round, playingHandicap, playerToMarkId));
       markSyncPending();
     } catch {
       setError("Failed to start scorecard. Please try again.");
@@ -724,6 +735,12 @@ export default function ScorecardPage() {
                     </button>
                   </>
                 )}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-1">
+                Playing HCP:{" "}
+                <span className="font-semibold text-gray-800">
+                  {scorecard.handicapAtTime}
+                </span>
               </p>
             </div>
             <div className="text-right">

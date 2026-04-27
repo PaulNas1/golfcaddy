@@ -6,7 +6,16 @@ import type {
   RoundResult,
   SeasonStanding,
 } from "@/types";
+import {
+  DEFAULT_HANDICAP_WINDOW,
+  calculateHandicapTransition as calculateHandicapTransitionCore,
+  calculateInitialHandicap as calculateInitialHandicapCore,
+  calculateNextHandicap as calculateNextHandicapCore,
+  getRecentStablefordAverage as getRecentStablefordAverageCore,
+} from "./handicapEngine";
 import { normaliseGroupSettings } from "./settings";
+export { DEFAULT_HANDICAP_WINDOW };
+export type { HandicapTransition } from "./handicapEngine";
 
 export const getSeasonStandingId = (
   groupId: string,
@@ -239,69 +248,49 @@ export function getBestStableford(roundResults: RoundResult[]) {
 
 export function getRecentStablefordAverage(
   roundResults: RoundResult[],
-  window = 3
+  window = DEFAULT_HANDICAP_WINDOW
 ) {
-  const recent = roundResults
-    .filter((roundResult) => roundResult.stableford > 0)
-    .slice(0, window);
-
-  if (recent.length < window) return null;
-
-  const total = recent.reduce(
-    (sum, roundResult) => sum + roundResult.stableford,
-    0
-  );
-  return Number((total / recent.length).toFixed(1));
+  return getRecentStablefordAverageCore(roundResults, window);
 }
 
 export function calculateNextHandicap(
   currentHandicap: number,
   roundResults: RoundResult[],
-  window = 3
+  window = DEFAULT_HANDICAP_WINDOW
 ) {
-  const recentAverage = getRecentStablefordAverage(roundResults, window);
-  if (recentAverage == null) {
-    return {
-      nextHandicap: currentHandicap,
-      reason: `Needs ${window} Stableford rounds before automatic movement.`,
-    };
-  }
-
-  if (recentAverage >= 39) {
-    return {
-      nextHandicap: Math.max(0, currentHandicap - 1),
-      reason: `Last three Stableford average is ${recentAverage}.`,
-    };
-  }
-
-  if (recentAverage <= 29) {
-    return {
-      nextHandicap: currentHandicap + 1,
-      reason: `Last three Stableford average is ${recentAverage}.`,
-    };
-  }
-
-  return {
-    nextHandicap: currentHandicap,
-    reason: `Last three Stableford average is ${recentAverage}.`,
-  };
+  return calculateNextHandicapCore(currentHandicap, roundResults, window);
 }
 
 export function calculateInitialHandicap(
   roundResults: RoundResult[],
-  window = 3
+  window = DEFAULT_HANDICAP_WINDOW
 ) {
-  const recentAverage = getRecentStablefordAverage(roundResults, window);
-  if (recentAverage == null) {
-    return null;
-  }
+  return calculateInitialHandicapCore(roundResults, window);
+}
 
-  const nextHandicap = Math.max(0, Math.round(36 - recentAverage));
-
-  return {
-    nextHandicap,
-    reason: `Initial handicap allocated from first ${window} Stableford rounds (average ${recentAverage}).`,
-  };
+export function calculateHandicapTransition({
+  currentHandicap,
+  handicapStatus,
+  officialHandicapAssignedAt,
+  roundResults,
+  window = DEFAULT_HANDICAP_WINDOW,
+  effectiveAt,
+}: {
+  currentHandicap: number;
+  handicapStatus: HandicapStatus;
+  officialHandicapAssignedAt?: Date | null;
+  roundResults: RoundResult[];
+  window?: number;
+  effectiveAt: Date;
+}) {
+  return calculateHandicapTransitionCore({
+    currentHandicap,
+    handicapStatus,
+    officialHandicapAssignedAt,
+    roundResults,
+    window,
+    effectiveAt,
+  });
 }
 
 export function inferHandicapStatus(
