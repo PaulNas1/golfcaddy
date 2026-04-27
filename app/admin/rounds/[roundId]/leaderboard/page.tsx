@@ -382,6 +382,7 @@ export default function AdminRoundLeaderboardPage() {
         rsvpNotifiedAt: null,
         holeOverrides: [],
         specialHoles: round.specialHoles,
+        scorecardsAvailable: true,
         resultsPublished: false,
         resultsPublishedAt: null,
         createdBy: appUser.uid,

@@ -52,11 +52,6 @@ import type {
   HandicapHistory,
   NotificationType,
 } from "@/types";
-import type {
-  HistoricalImportRoundGroup,
-  ParsedHistoricalImportFile,
-} from "./historicalImport";
-import { normaliseLooseKey } from "./historicalImport";
 import {
   buildSeasonStandings,
   calculateHandicapTransition,
@@ -880,14 +875,6 @@ async function getUsersByStatus(
     );
 }
 
-async function getAllUsersForGroup(groupId: string) {
-  const q = query(collection(db, "users"), where("groupId", "==", groupId));
-  const snap = await getDocs(q);
-  return snap.docs
-    .map(mapUser)
-    .sort((a, b) => a.displayName.localeCompare(b.displayName));
-}
-
 export const subscribeActiveMembers = (
   groupId: string,
   onChange: (members: AppUser[]) => void,
@@ -996,12 +983,6 @@ export const getRounds = async (groupId: string): Promise<Round[]> => {
       return b.date.getTime() - a.date.getTime();
     });
 };
-
-async function getAllRoundsForGroup(groupId: string): Promise<Round[]> {
-  const q = query(collection(db, "rounds"), where("groupId", "==", groupId));
-  const snap = await getDocsWithServerFallback(q);
-  return snap.docs.map(mapRound);
-}
 
 export const subscribeRoundsForGroup = (
   groupId: string,
