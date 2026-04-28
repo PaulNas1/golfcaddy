@@ -463,10 +463,19 @@ export default function FeedPage() {
           onClick={() => setComposerOpen(true)}
           className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm text-left"
         >
-          {/* Avatar initial */}
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
-            {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
-          </span>
+          {/* Avatar */}
+          {appUser?.avatarUrl ? (
+            <div
+              className="h-9 w-9 shrink-0 rounded-full bg-cover bg-center"
+              style={{ backgroundImage: `url(${appUser.avatarUrl})` }}
+              role="img"
+              aria-label={appUser.displayName}
+            />
+          ) : (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
+              {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
+            </span>
+          )}
           <span className="flex-1 text-sm text-gray-400">
             What&apos;s on your mind?
           </span>
@@ -478,9 +487,18 @@ export default function FeedPage() {
           {/* Header row with avatar + close */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
-                {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
-              </span>
+              {appUser?.avatarUrl ? (
+                <div
+                  className="h-8 w-8 shrink-0 rounded-full bg-cover bg-center"
+                  style={{ backgroundImage: `url(${appUser.avatarUrl})` }}
+                  role="img"
+                  aria-label={appUser.displayName}
+                />
+              ) : (
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
+                  {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
+                </span>
+              )}
               <span className="text-sm font-semibold text-gray-800">
                 {appUser?.displayName}
               </span>
