@@ -6,12 +6,12 @@ import { formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroupData } from "@/contexts/GroupDataContext";
 import {
   createFeedPost,
   createPostComment,
   deletePostComment,
   deleteFeedPost,
-  getRounds,
   setAnnouncementPinnedState,
   setPostReaction,
   subscribeFeedPosts,
@@ -30,7 +30,6 @@ import type {
   PostComment,
   PostReaction,
   PostReactionType,
-  Round,
 } from "@/types";
 
 const POST_LABELS: Record<Post["type"], string> = {
@@ -55,11 +54,11 @@ const MAX_POST_IMAGES = 3;
 
 export default function FeedPage() {
   const { appUser, isAdmin } = useAuth();
+  const { rounds } = useGroupData();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
-  const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [postType, setPostType] = useState<Post["type"]>("general");
@@ -114,20 +113,6 @@ export default function FeedPage() {
       setPinnedAnnouncement,
       (err) => console.warn("Unable to subscribe to pinned announcement", err)
     );
-  }, [appUser?.groupId]);
-
-  useEffect(() => {
-    if (!appUser?.groupId) return;
-    let cancelled = false;
-    getRounds(appUser.groupId)
-      .then((groupRounds) => {
-        if (!cancelled) setRounds(groupRounds);
-      })
-      .catch((err) => console.warn("Unable to load rounds for feed", err));
-
-    return () => {
-      cancelled = true;
-    };
   }, [appUser?.groupId]);
 
   const visiblePosts = useMemo(() => {

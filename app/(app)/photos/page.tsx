@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroupData } from "@/contexts/GroupDataContext";
 import {
   subscribeGroupPhotos,
-  subscribeRoundsForGroup,
   syncGroupPhotoLibrary,
 } from "@/lib/firestore";
 import type { Photo, Round } from "@/types";
@@ -38,26 +38,29 @@ function getRoundLabel(photo: Photo, roundsById: Map<string, Round>) {
 
 export default function PhotosPage() {
   const { appUser } = useAuth();
+  const { rounds } = useGroupData();
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [rounds, setRounds] = useState<Round[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [scope, setScope] = useState<"all" | "mine">("all");
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+  const didAttemptBackfillRef = useRef(false);
 
   useEffect(() => {
     if (!appUser?.groupId) return;
-
-    syncGroupPhotoLibrary(appUser.groupId).catch((err) => {
-      console.warn("Unable to backfill group photo library", err);
-    });
 
     const unsubscribePhotos = subscribeGroupPhotos(
       appUser.groupId,
       (nextPhotos) => {
         setPhotos(nextPhotos);
         setLoading(false);
+        if (nextPhotos.length === 0 && !didAttemptBackfillRef.current) {
+          didAttemptBackfillRef.current = true;
+          syncGroupPhotoLibrary(appUser.groupId).catch((err) => {
+            console.warn("Unable to backfill group photo library", err);
+          });
+        }
       },
       {
         limitCount: 500,
@@ -68,15 +71,8 @@ export default function PhotosPage() {
       }
     );
 
-    const unsubscribeRounds = subscribeRoundsForGroup(
-      appUser.groupId,
-      setRounds,
-      (err) => console.warn("Unable to subscribe to rounds for photos", err)
-    );
-
     return () => {
       unsubscribePhotos();
-      unsubscribeRounds();
     };
   }, [appUser?.groupId]);
 
@@ -224,6 +220,8 @@ export default function PhotosPage() {
                 src={photo.photoUrl}
                 alt={photo.courseName ?? "Group photo"}
                 className="aspect-square w-full object-cover"
+                loading="lazy"
+                decoding="async"
               />
               <div className="space-y-2 p-3">
                 <div className="flex min-h-[24px] items-center gap-1.5">

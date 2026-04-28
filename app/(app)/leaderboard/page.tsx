@@ -1,16 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  getActiveMembers,
-  getGroup,
-  getMembersForGroup,
-  getRounds,
-  subscribeSeasonStandings,
-} from "@/lib/firestore";
+import { useGroupData } from "@/contexts/GroupDataContext";
+import { subscribeSeasonStandings } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
 import { useAuth } from "@/contexts/AuthContext";
-import type { AppUser, Group, Member, SeasonStanding } from "@/types";
+import type { SeasonStanding } from "@/types";
 
 type LeaderboardEntry = {
   memberId: string;
@@ -28,95 +23,72 @@ type LeaderboardEntry = {
 
 export default function LeaderboardPage() {
   const { appUser } = useAuth();
-  const [group, setGroup] = useState<Group | null>(null);
-  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const {
+    group,
+    rounds,
+    activeMembers,
+    groupMembers,
+    currentSeason,
+    currentSeasonStandings,
+    loading: contextLoading,
+  } = useGroupData();
+
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
-  const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
-  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
-  const [groupMembers, setGroupMembers] = useState<Member[]>([]);
-  const [standings, setStandings] = useState<SeasonStanding[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [pastStandings, setPastStandings] = useState<SeasonStanding[]>([]);
+  const [pastLoading, setPastLoading] = useState(false);
 
-  useEffect(() => {
-    if (!appUser?.groupId) return;
-    let cancelled = false;
-
-    Promise.all([getGroup(appUser.groupId), getRounds(appUser.groupId)])
-      .then(([group, rounds]) => {
-        if (cancelled) return;
-        setGroup(group);
-        const nextCurrentSeason =
-          group?.currentSeason ?? new Date().getFullYear();
-        setCurrentSeason(nextCurrentSeason);
-        setSelectedSeason((current) => current ?? nextCurrentSeason);
-        const seasons = Array.from(new Set(rounds.map((round) => round.season))).sort(
-          (a, b) => b - a
-        );
-        setAvailableSeasons(seasons);
-      })
-      .catch((err) => {
-        console.warn("Unable to load leaderboard reference data", err);
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [appUser?.groupId]);
-
-  useEffect(() => {
-    if (!appUser?.groupId) return;
-    let cancelled = false;
-
-    Promise.all([
-      getActiveMembers(appUser.groupId),
-      getMembersForGroup(appUser.groupId),
-    ])
-      .then(([activeUsers, members]) => {
-        if (cancelled) return;
-        setActiveMembers(activeUsers);
-        setGroupMembers(members);
-      })
-      .catch((err) => console.warn("Unable to load leaderboard members", err));
-
-    return () => {
-      cancelled = true;
-    };
-  }, [appUser?.groupId]);
-
-  useEffect(() => {
-    if (!appUser?.groupId || selectedSeason == null) return;
-
-    setLoading(true);
-    return subscribeSeasonStandings(
-      appUser.groupId,
-      selectedSeason,
-      (seasonStandings) => {
-        setStandings(seasonStandings);
-        setLoading(false);
-      },
-      (err) => {
-        console.warn("Unable to subscribe to season standings", err);
-        setLoading(false);
-      }
-    );
-  }, [appUser?.groupId, selectedSeason]);
+  const availableSeasons = useMemo(
+    () =>
+      Array.from(new Set(rounds.map((r) => r.season))).sort((a, b) => b - a),
+    [rounds]
+  );
 
   const seasonOptions = useMemo(() => {
     const seasons = availableSeasons.length > 0 ? availableSeasons : [currentSeason];
     return Array.from(new Set(seasons)).sort((a, b) => b - a);
   }, [availableSeasons, currentSeason]);
 
+  // Default to current season on first data arrival
+  useEffect(() => {
+    if (selectedSeason == null && currentSeason) {
+      setSelectedSeason(currentSeason);
+    }
+  }, [currentSeason, selectedSeason]);
+
+  // Subscribe to standings for past seasons only; current season comes from context
+  useEffect(() => {
+    if (!appUser?.groupId || selectedSeason == null) return;
+    if (selectedSeason === currentSeason) return;
+
+    setPastLoading(true);
+    return subscribeSeasonStandings(
+      appUser.groupId,
+      selectedSeason,
+      (s) => {
+        setPastStandings(s);
+        setPastLoading(false);
+      },
+      (err) => {
+        console.warn("Unable to subscribe to season standings", err);
+        setPastLoading(false);
+      }
+    );
+  }, [appUser?.groupId, currentSeason, selectedSeason]);
+
+  const standings =
+    selectedSeason === currentSeason ? currentSeasonStandings : pastStandings;
+  const loading = contextLoading || (selectedSeason !== currentSeason && pastLoading);
+
   const leaderboardEntries = useMemo(() => {
-    const membersById = new Map(groupMembers.map((member) => [member.id, member]));
+    const membersById = new Map(groupMembers.map((m) => [m.id, m]));
     const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 6;
     const minimumRoundsForPoints = group?.settings.minimumRoundsForPoints ?? 3;
     const visibleStandings = getVisibleSeasonStandings(
       standings,
-      new Set(activeMembers.map((member) => member.uid))
+      new Set(activeMembers.map((m) => m.uid))
     );
     const standingsByMemberId = new Map(
-      visibleStandings.map((standing) => [standing.memberId, standing])
+      visibleStandings.map((s) => [s.memberId, s])
     );
 
     return activeMembers
@@ -172,31 +144,19 @@ export default function LeaderboardPage() {
   ]);
 
   const activeMemberIds = useMemo(
-    () => new Set(activeMembers.map((member) => member.uid)),
+    () => new Set(activeMembers.map((m) => m.uid)),
     [activeMembers]
   );
   const sidePrizeStandings = useMemo(
-    () => standings.filter((standing) => activeMemberIds.has(standing.memberId)),
+    () => standings.filter((s) => activeMemberIds.has(s.memberId)),
     [activeMemberIds, standings]
   );
 
   const sideLeaderboards = [
-    {
-      label: "NTP",
-      key: "ntpWinsSeason" as const,
-    },
-    {
-      label: "LD",
-      key: "ldWinsSeason" as const,
-    },
-    {
-      label: "T2",
-      key: "t2WinsSeason" as const,
-    },
-    {
-      label: "T3",
-      key: "t3WinsSeason" as const,
-    },
+    { label: "NTP", key: "ntpWinsSeason" as const },
+    { label: "LD",  key: "ldWinsSeason" as const },
+    { label: "T2",  key: "t2WinsSeason" as const },
+    { label: "T3",  key: "t3WinsSeason" as const },
   ];
 
   return (
@@ -345,14 +305,10 @@ function SidePrizeBoard({
 }: {
   label: string;
   standings: SeasonStanding[];
-  statKey:
-    | "ntpWinsSeason"
-    | "ldWinsSeason"
-    | "t2WinsSeason"
-    | "t3WinsSeason";
+  statKey: "ntpWinsSeason" | "ldWinsSeason" | "t2WinsSeason" | "t3WinsSeason";
 }) {
   const leaders = standings
-    .filter((standing) => standing[statKey] > 0)
+    .filter((s) => s[statKey] > 0)
     .sort((a, b) => b[statKey] - a[statKey] || a.memberName.localeCompare(b.memberName))
     .slice(0, 3);
 

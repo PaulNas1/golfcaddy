@@ -4,104 +4,56 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format, formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroupData } from "@/contexts/GroupDataContext";
 import {
   getRoundRsvp,
-  subscribeActiveMembers,
-  subscribeGroup,
   subscribePinnedAnnouncement,
-  subscribeRoundsForGroup,
-  subscribeSeasonStandings,
 } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import type {
-  AppUser,
-  Group,
   Post,
   Round,
   RoundRsvp,
-  SeasonStanding,
 } from "@/types";
 
 export default function HomePage() {
   const { appUser } = useAuth();
-  const [nextRound, setNextRound] = useState<Round | null>(null);
+  const {
+    group,
+    rounds,
+    activeMembers,
+    currentSeason,
+    currentSeasonStandings,
+    loading,
+  } = useGroupData();
+
   const [nextRoundRsvp, setNextRoundRsvp] = useState<RoundRsvp | null>(null);
-  const [liveRound, setLiveRound] = useState<Round | null>(null);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
-  const [group, setGroup] = useState<Group | null>(null);
-  const [season, setSeason] = useState(new Date().getFullYear());
-  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
-  const [standings, setStandings] = useState<SeasonStanding[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const groupId = appUser?.groupId ?? "fourplay";
-    let standingsUnsubscribe: (() => void) | null = null;
+  const liveRound = useMemo(
+    () => rounds.find((r) => r.status === "live") ?? null,
+    [rounds]
+  );
 
-    const groupUnsubscribe = subscribeGroup(
-      groupId,
-      (nextGroup) => {
-        setGroup(nextGroup);
-        const currentSeason = nextGroup?.currentSeason ?? new Date().getFullYear();
-        setSeason(currentSeason);
-        standingsUnsubscribe?.();
-        standingsUnsubscribe = subscribeSeasonStandings(
-          groupId,
-          currentSeason,
-          setStandings,
-          (err) => console.warn("Unable to subscribe to season standings", err)
-        );
-      },
-      (err) => console.warn("Unable to subscribe to group", err)
+  const nextRound = useMemo<Round | null>(() => {
+    return (
+      rounds
+        .filter((r) => r.status === "upcoming")
+        .sort((a, b) => {
+          if (a.date.getTime() !== b.date.getTime()) {
+            return a.date.getTime() - b.date.getTime();
+          }
+          return a.roundNumber - b.roundNumber;
+        })[0] ?? null
     );
-
-    const roundsUnsubscribe = subscribeRoundsForGroup(
-      groupId,
-      (rounds) => {
-        const live = rounds.find((round) => round.status === "live") ?? null;
-        const next =
-          rounds
-            .filter((round) => round.status === "upcoming")
-            .sort((a, b) => {
-              if (a.date.getTime() !== b.date.getTime()) {
-                return a.date.getTime() - b.date.getTime();
-              }
-              return a.roundNumber - b.roundNumber;
-            })[0] ?? null;
-        setLiveRound(live);
-        setNextRound(next);
-        setLoading(false);
-      },
-      (err) => {
-        console.warn("Unable to subscribe to rounds", err);
-        setLoading(false);
-      }
-    );
-
-    return () => {
-      groupUnsubscribe();
-      roundsUnsubscribe();
-      standingsUnsubscribe?.();
-    };
-  }, [appUser?.groupId]);
-
-  useEffect(() => {
-    const groupId = appUser?.groupId ?? "fourplay";
-
-    return subscribeActiveMembers(
-      groupId,
-      setActiveMembers,
-      (err) => console.warn("Unable to subscribe to active members", err)
-    );
-  }, [appUser?.groupId]);
+  }, [rounds]);
 
   useEffect(() => {
     if (!appUser?.groupId) {
       setPinnedAnnouncement(null);
       return;
     }
-
     return subscribePinnedAnnouncement(
       appUser.groupId,
       setPinnedAnnouncement,
@@ -114,29 +66,20 @@ export default function HomePage() {
       setNextRoundRsvp(null);
       return;
     }
-
     let cancelled = false;
-
     getRoundRsvp(nextRound.id, appUser.uid)
-      .then((rsvp) => {
-        if (!cancelled) setNextRoundRsvp(rsvp);
-      })
-      .catch(() => {
-        if (!cancelled) setNextRoundRsvp(null);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .then((rsvp) => { if (!cancelled) setNextRoundRsvp(rsvp); })
+      .catch(() => { if (!cancelled) setNextRoundRsvp(null); });
+    return () => { cancelled = true; };
   }, [appUser?.uid, nextRound?.id]);
 
   const visibleStandings = useMemo(
     () =>
       getVisibleSeasonStandings(
-        standings,
-        new Set(activeMembers.map((member) => member.uid))
+        currentSeasonStandings,
+        new Set(activeMembers.map((m) => m.uid))
       ),
-    [activeMembers, standings]
+    [activeMembers, currentSeasonStandings]
   );
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
@@ -297,7 +240,7 @@ export default function HomePage() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="font-semibold text-gray-800">Season Ladder</h3>
-            <p className="text-xs text-gray-400">{season} standings</p>
+            <p className="text-xs text-gray-400">{currentSeason} standings</p>
           </div>
           <Link href="/leaderboard" className="text-green-600 text-sm">View all</Link>
         </div>

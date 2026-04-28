@@ -11,15 +11,13 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroupData } from "@/contexts/GroupDataContext";
 import { auth } from "@/lib/firebase";
 import { hasRoundScorecards } from "@/lib/roundDisplay";
 import {
   getHandicapHistoryForMemberSeason,
   getSeasonStandingForMember,
-  subscribeActiveMembers,
-  subscribeGroup,
   subscribeMember,
-  subscribeRoundsForGroup,
   subscribeSeasonStandings,
   updateUser,
 } from "@/lib/firestore";
@@ -33,7 +31,6 @@ import {
   validateImageFile,
 } from "@/lib/storageUploads";
 import type {
-  AppUser,
   HandicapHistory,
   Member,
   Round,
@@ -44,14 +41,12 @@ import type {
 
 export default function ProfilePage() {
   const { appUser, firebaseUser, signOut } = useAuth();
+  const { rounds, activeMembers, currentSeason: contextCurrentSeason } = useGroupData();
   const router = useRouter();
-  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
   const [member, setMember] = useState<Member | null>(null);
-  const [rounds, setRounds] = useState<Round[]>([]);
   const [seasonStandings, setSeasonStandings] = useState<SeasonStanding[]>([]);
-  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const currentSeason = contextCurrentSeason;
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
-  const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
   const [historyStandingsBySeason, setHistoryStandingsBySeason] = useState<
     Record<number, SeasonStanding | null>
   >({});
@@ -99,52 +94,28 @@ export default function ProfilePage() {
     usesProBackTees: appUser?.usesProBackTees ?? false,
   });
 
+  // Derive available seasons from shared rounds
+  const availableSeasons = useMemo(
+    () =>
+      Array.from(new Set(rounds.map((r) => r.season))).sort((a, b) => b - a),
+    [rounds]
+  );
+
+  // Default selected season to current season once known
   useEffect(() => {
-    if (!appUser?.uid || !appUser.groupId) return;
+    if (selectedSeason == null && currentSeason) {
+      setSelectedSeason(currentSeason);
+    }
+  }, [currentSeason, selectedSeason]);
 
-    const groupUnsubscribe = subscribeGroup(
-      appUser.groupId,
-      (group) => {
-        const nextCurrentSeason = group?.currentSeason ?? new Date().getFullYear();
-        setCurrentSeason(nextCurrentSeason);
-        setSelectedSeason((current) => current ?? nextCurrentSeason);
-      },
-      (err) => {
-        console.warn("Unable to subscribe to group", err);
-        setLoadingStats(false);
-      }
-    );
-
-    const roundsUnsubscribe = subscribeRoundsForGroup(
-      appUser.groupId,
-      (rounds) => {
-        setRounds(rounds);
-        const seasons = Array.from(
-          new Set(rounds.map((round) => round.season))
-        ).sort((a, b) => b - a);
-        setAvailableSeasons(seasons);
-      },
-      (err) => console.warn("Unable to subscribe to rounds", err)
-    );
-
-    const memberUnsubscribe = subscribeMember(
+  useEffect(() => {
+    if (!appUser?.uid) return;
+    return subscribeMember(
       appUser.uid,
       setMember,
       (err) => console.warn("Unable to subscribe to member stats", err)
     );
-    const activeMembersUnsubscribe = subscribeActiveMembers(
-      appUser.groupId,
-      setActiveMembers,
-      (err) => console.warn("Unable to subscribe to active members", err)
-    );
-
-    return () => {
-      groupUnsubscribe();
-      roundsUnsubscribe();
-      memberUnsubscribe();
-      activeMembersUnsubscribe();
-    };
-  }, [appUser?.groupId, appUser?.uid]);
+  }, [appUser?.uid]);
 
   useEffect(() => {
     if (!appUser?.uid || !appUser.groupId || selectedSeason == null) return;

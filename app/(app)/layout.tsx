@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
-import { getGroup, subscribeNotifications } from "@/lib/firestore";
-import type { Group } from "@/types";
+import { useGroupData, GroupDataProvider } from "@/contexts/GroupDataContext";
+import { subscribeNotifications } from "@/lib/firestore";
 
 const NAV_ITEMS = [
   { href: "/home", label: "Home", icon: HomeIcon },
@@ -16,20 +16,13 @@ const NAV_ITEMS = [
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { firebaseUser, appUser, loading, canAccessAdmin } = useAuth();
+  const { group } = useGroupData();
   const router = useRouter();
   const pathname = usePathname();
   const contentRef = useRef<HTMLElement | null>(null);
-  const [group, setGroup] = useState<Group | null>(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
-
-  useEffect(() => {
-    if (!appUser?.groupId || appUser.status !== "active") return;
-    getGroup(appUser.groupId)
-      .then(setGroup)
-      .catch(() => setGroup(null));
-  }, [appUser?.groupId, appUser?.status]);
 
   useEffect(() => {
     if (!appUser?.uid || appUser.status !== "active") {
@@ -147,6 +140,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
     </div>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <GroupDataProvider>
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </GroupDataProvider>
   );
 }
 

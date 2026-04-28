@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
-import { subscribeGroup, subscribeRoundsForGroup } from "@/lib/firestore";
+import { useGroupData } from "@/contexts/GroupDataContext";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
-import { useAuth } from "@/contexts/AuthContext";
-import type { Round, RoundStatus } from "@/types";
+import type { RoundStatus } from "@/types";
 
 const STATUS_STYLES: Record<RoundStatus, string> = {
   upcoming: "bg-blue-100 text-blue-700",
@@ -22,57 +21,23 @@ const STATUS_LABEL: Record<RoundStatus, string> = {
 };
 
 export default function RoundsPage() {
-  const { appUser } = useAuth();
-  const [rounds, setRounds] = useState<Round[]>([]);
-  const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
+  const { rounds, currentSeason, loading } = useGroupData();
   const [selectedSeason, setSelectedSeason] = useState<string>("");
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!appUser?.groupId) return;
-
-    const groupUnsubscribe = subscribeGroup(
-      appUser.groupId,
-      (group) => {
-        const nextCurrentSeason =
-          group?.currentSeason ?? new Date().getFullYear();
-        setCurrentSeason(nextCurrentSeason);
-        setSelectedSeason((current) => current || String(nextCurrentSeason));
-      },
-      (err) => console.warn("Unable to subscribe to group", err)
-    );
-
-    const roundsUnsubscribe = subscribeRoundsForGroup(
-      appUser.groupId,
-      (nextRounds) => {
-        setRounds(nextRounds);
-        setLoading(false);
-      },
-      (err) => {
-        console.warn("Unable to subscribe to rounds", err);
-        setLoading(false);
-      }
-    );
-
-    return () => {
-      groupUnsubscribe();
-      roundsUnsubscribe();
-    };
-  }, [appUser?.groupId]);
 
   const seasonOptions = useMemo(
     () =>
-      Array.from(new Set([...rounds.map((round) => round.season), currentSeason])).sort(
+      Array.from(new Set([...rounds.map((r) => r.season), currentSeason])).sort(
         (a, b) => b - a
       ),
     [currentSeason, rounds]
   );
 
+  const activeSeason = Number(selectedSeason || currentSeason);
+
   const visibleRounds = useMemo(() => {
     if (selectedSeason === "all") return rounds;
-    const season = Number(selectedSeason || currentSeason);
-    return rounds.filter((round) => round.season === season);
-  }, [currentSeason, rounds, selectedSeason]);
+    return rounds.filter((r) => r.season === activeSeason);
+  }, [activeSeason, rounds, selectedSeason]);
 
   return (
     <div className="px-4 py-6">
@@ -82,7 +47,7 @@ export default function RoundsPage() {
           <p className="text-sm text-gray-500">
             {selectedSeason === "all"
               ? "All seasons"
-              : `Season ${selectedSeason || currentSeason}`}
+              : `Season ${activeSeason}`}
           </p>
         </div>
         <label className="block">
@@ -122,36 +87,37 @@ export default function RoundsPage() {
           <p className="text-sm">
             {selectedSeason === "all"
               ? "No rounds yet. Admin will schedule the first round soon."
-              : `No rounds found for Season ${selectedSeason || currentSeason}.`}
+              : `No rounds found for Season ${activeSeason}.`}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {visibleRounds.map((round) => (
-            <Link key={round.id} href={`/rounds/${round.id}`} prefetch={false}>
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[round.status]}`}>
-                      {STATUS_LABEL[round.status]}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {getRoundLabel(round)}
-                    </span>
+          {visibleRounds.map((round) => {
+            const teeTimeLabel = getFirstTeeTimeLabel(round);
+            return (
+              <Link key={round.id} href={`/rounds/${round.id}`} prefetch={false}>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[round.status]}`}>
+                        {STATUS_LABEL[round.status]}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {getRoundLabel(round)}
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-gray-800">{round.courseName}</h3>
+                    <p className="text-gray-500 text-sm">
+                      {format(round.date, "EEE d MMM yyyy")}
+                      {teeTimeLabel ? ` · ${teeTimeLabel}` : ""}
+                      {selectedSeason === "all" ? ` · S${round.season}` : ""}
+                    </p>
                   </div>
-                  <h3 className="font-semibold text-gray-800">{round.courseName}</h3>
-                  <p className="text-gray-500 text-sm">
-                    {format(round.date, "EEE d MMM yyyy")}
-                    {getFirstTeeTimeLabel(round)
-                      ? ` · ${getFirstTeeTimeLabel(round)}`
-                      : ""}
-                    {selectedSeason === "all" ? ` · S${round.season}` : ""}
-                  </p>
+                  <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
                 </div>
-                <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0" />
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
