@@ -11,6 +11,7 @@ import {
 import {
   createRound,
   getActiveMembers,
+  getRounds,
   notifyRoundPlayers,
   subscribeGroup,
 } from "@/lib/firestore";
@@ -117,7 +118,19 @@ export default function CreateRoundPage() {
     return subscribeGroup(
       appUser.groupId,
       (group) => {
-        setActiveSeason(group?.currentSeason ?? new Date().getFullYear());
+        const season = group?.currentSeason ?? new Date().getFullYear();
+        setActiveSeason(season);
+        // Auto-set round number to next in the current season
+        getRounds(appUser.groupId)
+          .then((existingRounds) => {
+            const seasonRounds = existingRounds.filter((r) => r.season === season);
+            const maxNumber = seasonRounds.reduce(
+              (max, r) => Math.max(max, r.roundNumber),
+              0
+            );
+            setRoundNumber(String(maxNumber + 1));
+          })
+          .catch(() => {});
       },
       () => {
         setActiveSeason(new Date().getFullYear());
@@ -731,16 +744,20 @@ export default function CreateRoundPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Round number
             </label>
-            <input
-              type="number"
-              min={1}
+            <select
               value={roundNumber}
               onChange={(e) => setRoundNumber(e.target.value)}
               required
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+            >
+              {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={String(n)}>
+                  Round {n}
+                </option>
+              ))}
+            </select>
             <p className="text-xs text-gray-400 mt-1">
-              Used for ordering rounds within the season (e.g. 1, 2, 3...).
+              Auto-set to the next round in the current season. Adjust if needed.
             </p>
           </div>
 
