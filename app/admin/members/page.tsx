@@ -194,6 +194,7 @@ export default function AdminMembersPage() {
 
   const startHandicapEdit = (user: AppUser) => {
     setError("");
+    setSelectedActiveUser(null); // close details modal so the editor is visible
     setEditingHandicapFor(user.uid);
     setHandicapInput(String(members[user.uid]?.currentHandicap ?? 0));
   };
