@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData, GroupDataProvider } from "@/contexts/GroupDataContext";
 import { subscribeNotifications } from "@/lib/firestore";
+
+// Tab page components — imported directly so they stay permanently mounted
+import HomePage from "@/app/(app)/home/page";
+import RoundsPage from "@/app/(app)/rounds/page";
+import LeaderboardPage from "@/app/(app)/leaderboard/page";
+import FeedPage from "@/app/(app)/feed/page";
+import PhotosPage from "@/app/(app)/photos/page";
+import ProfilePage from "@/app/(app)/profile/page";
 
 const NAV_ITEMS = [
   { href: "/home", label: "Home", icon: HomeIcon },
@@ -15,6 +23,11 @@ const NAV_ITEMS = [
   { href: "/photos", label: "Photos", icon: PhotoIcon },
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
+
+// Exact pathnames that map to a bottom-nav tab.
+// Any other pathname (e.g. /rounds/abc123, /notifications) is a sub-route
+// and gets rendered via Next.js `children` normally.
+const TAB_PATHS = new Set(["/home", "/rounds", "/leaderboard", "/feed", "/photos", "/profile"]);
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { firebaseUser, appUser, loading, canAccessAdmin } = useAuth();
@@ -58,6 +71,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, appUser, router]);
 
+  // Scroll to top whenever the active tab or route changes
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
   }, [pathname]);
@@ -72,6 +86,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  const isTabRoute = TAB_PATHS.has(pathname);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
@@ -116,7 +132,40 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
       {/* Page content */}
       <main ref={contentRef} className="flex-1 overflow-y-auto pb-20">
-        {children}
+        {/*
+          Virtual tabs: all six pages are permanently mounted in the React tree
+          and toggled with CSS display. This means Firestore subscriptions stay
+          alive, state is preserved, and switching between tabs is instantaneous —
+          identical to how native mobile apps handle tab bars.
+
+          FeedPage uses useSearchParams() and needs a Suspense boundary.
+        */}
+        <div style={{ display: pathname === "/home" ? "block" : "none" }}>
+          <HomePage />
+        </div>
+        <div style={{ display: pathname === "/rounds" ? "block" : "none" }}>
+          <RoundsPage />
+        </div>
+        <div style={{ display: pathname === "/leaderboard" ? "block" : "none" }}>
+          <LeaderboardPage />
+        </div>
+        <Suspense fallback={null}>
+          <div style={{ display: pathname === "/feed" ? "block" : "none" }}>
+            <FeedPage />
+          </div>
+        </Suspense>
+        <div style={{ display: pathname === "/photos" ? "block" : "none" }}>
+          <PhotosPage />
+        </div>
+        <div style={{ display: pathname === "/profile" ? "block" : "none" }}>
+          <ProfilePage />
+        </div>
+
+        {/*
+          Sub-routes (round detail, notifications, admin, etc.) are rendered
+          via Next.js children as normal — they are NOT tab pages.
+        */}
+        {!isTabRoute && children}
       </main>
 
       {/* Bottom nav */}
