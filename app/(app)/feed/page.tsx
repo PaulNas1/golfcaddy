@@ -88,6 +88,7 @@ export default function FeedPage() {
   const [openRepliesByPostId, setOpenRepliesByPostId] = useState<Record<string, boolean>>({});
   const [selectedImageUrl, setSelectedImageUrl] = useState("");
   const [selectedImageLabel, setSelectedImageLabel] = useState("");
+  const [composerOpen, setComposerOpen] = useState(false);
 
   useEffect(() => {
     if (!appUser?.groupId) return;
@@ -283,6 +284,7 @@ export default function FeedPage() {
       setPostType("general");
       setLinkedRoundId("");
       replacePostImages([]);
+      setComposerOpen(false);
     } catch (error) {
       await Promise.all(uploadedImagePaths.map((path) => deleteStoredImage(path)));
       setPostError(
@@ -454,142 +456,176 @@ export default function FeedPage() {
     <div className="px-4 py-6 pb-8">
       <h1 className="mb-5 text-2xl font-bold text-gray-800">Social Feed</h1>
 
-      <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-800">Write a post</h2>
-        <p className="mt-1 text-xs text-gray-500">
-          {isAdmin && postType === "announcement"
-            ? "Announcements notify members and stay clearly labeled in the feed."
-            : linkedRound
-            ? `Posting as a round update for Round ${linkedRound.roundNumber} at ${linkedRound.courseName}.`
-            : "Banter, wrap-up notes, photos from the day, or general club chat."}
-        </p>
-        {isAdmin && (
-          <div className="mt-3 inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
-            {([
-              { id: "general", label: "General post" },
-              { id: "announcement", label: "Announcement" },
-            ] as const).map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => setPostType(option.id)}
-                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  postType === option.id
-                    ? "bg-green-600 text-white"
-                    : "text-gray-600 hover:bg-white"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+      {/* ── Composer ── collapsed strip → expands inline on tap */}
+      {!composerOpen ? (
+        <button
+          type="button"
+          onClick={() => setComposerOpen(true)}
+          className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm text-left"
+        >
+          {/* Avatar initial */}
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
+            {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
+          </span>
+          <span className="flex-1 text-sm text-gray-400">
+            What&apos;s on your mind?
+          </span>
+          {/* Photo hint */}
+          <span className="text-gray-300 text-lg">📷</span>
+        </button>
+      ) : (
+        <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+          {/* Header row with avatar + close */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
+                {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
+              </span>
+              <span className="text-sm font-semibold text-gray-800">
+                {appUser?.displayName}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setComposerOpen(false)}
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+              aria-label="Close composer"
+            >
+              ✕
+            </button>
           </div>
-        )}
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          rows={4}
-          placeholder={
-            isAdmin && postType === "announcement"
-              ? "Share an update members should not miss..."
-              : linkedRound
-              ? "Share an update from this round..."
-              : "What’s happening in the group?"
-          }
-          className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-        />
-        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={(event) => handlePostImagesChange(event.target.files)}
-            className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
-          />
-          <p className="mt-2 text-[11px] text-gray-400">
-            Attach up to {MAX_POST_IMAGES} images. JPG or PNG up to 5 MB each.
-          </p>
-          {postImagePreviews.length > 0 && (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {postImagePreviews.map((previewUrl, index) => (
-                <div key={previewUrl} className="relative overflow-hidden rounded-xl bg-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={previewUrl}
-                    alt=""
-                    className="h-24 w-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveComposerImage(index)}
-                    className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold text-white"
-                  >
-                    Remove
-                  </button>
-                </div>
+
+          {isAdmin && (
+            <div className="mb-3 inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
+              {([
+                { id: "general", label: "General post" },
+                { id: "announcement", label: "Announcement" },
+              ] as const).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setPostType(option.id)}
+                  className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+                    postType === option.id
+                      ? "bg-green-600 text-white"
+                      : "text-gray-600 hover:bg-white"
+                  }`}
+                >
+                  {option.label}
+                </button>
               ))}
             </div>
           )}
-        </div>
-        <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-3">
-          <label className="block text-xs font-semibold text-gray-700">
-            Link to round
-          </label>
-          <p className="mt-1 text-[11px] text-gray-400">
-            Optional. Linked photos will appear in the photo library under that round and course.
-          </p>
-          <select
-            value={linkedRoundId}
-            onChange={(event) => setLinkedRoundId(event.target.value)}
-            className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="">No round linked</option>
-            {rounds.map((round) => (
-              <option key={round.id} value={round.id}>
-                {`Round ${round.roundNumber} - ${round.courseName}`}
-              </option>
-            ))}
-          </select>
-          {linkedRound && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-green-700">
-                  Round update
-                </p>
-                <p className="truncate text-sm font-medium text-green-900">
-                  {`Round ${linkedRound.roundNumber} - ${linkedRound.courseName}`}
-                </p>
+
+          <textarea
+            // eslint-disable-next-line jsx-a11y/no-autofocus
+            autoFocus
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={4}
+            placeholder={
+              isAdmin && postType === "announcement"
+                ? "Share an update members should not miss..."
+                : linkedRound
+                ? "Share an update from this round..."
+                : "What’s happening in the group?"
+            }
+            className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+
+          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => handlePostImagesChange(event.target.files)}
+              className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
+            />
+            <p className="mt-2 text-[11px] text-gray-400">
+              Attach up to {MAX_POST_IMAGES} images. JPG or PNG up to 5 MB each.
+            </p>
+            {postImagePreviews.length > 0 && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {postImagePreviews.map((previewUrl, index) => (
+                  <div key={previewUrl} className="relative overflow-hidden rounded-xl bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={previewUrl} alt="" className="h-24 w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveComposerImage(index)}
+                      className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
-              <button
-                type="button"
-                onClick={() => setLinkedRoundId("")}
-                className="shrink-0 rounded-full border border-green-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700"
-              >
-                Clear
-              </button>
-            </div>
+            )}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-3">
+            <label className="block text-xs font-semibold text-gray-700">
+              Link to round
+            </label>
+            <p className="mt-1 text-[11px] text-gray-400">
+              Optional. Linked photos will appear in the photo library under that round and course.
+            </p>
+            <select
+              value={linkedRoundId}
+              onChange={(event) => setLinkedRoundId(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">No round linked</option>
+              {rounds.map((round) => (
+                <option key={round.id} value={round.id}>
+                  {`Round ${round.roundNumber} - ${round.courseName}`}
+                </option>
+              ))}
+            </select>
+            {linkedRound && (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-green-700">
+                    Round update
+                  </p>
+                  <p className="truncate text-sm font-medium text-green-900">
+                    {`Round ${linkedRound.roundNumber} - ${linkedRound.courseName}`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setLinkedRoundId("")}
+                  className="shrink-0 rounded-full border border-green-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+
+          {postError && (
+            <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>
           )}
+
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={handleCreatePost}
+              disabled={posting || (draft.trim().length === 0 && postImages.length === 0)}
+              className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
+            >
+              {posting
+                ? "Posting..."
+                : isAdmin && postType === "announcement"
+                ? "Post announcement"
+                : linkedRound
+                ? "Post round update"
+                : "Post"}
+            </button>
+          </div>
         </div>
-        {postError && (
-          <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>
-        )}
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={handleCreatePost}
-            disabled={posting || (draft.trim().length === 0 && postImages.length === 0)}
-            className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-green-300"
-          >
-            {posting
-              ? "Posting..."
-              : isAdmin && postType === "announcement"
-              ? "Post announcement"
-              : linkedRound
-              ? "Post round update"
-              : "Post"}
-          </button>
-        </div>
-      </div>
+      )}
 
       {loading ? (
         <div className="space-y-3 animate-pulse">
