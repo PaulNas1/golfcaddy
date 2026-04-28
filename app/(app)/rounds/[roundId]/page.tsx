@@ -698,7 +698,7 @@ function RsvpCard({
       <div className="rounded-2xl border border-green-200 bg-green-50 p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-bold text-green-800 text-lg">✓ You're in!</p>
+            <p className="font-bold text-green-800 text-lg">✓ You&apos;re in!</p>
             <p className="text-xs text-green-700 mt-0.5">
               Your RSVP is confirmed.
             </p>
@@ -734,7 +734,7 @@ function RsvpCard({
         <div>
           <p className="font-bold text-gray-700 text-lg">✗ Not attending</p>
           <p className="text-xs text-gray-500 mt-0.5">
-            You've declined this round.
+            You&apos;ve declined this round.
           </p>
         </div>
         <button
