@@ -72,10 +72,11 @@ export default function NotificationsPage() {
       ) : (
         <div className="space-y-2">
           {notifications.map((n) => (
-            <div
+            <button
               key={n.id}
+              type="button"
               onClick={() => handleTap(n)}
-              className={`bg-white rounded-2xl border p-4 flex gap-3 cursor-pointer transition-colors ${
+              className={`w-full text-left bg-white rounded-2xl border p-4 flex gap-3 transition-colors active:bg-gray-50 ${
                 n.read ? "border-gray-100" : "border-green-200 bg-green-50"
               }`}
             >
@@ -94,7 +95,7 @@ export default function NotificationsPage() {
               {!n.read && (
                 <div className="w-2 h-2 rounded-full bg-green-500 mt-1 flex-shrink-0" />
               )}
-            </div>
+            </button>
           ))}
         </div>
       )}

@@ -36,11 +36,15 @@ function getRoundLabel(photo: Photo, roundsById: Map<string, Round>) {
   return `Round ${photo.roundNumber ?? "?"}`;
 }
 
+const PAGE_SIZE = 50;
+
 export default function PhotosPage() {
   const { appUser } = useAuth();
   const { rounds } = useGroupData();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [limitCount, setLimitCount] = useState(PAGE_SIZE);
+  const [hasMore, setHasMore] = useState(false);
   const [selectedRoundId, setSelectedRoundId] = useState("");
   const [selectedCourseId, setSelectedCourseId] = useState("");
   const [scope, setScope] = useState<"all" | "mine">("all");
@@ -52,8 +56,9 @@ export default function PhotosPage() {
 
     const unsubscribePhotos = subscribeGroupPhotos(
       appUser.groupId,
-      (nextPhotos) => {
+      (nextPhotos, nextHasMore) => {
         setPhotos(nextPhotos);
+        setHasMore(nextHasMore);
         setLoading(false);
         if (nextPhotos.length === 0 && !didAttemptBackfillRef.current) {
           didAttemptBackfillRef.current = true;
@@ -63,7 +68,7 @@ export default function PhotosPage() {
         }
       },
       {
-        limitCount: 500,
+        limitCount,
         onError: (err) => {
           console.warn("Unable to subscribe to group photos", err);
           setLoading(false);
@@ -74,7 +79,7 @@ export default function PhotosPage() {
     return () => {
       unsubscribePhotos();
     };
-  }, [appUser?.groupId]);
+  }, [appUser?.groupId, limitCount]);
 
   const roundsById = useMemo(
     () => new Map(rounds.map((round) => [round.id, round])),
@@ -253,6 +258,19 @@ export default function PhotosPage() {
               </div>
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Load more — only shown when Firestore has additional photos */}
+      {hasMore && !loading && (
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setLimitCount((n) => n + PAGE_SIZE)}
+            className="rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-semibold text-gray-600 shadow-sm active:bg-gray-50"
+          >
+            Load more
+          </button>
         </div>
       )}
 

@@ -2555,19 +2555,28 @@ export const subscribePinnedAnnouncement = (
 
 export const subscribeGroupPhotos = (
   groupId: string,
-  onChange: (photos: Photo[]) => void,
+  onChange: (photos: Photo[], hasMore: boolean) => void,
   options?: { limitCount?: number; onError?: (error: Error) => void }
 ) => {
-  const q = query(collection(db, "photos"), where("groupId", "==", groupId));
+  const pageSize = options?.limitCount ?? 50;
+  // Fetch one extra doc to detect whether a next page exists without a
+  // separate count query. Requires the composite index:
+  //   photos: groupId ASC, createdAt DESC  (see firestore.indexes.json)
+  const q = query(
+    collection(db, "photos"),
+    where("groupId", "==", groupId),
+    orderBy("createdAt", "desc"),
+    limit(pageSize + 1)
+  );
   return onSnapshot(
     q,
-    (snap) =>
+    (snap) => {
+      const hasMore = snap.docs.length > pageSize;
       onChange(
-        snap.docs
-          .map(mapPhoto)
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-          .slice(0, options?.limitCount ?? 200)
-      ),
+        snap.docs.slice(0, pageSize).map(mapPhoto),
+        hasMore
+      );
+    },
     options?.onError
   );
 };
