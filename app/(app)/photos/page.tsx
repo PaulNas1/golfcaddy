@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { format, formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
@@ -9,6 +8,7 @@ import {
   subscribeGroupPhotos,
   syncGroupPhotoLibrary,
 } from "@/lib/firestore";
+import ImageGestureViewer from "@/components/ImageGestureViewer";
 import type { Photo, Round } from "@/types";
 
 function getCourseFilterKey(photo: Photo, roundsById: Map<string, Round>) {
@@ -288,91 +288,42 @@ function PhotoViewer({
   photo: Photo;
   onClose: () => void;
 }) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      setMounted(false);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [onClose]);
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4 py-6"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-full w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">{photo.uploaderName}</p>
-            <p className="text-xs text-gray-400">
-              {format(photo.createdAt, "EEEE d MMM yyyy")}
+  return (
+    <ImageGestureViewer
+      src={photo.photoUrl}
+      alt={photo.courseName ?? "Group photo"}
+      onClose={onClose}
+      footer={
+        <div className="space-y-2">
+          {/* Uploader + date */}
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold text-white text-sm">{photo.uploaderName}</p>
+            <p className="text-xs text-white/60 shrink-0">
+              {format(photo.createdAt, "d MMM yyyy")}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600"
-          >
-            Close
-          </button>
-        </div>
-
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={photo.photoUrl}
-          alt={photo.courseName ?? "Group photo"}
-          className="max-h-[60vh] w-full bg-black object-contain"
-        />
-
-        <div className="space-y-3 px-4 py-4">
-          <div className="flex flex-wrap gap-2">
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5">
             {photo.roundNumber ? (
-              <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700">
-                {`Round ${photo.roundNumber}`}
+              <span className="rounded-full bg-green-500/30 px-2 py-0.5 text-[11px] font-medium text-green-200">
+                Round {photo.roundNumber}
               </span>
             ) : null}
             {photo.courseName ? (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium text-white/80">
                 {photo.courseName}
               </span>
             ) : (
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/50">
                 No round linked
               </span>
             )}
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/50">
+              {formatDistanceToNow(photo.createdAt, { addSuffix: true })}
+            </span>
           </div>
-          <dl className="space-y-2 text-sm text-gray-600">
-            <div className="flex justify-between gap-3">
-              <dt className="font-medium text-gray-500">Uploaded by</dt>
-              <dd className="text-right text-gray-800">{photo.uploaderName}</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="font-medium text-gray-500">Added</dt>
-              <dd className="text-right text-gray-800">
-                {format(photo.createdAt, "d MMM yyyy, h:mm a")}
-              </dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="font-medium text-gray-500">Post link</dt>
-              <dd className="text-right text-gray-800">Feed post photo</dd>
-            </div>
-          </dl>
         </div>
-      </div>
-    </div>,
-    document.body
+      }
+    />
   );
 }

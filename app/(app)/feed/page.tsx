@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { formatDistanceToNow } from "date-fns";
+import ImageGestureViewer from "@/components/ImageGestureViewer";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -965,9 +965,9 @@ export default function FeedPage() {
       )}
 
       {selectedImageUrl && (
-        <FeedImageViewer
-          imageUrl={selectedImageUrl}
-          imageLabel={selectedImageLabel}
+        <ImageGestureViewer
+          src={selectedImageUrl}
+          alt={selectedImageLabel}
           onClose={() => {
             setSelectedImageUrl("");
             setSelectedImageLabel("");
@@ -978,234 +978,6 @@ export default function FeedPage() {
   );
 }
 
-function FeedImageViewer({
-  imageUrl,
-  imageLabel,
-  onClose,
-}: {
-  imageUrl: string;
-  imageLabel: string;
-  onClose: () => void;
-}) {
-  const [mounted, setMounted] = useState(false);
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [dragging, setDragging] = useState(false);
-  const pinchRef = useRef<{
-    startDistance: number;
-    startScale: number;
-  } | null>(null);
-  const scaleRef = useRef(1);
-  const offsetRef = useRef({ x: 0, y: 0 });
-  const skipTouchEndResetRef = useRef(false);
-  const panRef = useRef<{
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-    moved: boolean;
-  } | null>(null);
-  const lastTapRef = useRef(0);
-
-  useEffect(() => {
-    setMounted(true);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, []);
-
-  useEffect(() => {
-    scaleRef.current = scale;
-  }, [scale]);
-
-  useEffect(() => {
-    offsetRef.current = offset;
-  }, [offset]);
-
-  const closeViewer = () => {
-    setScale(1);
-    setOffset({ x: 0, y: 0 });
-    onClose();
-  };
-
-  const toggleZoom = () => {
-    if (scaleRef.current > 1) {
-      setScale(1);
-      setOffset({ x: 0, y: 0 });
-      scaleRef.current = 1;
-      offsetRef.current = { x: 0, y: 0 };
-      return;
-    }
-
-    setScale(2.5);
-    setOffset({ x: 0, y: 0 });
-    scaleRef.current = 2.5;
-    offsetRef.current = { x: 0, y: 0 };
-  };
-
-  const getTouchDistance = (
-    touches: ArrayLike<{ clientX: number; clientY: number }>
-  ) => {
-    const [first, second] = [touches[0], touches[1]];
-    return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
-  };
-
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 2) {
-      pinchRef.current = {
-        startDistance: getTouchDistance(event.touches),
-        startScale: scale,
-      };
-      panRef.current = null;
-      setDragging(true);
-      return;
-    }
-
-    if (event.touches.length !== 1) return;
-
-    const now = Date.now();
-    if (now - lastTapRef.current < 260) {
-      event.preventDefault();
-      skipTouchEndResetRef.current = true;
-      toggleZoom();
-      lastTapRef.current = 0;
-      panRef.current = null;
-      return;
-    }
-
-    lastTapRef.current = now;
-    const touch = event.touches[0];
-    panRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      originX: offset.x,
-      originY: offset.y,
-      moved: false,
-    };
-    setDragging(true);
-  };
-
-  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 2 && pinchRef.current) {
-      event.preventDefault();
-      const nextScale = Math.min(
-        4,
-        Math.max(
-          1,
-          pinchRef.current.startScale *
-            (getTouchDistance(event.touches) / pinchRef.current.startDistance)
-        )
-      );
-      setScale(nextScale);
-      if (nextScale <= 1.05) {
-        setOffset({ x: 0, y: 0 });
-      }
-      return;
-    }
-
-    if (event.touches.length !== 1 || !panRef.current) return;
-
-    const touch = event.touches[0];
-    const deltaX = touch.clientX - panRef.current.startX;
-    const deltaY = touch.clientY - panRef.current.startY;
-
-    if (Math.abs(deltaX) > 4 || Math.abs(deltaY) > 4) {
-      panRef.current.moved = true;
-    }
-
-    if (scale > 1) {
-      event.preventDefault();
-      setOffset({
-        x: panRef.current.originX + deltaX,
-        y: panRef.current.originY + deltaY,
-      });
-      return;
-    }
-
-    if (deltaY > 0) {
-      event.preventDefault();
-      setOffset({
-        x: 0,
-        y: deltaY,
-      });
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (skipTouchEndResetRef.current) {
-      skipTouchEndResetRef.current = false;
-      pinchRef.current = null;
-      panRef.current = null;
-      setDragging(false);
-      return;
-    }
-
-    const draggedOffsetY = offsetRef.current.y;
-    pinchRef.current = null;
-    panRef.current = null;
-    setDragging(false);
-
-    if (scaleRef.current <= 1.05) {
-      if (draggedOffsetY > 120) {
-        closeViewer();
-        return;
-      }
-      setScale(1);
-      setOffset({ x: 0, y: 0 });
-      scaleRef.current = 1;
-      offsetRef.current = { x: 0, y: 0 };
-    }
-  };
-
-  const overlayOpacity =
-    scale > 1 ? 0.96 : Math.max(0.45, 0.96 - Math.abs(offset.y) / 320);
-
-  if (!mounted) return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center"
-      style={{ backgroundColor: `rgba(0, 0, 0, ${overlayOpacity})` }}
-      onClick={closeViewer}
-    >
-      <button
-        type="button"
-        onClick={closeViewer}
-        className="absolute right-4 top-4 z-10 rounded-full bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur"
-      >
-        Close
-      </button>
-      <div
-        className="relative flex h-full w-full items-center justify-center overflow-hidden px-4 py-16"
-        onClick={(event) => event.stopPropagation()}
-        onDoubleClick={toggleZoom}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ touchAction: "none" }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageUrl}
-          alt={imageLabel}
-          draggable={false}
-          className="max-h-full max-w-full select-none object-contain"
-          style={{
-            transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`,
-            transition: dragging ? "none" : "transform 180ms ease",
-            transformOrigin: "center center",
-          }}
-        />
-      </div>
-      <p className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1.5 text-xs text-white backdrop-blur">
-        Double tap or pinch to zoom. Swipe down to close.
-      </p>
-    </div>,
-    document.body
-  );
-}
 
 function EllipsisIcon({ className }: { className?: string }) {
   return (
