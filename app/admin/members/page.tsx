@@ -832,7 +832,7 @@ export default function AdminMembersPage() {
                 </div>
 
                 {editingHandicapFor === user.uid && (
-                  <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3">
+                  <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="space-y-2">
                       <label className="block">
                         <span className="block text-xs font-medium text-gray-600 mb-1">
