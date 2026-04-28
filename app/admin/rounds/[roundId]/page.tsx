@@ -132,6 +132,9 @@ export default function AdminRoundDetailPage() {
   const [editingOverride, setEditingOverride] = useState<HoleOverride | null>(
     null
   );
+  const [strokeIndexDrafts, setStrokeIndexDrafts] = useState<Record<number, string>>({});
+  const [editingStrokeIndexes, setEditingStrokeIndexes] = useState(false);
+  const [savingStrokeIndexes, setSavingStrokeIndexes] = useState(false);
   const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
@@ -337,6 +340,12 @@ export default function AdminRoundDetailPage() {
           setT2Hole(r.specialHoles.t2 ? String(r.specialHoles.t2) : "");
           setT3Hole(r.specialHoles.t3 ? String(r.specialHoles.t3) : "");
           setPlayerTeeAssignments(r.playerTeeAssignments ?? {});
+          // Initialise stroke index drafts from stored courseHoles
+          if (r.courseHoles && r.courseHoles.length === 18) {
+            const drafts: Record<number, string> = {};
+            r.courseHoles.forEach((h) => { drafts[h.number] = String(h.strokeIndex); });
+            setStrokeIndexDrafts(drafts);
+          }
           setTeeTimes(
             r.teeTimes && r.teeTimes.length > 0
               ? r.teeTimes.map((t) => ({
@@ -1000,6 +1009,58 @@ export default function AdminRoundDetailPage() {
     }
   };
 
+  const saveStrokeIndexes = async () => {
+    if (!round) return;
+
+    const holes =
+      round.courseHoles.length === 18
+        ? round.courseHoles
+        : getFallbackCourseHoles();
+
+    const values = holes.map((h) => parseInt(strokeIndexDrafts[h.number] ?? "", 10));
+
+    if (values.some((v) => isNaN(v) || v < 1 || v > 18)) {
+      setDetailsError("Each stroke index must be a number between 1 and 18.");
+      setTimeout(() => setDetailsError(""), 4000);
+      return;
+    }
+
+    if (new Set(values).size !== 18) {
+      setDetailsError("Each stroke index must be unique (1–18, no duplicates).");
+      setTimeout(() => setDetailsError(""), 4000);
+      return;
+    }
+
+    setSavingStrokeIndexes(true);
+    try {
+      const updatedHoles = holes.map((h, i) => ({ ...h, strokeIndex: values[i] }));
+
+      // Mirror the change into the matching tee set so a future course refresh
+      // doesn't immediately overwrite what was just corrected.
+      const updatedTeeSets = (round.availableTeeSets ?? []).map((ts) => {
+        if (ts.id !== round.teeSetId || ts.holes.length !== 18) return ts;
+        return {
+          ...ts,
+          holes: ts.holes.map((h) => {
+            const newSI = values[h.number - 1];
+            return newSI !== undefined ? { ...h, strokeIndex: newSI } : h;
+          }),
+        };
+      });
+
+      await updateRound(round.id, {
+        courseHoles: updatedHoles,
+        availableTeeSets: updatedTeeSets,
+      });
+      setRound({ ...round, courseHoles: updatedHoles, availableTeeSets: updatedTeeSets });
+      setEditingStrokeIndexes(false);
+      setSuccess("Stroke indexes updated.");
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSavingStrokeIndexes(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="animate-pulse space-y-4">
@@ -1523,6 +1584,96 @@ export default function AdminRoundDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Stroke index editor */}
+      {round.courseHoles.length === 18 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800">Stroke Indexes</h2>
+            {!editingStrokeIndexes ? (
+              <button
+                type="button"
+                onClick={() => setEditingStrokeIndexes(true)}
+                className="text-xs font-medium text-green-700 hover:underline"
+              >
+                Edit
+              </button>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingStrokeIndexes(false);
+                    const drafts: Record<number, string> = {};
+                    round.courseHoles.forEach((h) => {
+                      drafts[h.number] = String(h.strokeIndex);
+                    });
+                    setStrokeIndexDrafts(drafts);
+                  }}
+                  disabled={savingStrokeIndexes}
+                  className="text-xs font-medium text-gray-500 hover:underline disabled:text-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveStrokeIndexes}
+                  disabled={savingStrokeIndexes}
+                  className="text-xs font-semibold text-green-700 hover:underline disabled:text-green-300"
+                >
+                  {savingStrokeIndexes ? "Saving…" : "Save"}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {round.courseHoles.every((h) => h.strokeIndex === h.number) && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              ⚠️ Stroke indexes match hole numbers (1, 2, 3…) — the API likely
+              didn&apos;t provide real handicap data. Tap Edit to enter the correct values from the scorecard.
+            </div>
+          )}
+
+          <p className="text-[11px] text-gray-400">
+            Stroke index 1 = hardest hole. All 18 must be unique.
+          </p>
+
+          {/* Holes grid — label + SI alternating in a 6-column grid */}
+          <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-xs">
+            {round.courseHoles.flatMap((h) => [
+              <div
+                key={`lbl-${h.number}`}
+                className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1.5 text-[10px] font-semibold text-gray-500"
+              >
+                H{h.number}
+              </div>,
+              editingStrokeIndexes ? (
+                <input
+                  key={`si-${h.number}`}
+                  type="number"
+                  min={1}
+                  max={18}
+                  value={strokeIndexDrafts[h.number] ?? ""}
+                  onChange={(e) =>
+                    setStrokeIndexDrafts((d) => ({
+                      ...d,
+                      [h.number]: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-gray-200 px-1 py-1.5 text-center text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
+                />
+              ) : (
+                <div
+                  key={`si-${h.number}`}
+                  className="flex items-center justify-center rounded-lg border border-gray-100 px-1 py-1.5 text-center font-medium text-gray-800"
+                >
+                  {strokeIndexDrafts[h.number] ?? h.strokeIndex}
+                </div>
+              ),
+            ])}
+          </div>
+        </div>
+      )}
 
       {/* Quick info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">

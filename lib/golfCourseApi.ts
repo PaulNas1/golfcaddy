@@ -107,7 +107,10 @@ function normalizeTeeSet(
     return {
       number: index + 1,
       par,
-      strokeIndex: hole.handicap ?? index + 1,
+      // hole.handicap is the stroke index from the API.
+      // Use || (not ??) so that 0 is also treated as "not provided" —
+      // valid stroke indexes run 1–18, never 0.
+      strokeIndex: hole.handicap || index + 1,
       type: holeType(par),
       distanceMeters: yardsToMeters(hole.yardage),
     };
