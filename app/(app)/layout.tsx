@@ -48,6 +48,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   // tap so the UI responds in the same frame — no waiting for Next.js router.
   const [activeTab, setActiveTab] = useState(() => resolveActiveTab(pathname));
 
+  // isOnSubRoute hides the parent tab page when a sub-route (e.g. /rounds/abc123)
+  // is active so the list and the detail are never both visible at once.
+  // Stored in state (not derived from pathname) so handleTabTap can clear it
+  // synchronously — preventing a blank flash when tapping Back to the tab list.
+  const [isOnSubRoute, setIsOnSubRoute] = useState(() => !TAB_PATHS.has(pathname));
+
   useEffect(() => {
     if (!appUser?.uid || appUser.status !== "active") {
       setHasUnreadNotifications(false);
@@ -82,10 +88,11 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, appUser, router]);
 
-  // Keep activeTab in sync with URL-driven changes (browser back/forward,
-  // deep links, auth redirects) that bypass the tap handler.
+  // Keep activeTab and isOnSubRoute in sync with URL-driven changes
+  // (browser back/forward, deep links, auth redirects) that bypass the tap handler.
   useEffect(() => {
     setActiveTab(resolveActiveTab(pathname));
+    setIsOnSubRoute(!TAB_PATHS.has(pathname));
   }, [pathname]);
 
   // Scroll to top on every tab switch or sub-route navigation.
@@ -95,8 +102,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Navigate to a tab: flip display state immediately, then push URL.
   const handleTabTap = (href: string) => {
-    setActiveTab(href);   // instant — same render frame as the tap
-    router.push(href);    // updates URL / browser history
+    setActiveTab(href);      // instant — same render frame as the tap
+    setIsOnSubRoute(false);  // instant — hide sub-route content, show tab list
+    router.push(href);       // updates URL / browser history
   };
 
   if (loading || !appUser || appUser.status !== "active") {
@@ -109,8 +117,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-
-  const isTabRoute = TAB_PATHS.has(pathname);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
@@ -166,30 +172,30 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         {/* Tab display is driven by activeTab, NOT pathname.
             activeTab updates synchronously on tap so there is zero
             perceived delay — the CSS flip happens in the same frame. */}
-        <div style={{ display: activeTab === "/home" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/home" && !isOnSubRoute ? "block" : "none" }}>
           <HomePage />
         </div>
-        <div style={{ display: activeTab === "/rounds" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/rounds" && !isOnSubRoute ? "block" : "none" }}>
           <RoundsPage />
         </div>
-        <div style={{ display: activeTab === "/leaderboard" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/leaderboard" && !isOnSubRoute ? "block" : "none" }}>
           <LeaderboardPage />
         </div>
         <Suspense fallback={null}>
-          <div style={{ display: activeTab === "/feed" ? "block" : "none" }}>
+          <div style={{ display: activeTab === "/feed" && !isOnSubRoute ? "block" : "none" }}>
             <FeedPage />
           </div>
         </Suspense>
-        <div style={{ display: activeTab === "/photos" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/photos" && !isOnSubRoute ? "block" : "none" }}>
           <PhotosPage />
         </div>
-        <div style={{ display: activeTab === "/profile" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/profile" && !isOnSubRoute ? "block" : "none" }}>
           <ProfilePage />
         </div>
 
         {/* Sub-routes (round detail, notifications, admin, etc.)
-            still render via Next.js children — isTabRoute uses pathname. */}
-        {!isTabRoute && children}
+            render via Next.js children. isOnSubRoute hides the parent tab above. */}
+        {isOnSubRoute && children}
       </main>
 
       {/* Bottom nav — buttons instead of Links so handleTabTap fires
