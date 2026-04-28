@@ -52,6 +52,7 @@ export default function RoundDetailPage() {
   const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
   const [roundPosts, setRoundPosts] = useState<Post[]>([]);
   const [savingRsvp, setSavingRsvp] = useState(false);
+  const [changingRsvp, setChangingRsvp] = useState(false);
   const [savingClaim, setSavingClaim] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -220,12 +221,7 @@ export default function RoundDetailPage() {
     setSavingRsvp(true);
     setMyRsvp((current) =>
       current
-        ? {
-            ...current,
-            status,
-            respondedAt: new Date(),
-            updatedAt: new Date(),
-          }
+        ? { ...current, status, respondedAt: new Date(), updatedAt: new Date() }
         : {
             id: appUser.uid,
             roundId: round.id,
@@ -240,6 +236,7 @@ export default function RoundDetailPage() {
     );
     try {
       await setRoundRsvp({ round, member: appUser, status });
+      setChangingRsvp(false);
     } finally {
       setSavingRsvp(false);
     }
@@ -334,45 +331,15 @@ export default function RoundDetailPage() {
       </div>
 
       {round.rsvpOpen && round.status !== "completed" && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-          <div>
-            <h2 className="font-semibold text-gray-800">Playing this round?</h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Let the admin know so tee-time groups can be set.
-            </p>
-          </div>
-          {myRsvp?.status && myRsvp.status !== "pending" && (
-            <p className="text-xs font-medium text-green-700">
-              RSVP saved: {myRsvp.status === "accepted" ? "Accepted" : "Declined"}
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleRsvp("accepted")}
-              disabled={savingRsvp}
-              className={`rounded-xl border py-2.5 text-sm font-semibold ${
-                myRsvp?.status === "accepted"
-                  ? "border-green-600 bg-green-600 text-white"
-                  : "border-green-200 bg-green-50 text-green-700"
-              }`}
-            >
-              Accept
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRsvp("declined")}
-              disabled={savingRsvp}
-              className={`rounded-xl border py-2.5 text-sm font-semibold ${
-                myRsvp?.status === "declined"
-                  ? "border-gray-700 bg-gray-800 text-white"
-                  : "border-gray-200 bg-white text-gray-600"
-              }`}
-            >
-              Decline
-            </button>
-          </div>
-        </div>
+        <RsvpCard
+          myRsvp={myRsvp}
+          rsvps={rsvps}
+          members={members}
+          saving={savingRsvp}
+          changing={changingRsvp}
+          onRespond={handleRsvp}
+          onChangeResponse={() => setChangingRsvp(true)}
+        />
       )}
 
       {round.resultsPublished && results && (
@@ -649,6 +616,149 @@ export default function RoundDetailPage() {
     </div>
   );
 }
+
+// ─── RSVP Card ───────────────────────────────────────────────────────────────
+
+function RsvpCard({
+  myRsvp,
+  rsvps,
+  members,
+  saving,
+  changing,
+  onRespond,
+  onChangeResponse,
+}: {
+  myRsvp: RoundRsvp | null;
+  rsvps: RoundRsvp[];
+  members: AppUser[];
+  saving: boolean;
+  changing: boolean;
+  onRespond: (status: "accepted" | "declined") => void;
+  onChangeResponse: () => void;
+}) {
+  const accepted = rsvps.filter((r) => r.status === "accepted");
+  const totalMembers = members.length;
+  const hasResponded =
+    myRsvp?.status === "accepted" || myRsvp?.status === "declined";
+  const showButtons = !hasResponded || changing;
+
+  // Names of accepted members, excluding current user (shown as "You")
+  const attendeeNames = accepted.map((r) => r.memberName).slice(0, 6);
+
+  if (showButtons) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
+        <div>
+          <h2 className="font-semibold text-gray-800">Playing this round?</h2>
+          <p className="text-xs text-gray-500 mt-1">
+            Let the group know so tee-time groups can be arranged.
+          </p>
+        </div>
+
+        {accepted.length > 0 && (
+          <p className="text-xs text-gray-500">
+            <span className="font-semibold text-gray-700">{accepted.length}</span>
+            {totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => onRespond("accepted")}
+            disabled={saving}
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-green-500 bg-green-500 py-3 text-sm font-bold text-white disabled:opacity-60 active:bg-green-600"
+          >
+            {saving ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              "✓ I'm in"
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => onRespond("declined")}
+            disabled={saving}
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white py-3 text-sm font-bold text-gray-600 disabled:opacity-60 active:bg-gray-50"
+          >
+            {saving ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+            ) : (
+              "✗ Can't make it"
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Confirmed response state
+  if (myRsvp?.status === "accepted") {
+    return (
+      <div className="rounded-2xl border border-green-200 bg-green-50 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-bold text-green-800 text-lg">✓ You're in!</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              Your RSVP is confirmed.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onChangeResponse}
+            className="shrink-0 rounded-full border border-green-300 bg-white px-3 py-1 text-xs font-semibold text-green-700"
+          >
+            Change
+          </button>
+        </div>
+
+        {accepted.length > 0 && (
+          <div className="rounded-xl bg-white/70 px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-semibold text-green-800">
+              {accepted.length}{totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
+            </p>
+            <p className="text-xs text-green-700 leading-relaxed">
+              {attendeeNames.join(", ")}
+              {accepted.length > 6 ? ` +${accepted.length - 6} more` : ""}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Declined state
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-bold text-gray-700 text-lg">✗ Not attending</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            You've declined this round.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onChangeResponse}
+          className="shrink-0 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-600"
+        >
+          Change
+        </button>
+      </div>
+
+      {accepted.length > 0 && (
+        <div className="rounded-xl bg-white/80 px-3 py-2.5">
+          <p className="text-xs text-gray-500">
+            <span className="font-semibold text-gray-700">{accepted.length}</span>
+            {totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Side Claims ─────────────────────────────────────────────────────────────
 
 function SideClaimSelect({
   label,
