@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -57,6 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  // undefined = onAuthStateChanged hasn't fired yet; null = signed out; string = uid
+  const prevUidRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     // Fallback: if Firebase doesn't respond in 5s (e.g. no config), stop loading
@@ -65,6 +67,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       clearTimeout(timeout);
+
+      const prevUid = prevUidRef.current;
+      const nextUid = fbUser?.uid ?? null;
+      prevUidRef.current = nextUid;
+
+      // Firebase fires onAuthStateChanged on silent token refreshes (every ~hour).
+      // If the uid hasn't changed this is a token refresh — nothing to do.
+      if (prevUid !== undefined && prevUid === nextUid) return;
+
       unsubscribeUser?.();
       unsubscribeUser = null;
       setLoading(true);
