@@ -313,22 +313,6 @@ export default function RoundDetailPage() {
         </span>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-gray-800">Round updates</h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Share photos or a quick update tied directly to this round.
-            </p>
-          </div>
-          <Link
-            href={`/feed?roundId=${round.id}`}
-            className="shrink-0 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white"
-          >
-            Post update
-          </Link>
-        </div>
-      </div>
 
       {round.rsvpOpen && round.status !== "completed" && (
         <RsvpCard
@@ -548,8 +532,11 @@ export default function RoundDetailPage() {
               Updates and photos posted for this round.
             </p>
           </div>
-          <Link href={`/feed?roundId=${round.id}`} className="text-sm font-medium text-green-700">
-            Open feed
+          <Link
+            href={`/feed?roundId=${round.id}`}
+            className="shrink-0 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white"
+          >
+            Post update
           </Link>
         </div>
         {roundPosts.length === 0 ? (
