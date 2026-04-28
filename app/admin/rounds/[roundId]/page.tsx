@@ -32,6 +32,7 @@ import {
   getPreferredDefaultTeeSet,
   getRoundTeeSets,
 } from "@/lib/courseData";
+import { CourseCardPreview } from "@/components/CourseCardPreview";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import {
   formatShortMemberName,
@@ -1283,6 +1284,24 @@ export default function AdminRoundDetailPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Live course card preview — updates as tee set changes */}
+          {holeOptions.length === 18 && (
+            <CourseCardPreview
+              holes={(() => {
+                // Apply any in-progress stroke index drafts so the preview
+                // stays in sync while the admin is editing indexes.
+                if (!editingStrokeIndexes) return holeOptions;
+                return holeOptions.map((h) => {
+                  const draft = parseInt(strokeIndexDrafts[h.number] ?? "", 10);
+                  return Number.isFinite(draft) ? { ...h, strokeIndex: draft } : h;
+                });
+              })()}
+              distanceUnit={appUser?.distanceUnit ?? "meters"}
+              specialHoles={round ? getEffectiveSpecialHoles(round) : undefined}
+              teeSetName={selectedTeeSet?.name ?? round?.teeSetName ?? undefined}
+            />
           )}
 
           <div>

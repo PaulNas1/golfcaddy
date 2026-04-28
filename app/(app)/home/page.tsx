@@ -11,6 +11,8 @@ import {
 } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
+import { getEffectiveSpecialHoles, getViewerHoles } from "@/lib/courseData";
+import { CourseCardPreview } from "@/components/CourseCardPreview";
 import type {
   Post,
   Round,
@@ -105,41 +107,55 @@ export default function HomePage() {
       </div>
 
       {/* Live round banner */}
-      {liveRound && (
-        <div className="bg-red-500 text-white rounded-2xl shadow-md overflow-hidden">
-          <Link href={`/rounds/${liveRound.id}`} prefetch={false}>
-            <div className="p-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="inline-block w-2 h-2 bg-white rounded-full animate-pulse" />
-                  <span className="text-xs font-semibold uppercase tracking-wide">Live now</span>
+      {liveRound && (() => {
+        const { holes: liveHoles, note: liveNote } = getViewerHoles(liveRound, appUser ?? null);
+        return (
+          <div className="space-y-2">
+            <div className="bg-red-500 text-white rounded-2xl shadow-md overflow-hidden">
+              <Link href={`/rounds/${liveRound.id}`} prefetch={false}>
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="inline-block w-2 h-2 bg-white rounded-full animate-pulse" />
+                      <span className="text-xs font-semibold uppercase tracking-wide">Live now</span>
+                    </div>
+                    <p className="font-bold text-lg leading-tight">{liveRound.courseName}</p>
+                    <p className="text-red-100 text-sm">
+                      {getFirstTeeTimeLabel(liveRound) ?? "Scoring is open"}
+                    </p>
+                  </div>
+                  <div className="text-3xl">🏌️</div>
                 </div>
-                <p className="font-bold text-lg leading-tight">{liveRound.courseName}</p>
-                <p className="text-red-100 text-sm">
-                  {getFirstTeeTimeLabel(liveRound) ?? "Scoring is open"}
-                </p>
+              </Link>
+              <div className="border-t border-red-400 grid grid-cols-2 divide-x divide-red-400">
+                <Link
+                  href={`/rounds/${liveRound.id}/scorecard`}
+                  prefetch={false}
+                  className="py-2 text-center text-xs font-semibold text-white/90 hover:bg-red-600 active:bg-red-700 transition-colors"
+                >
+                  ✏️ Scorecard
+                </Link>
+                <Link
+                  href={`/rounds/${liveRound.id}/my-card`}
+                  prefetch={false}
+                  className="py-2 text-center text-xs font-semibold text-white/90 hover:bg-red-600 active:bg-red-700 transition-colors"
+                >
+                  👁 My Card
+                </Link>
               </div>
-              <div className="text-3xl">🏌️</div>
             </div>
-          </Link>
-          <div className="border-t border-red-400 grid grid-cols-2 divide-x divide-red-400">
-            <Link
-              href={`/rounds/${liveRound.id}/scorecard`}
-              prefetch={false}
-              className="py-2 text-center text-xs font-semibold text-white/90 hover:bg-red-600 active:bg-red-700 transition-colors"
-            >
-              ✏️ Scorecard
-            </Link>
-            <Link
-              href={`/rounds/${liveRound.id}/my-card`}
-              prefetch={false}
-              className="py-2 text-center text-xs font-semibold text-white/90 hover:bg-red-600 active:bg-red-700 transition-colors"
-            >
-              👁 My Card
-            </Link>
+            {liveHoles.length === 18 && (
+              <CourseCardPreview
+                holes={liveHoles}
+                distanceUnit={appUser?.distanceUnit ?? "meters"}
+                specialHoles={getEffectiveSpecialHoles(liveRound)}
+                teeSetName={liveRound.teeSetName ?? undefined}
+                note={liveNote ?? undefined}
+              />
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Next round card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -153,6 +169,7 @@ export default function HomePage() {
               <div className="h-4 bg-gray-100 rounded w-1/2" />
             </div>
           ) : nextRound ? (
+            <>
             <Link href={`/rounds/${nextRound.id}`} prefetch={false}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -193,6 +210,22 @@ export default function HomePage() {
                 </div>
               </div>
             </Link>
+            {(() => {
+              const { holes: nextHoles, note: nextNote } = getViewerHoles(nextRound, appUser ?? null);
+              if (nextHoles.length !== 18) return null;
+              return (
+                <div className="mt-3">
+                  <CourseCardPreview
+                    holes={nextHoles}
+                    distanceUnit={appUser?.distanceUnit ?? "meters"}
+                    specialHoles={getEffectiveSpecialHoles(nextRound)}
+                    teeSetName={nextRound.teeSetName ?? undefined}
+                    note={nextNote ?? undefined}
+                  />
+                </div>
+              );
+            })()}
+            </>
           ) : (
             <div className="text-center py-4">
               <p className="text-gray-400 text-sm">No upcoming rounds scheduled</p>

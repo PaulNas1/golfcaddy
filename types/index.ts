@@ -5,6 +5,7 @@ export type UserStatus = "pending" | "active" | "retired" | "suspended";
 export type UserGender = "male" | "female";
 export type HandicapMode = "local" | "slope_adjusted";
 export type HandicapStatus = "provisional" | "official";
+export type DistanceUnit = "meters" | "yards";
 
 export interface AppUser {
   uid: string;
@@ -23,6 +24,7 @@ export interface AppUser {
   inviteId?: string | null;
   avatarUrl: string | null;
   avatarPath?: string | null;
+  distanceUnit?: DistanceUnit;
   fcmToken: string | null;
   createdAt: Date;
   updatedAt: Date;

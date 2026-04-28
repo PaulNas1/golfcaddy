@@ -22,8 +22,10 @@ import {
 } from "@/lib/firestore";
 import {
   getEffectiveSpecialHoles,
+  getViewerHoles,
   withSeededCourseData,
 } from "@/lib/courseData";
+import { CourseCardPreview } from "@/components/CourseCardPreview";
 import { getRoundLabel, hasRoundScorecards } from "@/lib/roundDisplay";
 import {
   formatTeeTime,
@@ -242,6 +244,7 @@ export default function RoundDetailPage() {
     }
   };
   const specialHoles = getEffectiveSpecialHoles(round);
+  const { holes: viewerHoles, note: viewerNote } = getViewerHoles(round, appUser ?? null);
   const acceptedMemberIds = new Set(
     rsvps
       .filter((rsvp) => rsvp.status === "accepted")
@@ -428,6 +431,16 @@ export default function RoundDetailPage() {
           </a>
         </div>
       </div>
+
+      {viewerHoles.length === 18 && (
+        <CourseCardPreview
+          holes={viewerHoles}
+          distanceUnit={appUser?.distanceUnit ?? "meters"}
+          specialHoles={specialHoles}
+          teeSetName={round.teeSetName ?? undefined}
+          note={viewerNote ?? undefined}
+        />
+      )}
 
       {round.teeTimes.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">

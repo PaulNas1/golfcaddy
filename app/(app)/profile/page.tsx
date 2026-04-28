@@ -31,6 +31,7 @@ import {
   validateImageFile,
 } from "@/lib/storageUploads";
 import type {
+  DistanceUnit,
   HandicapHistory,
   Member,
   Round,
@@ -83,6 +84,9 @@ export default function ProfilePage() {
     appUser?.avatarUrl ?? ""
   );
   const [avatarRemoved, setAvatarRemoved] = useState(false);
+  const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>(
+    appUser?.distanceUnit ?? "meters"
+  );
   const [profileDraft, setProfileDraft] = useState({
     displayName: appUser?.displayName ?? "",
     nickname: appUser?.nickname ?? "",
@@ -183,6 +187,7 @@ export default function ProfilePage() {
       usesSeniorTees: appUser?.usesSeniorTees ?? false,
       usesProBackTees: appUser?.usesProBackTees ?? false,
     });
+    setDistanceUnit(appUser?.distanceUnit ?? "meters");
     setAvatarPreviewUrl(appUser?.avatarUrl ?? "");
     setAvatarFile(null);
     setAvatarRemoved(false);
@@ -399,6 +404,7 @@ export default function ProfilePage() {
           : null,
         usesSeniorTees: profileDraft.usesSeniorTees,
         usesProBackTees: profileDraft.usesProBackTees,
+        distanceUnit,
       });
       if (
         previousAvatarPathToDelete &&
@@ -724,6 +730,27 @@ export default function ProfilePage() {
                 }))
               }
             />
+            <div>
+              <p className="mb-2 text-xs font-medium text-gray-600">
+                Distance display
+              </p>
+              <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
+                {(["meters", "yards"] as DistanceUnit[]).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    onClick={() => setDistanceUnit(unit)}
+                    className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
+                      distanceUnit === unit
+                        ? "bg-green-600 text-white shadow-sm"
+                        : "text-gray-500 hover:text-gray-700"
+                    }`}
+                  >
+                    {unit === "meters" ? "Metres" : "Yards"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <button
               type="button"
               onClick={handleSaveProfile}
@@ -754,6 +781,10 @@ export default function ProfilePage() {
             <ProfileFact
               label="Pro/back tees"
               value={profileDraft.usesProBackTees ? "Yes" : "No"}
+            />
+            <ProfileFact
+              label="Distance unit"
+              value={distanceUnit === "yards" ? "Yards" : "Metres"}
             />
           </div>
         )}

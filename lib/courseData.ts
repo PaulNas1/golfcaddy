@@ -1,4 +1,5 @@
 import type {
+  AppUser,
   CourseHole,
   CourseTeeSet,
   HoleOverride,
@@ -247,6 +248,52 @@ export function withSeededCourseData(round: Round): Round {
         ? getEffectiveSpecialHoles(roundWithCourseHoles)
         : normalizeSpecialHoles(round.specialHoles, courseHoles),
   };
+}
+
+/**
+ * Resolve which 18 holes a viewer should see on the Course Card.
+ *
+ * Priority:
+ * 1. If the round has a player tee assignment for this user → use that tee set's holes
+ * 2. Otherwise fall back to round.courseHoles (the default tee set)
+ *
+ * Returns the holes plus an optional note to display when the user might
+ * eventually get a different assignment (female / senior / pro player on default tees).
+ */
+export function getViewerHoles(
+  round: Round,
+  viewer: AppUser | null
+): { holes: CourseHole[]; note: string | null } {
+  const assignedTeeSetId =
+    viewer?.uid ? (round.playerTeeAssignments ?? {})[viewer.uid] : null;
+
+  if (assignedTeeSetId) {
+    const assigned = (round.availableTeeSets ?? []).find(
+      (ts) => ts.id === assignedTeeSetId
+    );
+    if (assigned && assigned.holes.length === 18) {
+      return { holes: assigned.holes, note: null };
+    }
+  }
+
+  // Fall back to round default holes
+  const holes = round.courseHoles.length === 18 ? round.courseHoles : [];
+  if (!holes.length) return { holes: [], note: null };
+
+  // If this user typically plays a different tee set (female / senior / pro)
+  // but hasn't been assigned one yet, show a note.
+  const mightDiffer =
+    viewer &&
+    !assignedTeeSetId &&
+    (viewer.gender === "female" ||
+      viewer.usesSeniorTees === true ||
+      viewer.usesProBackTees === true);
+
+  const note = mightDiffer
+    ? "Showing default tee set · your tee assignment may be updated once you RSVP and admin confirms."
+    : null;
+
+  return { holes, note };
 }
 
 export function getFallbackCourseHoles(): CourseHole[] {

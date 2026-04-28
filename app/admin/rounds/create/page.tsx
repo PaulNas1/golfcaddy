@@ -24,6 +24,7 @@ import {
   getParThreeHoles,
   getPreferredDefaultTeeSet,
 } from "@/lib/courseData";
+import { CourseCardPreview } from "@/components/CourseCardPreview";
 import {
   getTeeTimeGroupLabel,
   randomiseMemberGroups,
@@ -601,6 +602,15 @@ export default function CreateRoundPage() {
                   Source: {selectedTeeSet.source.provider}. NTP holes:{" "}
                   {getParThreeHoles(selectedTeeSet).join(", ")}.
                 </p>
+              )}
+              {selectedTeeSet && selectedTeeSet.holes.length === 18 && (
+                <div className="mt-3">
+                  <CourseCardPreview
+                    holes={selectedTeeSet.holes}
+                    distanceUnit={appUser?.distanceUnit ?? "meters"}
+                    teeSetName={selectedTeeSet.name}
+                  />
+                </div>
               )}
             </div>
           )}
