@@ -98,6 +98,7 @@ export default function FeedPage() {
         setLoading(false);
       },
       {
+        limitCount: 30,
         onError: (err) => {
           console.warn("Unable to subscribe to feed posts", err);
           setLoading(false);

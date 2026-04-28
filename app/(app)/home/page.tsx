@@ -6,7 +6,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
 import {
-  getRoundRsvp,
+  subscribeRoundRsvp,
   subscribePinnedAnnouncement,
 } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
@@ -66,11 +66,12 @@ export default function HomePage() {
       setNextRoundRsvp(null);
       return;
     }
-    let cancelled = false;
-    getRoundRsvp(nextRound.id, appUser.uid)
-      .then((rsvp) => { if (!cancelled) setNextRoundRsvp(rsvp); })
-      .catch(() => { if (!cancelled) setNextRoundRsvp(null); });
-    return () => { cancelled = true; };
+    return subscribeRoundRsvp(
+      nextRound.id,
+      appUser.uid,
+      (rsvp) => setNextRoundRsvp(rsvp),
+      () => setNextRoundRsvp(null)
+    );
   }, [appUser?.uid, nextRound?.id]);
 
   const visibleStandings = useMemo(
@@ -105,21 +106,39 @@ export default function HomePage() {
 
       {/* Live round banner */}
       {liveRound && (
-        <Link href={`/rounds/${liveRound.id}`} prefetch={false}>
-          <div className="bg-red-500 text-white rounded-2xl p-4 flex items-center justify-between shadow-md">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="inline-block w-2 h-2 bg-white rounded-full animate-pulse" />
-                <span className="text-xs font-semibold uppercase tracking-wide">Live now</span>
+        <div className="bg-red-500 text-white rounded-2xl shadow-md overflow-hidden">
+          <Link href={`/rounds/${liveRound.id}`} prefetch={false}>
+            <div className="p-4 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-block w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <span className="text-xs font-semibold uppercase tracking-wide">Live now</span>
+                </div>
+                <p className="font-bold text-lg leading-tight">{liveRound.courseName}</p>
+                <p className="text-red-100 text-sm">
+                  {getFirstTeeTimeLabel(liveRound) ?? "Scoring is open"}
+                </p>
               </div>
-              <p className="font-bold text-lg leading-tight">{liveRound.courseName}</p>
-              <p className="text-red-100 text-sm">
-                {getFirstTeeTimeLabel(liveRound) ?? "Scoring is open"}
-              </p>
+              <div className="text-3xl">🏌️</div>
             </div>
-            <div className="text-3xl">🏌️</div>
+          </Link>
+          <div className="border-t border-red-400 grid grid-cols-2 divide-x divide-red-400">
+            <Link
+              href={`/rounds/${liveRound.id}/scorecard`}
+              prefetch={false}
+              className="py-2 text-center text-xs font-semibold text-white/90 hover:bg-red-600 active:bg-red-700 transition-colors"
+            >
+              ✏️ Scorecard
+            </Link>
+            <Link
+              href={`/rounds/${liveRound.id}/my-card`}
+              prefetch={false}
+              className="py-2 text-center text-xs font-semibold text-white/90 hover:bg-red-600 active:bg-red-700 transition-colors"
+            >
+              👁 My Card
+            </Link>
           </div>
-        </Link>
+        </div>
       )}
 
       {/* Next round card */}

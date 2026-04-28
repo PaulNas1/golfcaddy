@@ -19,6 +19,8 @@ import {
   subscribeRound,
   subscribeRoundRsvps,
   subscribeScorecardForMarker,
+  subscribeSideClaimsForRound,
+  setSideClaim,
   updateScorecard,
 } from "@/lib/firestore";
 import {
@@ -30,7 +32,7 @@ import {
 import { getEligibleScorecardMembers } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import type { Round, Scorecard, HoleScore, AppUser, RoundRsvp } from "@/types";
+import type { Round, Scorecard, HoleScore, AppUser, RoundRsvp, SideClaim, SidePrizeType } from "@/types";
 import { calculatePlayingHandicap, calculateStrokesReceived, calculateStablefordPoints, aggregateTotals } from "@/lib/scoring";
 import { normaliseGroupSettings } from "@/lib/settings";
 
@@ -62,7 +64,11 @@ export default function ScorecardPage() {
   const [hasPendingSync, setHasPendingSync] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [error, setError] = useState("");
+  const [starting, setStarting] = useState(false);
+  const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
+  const [savingClaim, setSavingClaim] = useState("");
   const pendingSyncRunRef = useRef(0);
+  const syncTotalsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const confirmPendingSync = (runId: number) => {
     void waitForPendingWrites(db)
@@ -206,6 +212,16 @@ export default function ScorecardPage() {
   }, [appUser, isActive, roundId]);
 
   useEffect(() => {
+    if (!roundId || !appUser || !isActive) return;
+
+    return subscribeSideClaimsForRound(
+      roundId,
+      setSideClaims,
+      (err) => console.warn("Unable to subscribe to side claims", err)
+    );
+  }, [roundId, appUser, isActive]);
+
+  useEffect(() => {
     if (!scorecard?.id) return;
 
     return subscribeHoleScores(
@@ -257,7 +273,7 @@ export default function ScorecardPage() {
       return;
     }
     setError("");
-    setLoading(true);
+    setStarting(true);
     try {
       const existingPlayerCard = await getScorecardForPlayer(
         round.id,
@@ -277,7 +293,7 @@ export default function ScorecardPage() {
                   existingPlayerCard.playerId
                 )
           );
-          setLoading(false);
+          setStarting(false);
           return;
         }
 
@@ -285,7 +301,7 @@ export default function ScorecardPage() {
           members.find((member) => member.uid === existingPlayerCard.markerId)
             ?.displayName ?? "another marker";
         setError(`That player already has a card started by ${markerName}.`);
-        setLoading(false);
+        setStarting(false);
         return;
       }
 
@@ -360,7 +376,7 @@ export default function ScorecardPage() {
     } catch {
       setError("Failed to start scorecard. Please try again.");
     } finally {
-      setLoading(false);
+      setStarting(false);
     }
   };
 
@@ -381,7 +397,7 @@ export default function ScorecardPage() {
         netScore: null,
         stablefordPoints: null,
       });
-      await syncTotals(scorecard.id, updated, round.format);
+      debouncedSyncTotals(scorecard.id, updated, round.format);
       markSyncPending();
       return;
     }
@@ -430,7 +446,7 @@ export default function ScorecardPage() {
         isT2: roundSpecialHoles.t2 === holeNumber,
         isT3: roundSpecialHoles.t3 === holeNumber,
       });
-      await syncTotals(scorecard.id, updated, round.format);
+      debouncedSyncTotals(scorecard.id, updated, round.format);
       markSyncPending();
     } finally {
       setSavingHole(null);
@@ -472,7 +488,7 @@ export default function ScorecardPage() {
       isT2: hole.isT2,
       isT3: hole.isT3,
     });
-    await syncTotals(scorecard.id, updated, round.format);
+    debouncedSyncTotals(scorecard.id, updated, round.format);
     markSyncPending();
   };
 
@@ -481,23 +497,26 @@ export default function ScorecardPage() {
     localHoles: HoleScore[],
     format: Round["format"]
   ) => {
-    const { totalGross, totalStableford } = aggregateTotals(
-      localHoles,
-      format
-    );
-    await updateScorecard(scorecardId, {
-      totalGross,
-      totalStableford,
-    });
+    const { totalGross, totalStableford } = aggregateTotals(localHoles, format);
+    await updateScorecard(scorecardId, { totalGross, totalStableford });
     setScorecard((prev) =>
-      prev
-        ? {
-            ...prev,
-            totalGross,
-            totalStableford,
-          }
-        : prev
+      prev ? { ...prev, totalGross, totalStableford } : prev
     );
+  };
+
+  // Debounced wrapper — waits 1.5 s after the last hole change before writing
+  // totals, eliminating the double-write on every keystroke.
+  const debouncedSyncTotals = (
+    scorecardId: string,
+    localHoles: HoleScore[],
+    format: Round["format"]
+  ) => {
+    if (syncTotalsTimerRef.current) clearTimeout(syncTotalsTimerRef.current);
+    syncTotalsTimerRef.current = setTimeout(() => {
+      syncTotals(scorecardId, localHoles, format).catch((err) =>
+        console.warn("Unable to sync totals", err)
+      );
+    }, 1500);
   };
 
   const handleSignOff = async () => {
@@ -553,6 +572,33 @@ export default function ScorecardPage() {
       setError("Failed to re-open card. Please try again.");
     } finally {
       setReopening(false);
+    }
+  };
+
+  const getClaim = (prizeType: SidePrizeType, holeNumber: number) =>
+    sideClaims.find(
+      (claim) => claim.prizeType === prizeType && claim.holeNumber === holeNumber
+    ) ?? null;
+
+  const handleClaim = async (
+    prizeType: SidePrizeType,
+    holeNumber: number,
+    winnerId: string
+  ) => {
+    if (!round || !appUser) return;
+    const claimId = prizeType === "ntp" ? `ntp-${holeNumber}` : prizeType;
+    setSavingClaim(claimId);
+    try {
+      await setSideClaim({
+        round,
+        prizeType,
+        holeNumber,
+        winnerId,
+        updatedBy: appUser,
+        members,
+      });
+    } finally {
+      setSavingClaim("");
     }
   };
 
@@ -694,10 +740,17 @@ export default function ScorecardPage() {
           <button
             type="button"
             onClick={handleStartCard}
-            disabled={loading || !playerToMarkId}
+            disabled={starting || !playerToMarkId}
             className="w-full bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
           >
-            Start scorecard
+            {starting ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                Starting...
+              </span>
+            ) : (
+              "Start scorecard"
+            )}
           </button>
         </div>
       )}
@@ -829,6 +882,66 @@ export default function ScorecardPage() {
               )}
             </div>
           )}
+
+          {/* ── Side prizes ── */}
+          {(() => {
+            const specialHoles = getEffectiveSpecialHoles(round);
+            const hasAny =
+              specialHoles.ntp.length > 0 ||
+              specialHoles.ld ||
+              specialHoles.t2 ||
+              specialHoles.t3;
+            if (!hasAny) return null;
+            return (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+                <h2 className="font-semibold text-gray-800">Side Prizes</h2>
+                <p className="text-xs text-gray-500">
+                  Claim the winner for each side prize on this round.
+                </p>
+                {specialHoles.ntp.map((holeNumber) => (
+                  <SideClaimSelect
+                    key={`ntp-${holeNumber}`}
+                    label={`Nearest the Pin - Hole ${holeNumber}`}
+                    claim={getClaim("ntp", holeNumber)}
+                    members={members}
+                    disabled={round.status !== "live"}
+                    saving={savingClaim === `ntp-${holeNumber}`}
+                    onChange={(winnerId) => handleClaim("ntp", holeNumber, winnerId)}
+                  />
+                ))}
+                {specialHoles.ld && (
+                  <SideClaimSelect
+                    label={`Longest Drive - Hole ${specialHoles.ld}`}
+                    claim={getClaim("ld", specialHoles.ld)}
+                    members={members}
+                    disabled={round.status !== "live"}
+                    saving={savingClaim === "ld"}
+                    onChange={(winnerId) => handleClaim("ld", specialHoles.ld!, winnerId)}
+                  />
+                )}
+                {specialHoles.t2 && (
+                  <SideClaimSelect
+                    label={`T2 - Hole ${specialHoles.t2}`}
+                    claim={getClaim("t2", specialHoles.t2)}
+                    members={members}
+                    disabled={round.status !== "live"}
+                    saving={savingClaim === "t2"}
+                    onChange={(winnerId) => handleClaim("t2", specialHoles.t2!, winnerId)}
+                  />
+                )}
+                {specialHoles.t3 && (
+                  <SideClaimSelect
+                    label={`T3 - Hole ${specialHoles.t3}`}
+                    claim={getClaim("t3", specialHoles.t3)}
+                    members={members}
+                    disabled={round.status !== "live"}
+                    saving={savingClaim === "t3"}
+                    onChange={(winnerId) => handleClaim("t3", specialHoles.t3!, winnerId)}
+                  />
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
@@ -951,9 +1064,29 @@ function HoleRow({
   onStablefordOverride: (holeNumber: number, points: string) => void;
 }) {
   const hasPoints = hole.stablefordPoints != null;
+  const isScored = hole.grossScore != null;
+  const [editingPoints, setEditingPoints] = useState(false);
+  const [pointsDraft, setPointsDraft] = useState("");
+  const pointsInputRef = useRef<HTMLInputElement | null>(null);
+
+  const openPointsEditor = () => {
+    setPointsDraft(hole.stablefordPoints != null ? String(hole.stablefordPoints) : "");
+    setEditingPoints(true);
+    // Focus after render
+    setTimeout(() => pointsInputRef.current?.focus(), 0);
+  };
+
+  const commitPoints = () => {
+    setEditingPoints(false);
+    onStablefordOverride(hole.holeNumber, pointsDraft);
+  };
 
   return (
-    <div className="grid grid-cols-5 gap-2 items-center py-1 border-b border-gray-50 last:border-0">
+    <div
+      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-gray-50 last:border-0 rounded-lg px-1 -mx-1 ${
+        isScored ? "bg-green-50" : ""
+      }`}
+    >
       <div className="text-sm font-medium text-gray-700">
         {hole.holeNumber}
         {hole.isNTP && <span className="ml-1 text-[10px] text-yellow-600">NTP</span>}
@@ -974,10 +1107,7 @@ function HoleRow({
           </span>
         )}
       </div>
-      <div className="text-sm text-gray-600">
-        {hole.par}
-        <span className="text-[10px] text-gray-400 ml-1">(M/W)</span>
-      </div>
+      <div className="text-sm text-gray-600">{hole.par}</div>
       <div>
         <input
           type="number"
@@ -986,40 +1116,93 @@ function HoleRow({
           disabled={disabled || saving}
           value={hole.grossScore ?? ""}
           onChange={(e) => onStrokeChange(hole.holeNumber, e.target.value)}
-          className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
+          className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:bg-gray-50"
         />
       </div>
       <div className="text-sm text-gray-800 flex items-center justify-between gap-1">
-        <span
-          className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs px-2 ${
-            hasPoints ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
-          }`}
-        >
-          {hasPoints ? hole.stablefordPoints : "—"}
-        </span>
-        {!disabled && (
-          <button
-            type="button"
-            aria-label={`Edit Stableford points for hole ${hole.holeNumber}`}
-            onClick={() => {
-              const current =
-                hole.stablefordPoints != null
-                  ? String(hole.stablefordPoints)
-                  : "";
-              const next =
-                typeof window !== "undefined"
-                  ? window.prompt("Stableford points", current)
-                  : null;
-              if (next == null) return;
-              onStablefordOverride(hole.holeNumber, next);
-            }}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-green-600 hover:bg-green-50"
-          >
-            <PencilIcon className="h-4 w-4" />
-          </button>
+        {editingPoints && !disabled ? (
+          <div className="flex items-center gap-1 w-full">
+            <input
+              ref={pointsInputRef}
+              type="number"
+              inputMode="numeric"
+              value={pointsDraft}
+              onChange={(e) => setPointsDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitPoints();
+                if (e.key === "Escape") setEditingPoints(false);
+              }}
+              className="w-10 px-1.5 py-1 rounded-lg border border-green-400 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            <button
+              type="button"
+              onClick={commitPoints}
+              className="text-[10px] font-semibold text-green-700 px-1.5 py-1 rounded-md bg-green-100 hover:bg-green-200"
+            >
+              OK
+            </button>
+          </div>
+        ) : (
+          <>
+            <span
+              className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs px-2 ${
+                hasPoints ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              {hasPoints ? hole.stablefordPoints : "—"}
+            </span>
+            {!disabled && (
+              <button
+                type="button"
+                aria-label={`Edit Stableford points for hole ${hole.holeNumber}`}
+                onClick={openPointsEditor}
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-green-600 hover:bg-green-50"
+              >
+                <PencilIcon className="h-4 w-4" />
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
+  );
+}
+
+function SideClaimSelect({
+  label,
+  claim,
+  members,
+  disabled,
+  saving,
+  onChange,
+}: {
+  label: string;
+  claim: SideClaim | null;
+  members: AppUser[];
+  disabled: boolean;
+  saving: boolean;
+  onChange: (winnerId: string) => void;
+}) {
+  return (
+    <label className="block rounded-xl bg-gray-50 px-3 py-2">
+      <span className="block text-sm font-medium text-gray-800">{label}</span>
+      <span className="block text-[11px] text-gray-500 mb-1">
+        Current holder: {claim?.winnerName ?? "Not set"}
+      </span>
+      <select
+        value={claim?.winnerId ?? ""}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled || saving}
+        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+      >
+        <option value="">No winner selected</option>
+        {members.map((member) => (
+          <option key={member.uid} value={member.uid}>
+            {member.displayName}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

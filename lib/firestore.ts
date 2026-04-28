@@ -990,20 +990,25 @@ export const subscribeRoundsForGroup = (
   onChange: (rounds: Round[]) => void,
   onError?: (error: Error) => void
 ) => {
-  const q = query(collection(db, "rounds"), where("groupId", "==", groupId));
+  // orderBy + limit pushed to Firestore for speed — avoids full collection scan.
+  // Requires composite index: rounds { groupId ASC, date DESC } (see firestore.indexes.json)
+  const q = query(
+    collection(db, "rounds"),
+    where("groupId", "==", groupId),
+    orderBy("date", "desc"),
+    limit(100)
+  );
   return onSnapshot(
     q,
-    (snap) =>
-      onChange(
-        snap.docs
-          .map(mapRound)
-          .sort((a, b) => {
-            if (a.date.getTime() !== b.date.getTime()) {
-              return b.date.getTime() - a.date.getTime();
-            }
-            return b.roundNumber - a.roundNumber;
-          })
-      ),
+    (snap) => {
+      const rounds = snap.docs.map(mapRound);
+      // Secondary sort by roundNumber when dates are equal (client-side only for ties)
+      rounds.sort((a, b) => {
+        if (a.date.getTime() !== b.date.getTime()) return 0; // already ordered by date
+        return b.roundNumber - a.roundNumber;
+      });
+      onChange(rounds);
+    },
     onError
   );
 };
@@ -1717,6 +1722,27 @@ export const getScorecardsForPlayer = async (
   );
   const snap = await getDocs(q);
   return snap.docs.map(mapScorecard);
+};
+
+export const subscribeScorecardForPlayer = (
+  roundId: string,
+  playerId: string,
+  onChange: (scorecard: Scorecard | null) => void,
+  options?: { groupId?: string; onError?: (error: Error) => void }
+) => {
+  const q = query(
+    collection(db, "scorecards"),
+    where("roundId", "==", roundId),
+    where("playerId", "==", playerId),
+    ...(options?.groupId ? [where("groupId", "==", options.groupId)] : []),
+    limit(1)
+  );
+
+  return onSnapshot(
+    q,
+    (snap) => onChange(snap.empty ? null : mapScorecard(snap.docs[0])),
+    options?.onError
+  );
 };
 
 export const subscribeScorecardsForRound = (
@@ -2486,19 +2512,25 @@ export const getFeedPosts = async (
 
 export const subscribeFeedPosts = (
   groupId: string,
-  onChange: (posts: Post[]) => void,
+  onChange: (posts: Post[], hasMore: boolean) => void,
   options?: { limitCount?: number; onError?: (error: Error) => void }
 ) => {
-  const q = query(collection(db, "posts"), where("groupId", "==", groupId));
+  const pageSize = options?.limitCount ?? 20;
+  // Fetch one extra doc to detect whether more posts exist without a count query.
+  // Requires composite index: posts { groupId ASC, createdAt DESC } (see firestore.indexes.json)
+  const q = query(
+    collection(db, "posts"),
+    where("groupId", "==", groupId),
+    orderBy("createdAt", "desc"),
+    limit(pageSize + 1)
+  );
   return onSnapshot(
     q,
-    (snap) =>
-      onChange(
-        snap.docs
-          .map(mapPost)
-          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-          .slice(0, options?.limitCount ?? 20)
-      ),
+    (snap) => {
+      const all = snap.docs.map(mapPost);
+      const hasMore = all.length > pageSize;
+      onChange(hasMore ? all.slice(0, pageSize) : all, hasMore);
+    },
     options?.onError
   );
 };

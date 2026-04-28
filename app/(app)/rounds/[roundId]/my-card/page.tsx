@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroupData } from "@/contexts/GroupDataContext";
 import {
   getEffectiveCourseHoles,
   getEffectiveSpecialHoles,
@@ -11,14 +12,13 @@ import {
 } from "@/lib/courseData";
 import { hasRoundScorecards } from "@/lib/roundDisplay";
 import {
-  getRound,
   getLiveRound,
-  getScorecardForPlayer,
   getScorecardForMarker,
-  getHoleScores,
-  getActiveMembers,
+  subscribeRound,
+  subscribeScorecardForPlayer,
+  subscribeHoleScores,
 } from "@/lib/firestore";
-import type { Round, Scorecard, HoleScore, AppUser } from "@/types";
+import type { Round, Scorecard, HoleScore } from "@/types";
 
 interface CourseHoleLite {
   number: number;
@@ -31,77 +31,82 @@ export default function MyCardPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const router = useRouter();
   const { appUser, isActive } = useAuth();
+  const { activeMembers } = useGroupData();
 
   const [round, setRound] = useState<Round | null>(null);
   const [card, setCard] = useState<Scorecard | null>(null);
   const [markedCard, setMarkedCard] = useState<Scorecard | null>(null);
   const [holes, setHoles] = useState<HoleScore[]>([]);
-  const [members, setMembers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const redirectedRef = useRef(false);
 
+  // Subscribe to the round in real-time
   useEffect(() => {
     if (!roundId || !appUser || !isActive) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const [r, c, mCard, activeMembers] = await Promise.all([
-          getRound(roundId),
-          getScorecardForPlayer(roundId, appUser.uid, appUser.groupId),
-          getScorecardForMarker(roundId, appUser.uid, appUser.groupId),
-          getActiveMembers(appUser.groupId),
-        ]);
-        if (!r) {
+
+    return subscribeRound(
+      roundId,
+      async (nextRound) => {
+        if (nextRound) {
+          setRound(nextRound);
+          setLoading(false);
+        } else if (!redirectedRef.current) {
+          // Round not found — check if there's a different live round to redirect to
+          redirectedRef.current = true;
           const live = await getLiveRound(appUser.groupId).catch(() => null);
           if (live && live.id !== roundId) {
             router.replace(`/rounds/${live.id}/my-card`);
-            return;
-          }
-          setRound(null);
-          setCard(null);
-          setMarkedCard(null);
-          setHoles([]);
-        } else {
-          setRound(r);
-          setMembers(activeMembers);
-          if (!c) {
-            setCard(null);
-            setMarkedCard(mCard ?? null);
-            setHoles([]);
           } else {
-            setCard(c);
-            setMarkedCard(mCard ?? null);
-            const hs = await getHoleScores(c.id);
-            const layout = buildCourseLayout(r, c);
-            setHoles(
-              hs.length > 0
-                ? hs
-                : layout.map((h) => ({
-                    holeNumber: h.number,
-                    par: h.par,
-                    strokeIndex: h.strokeIndex,
-                    distanceMeters: h.distanceMeters,
-                    strokesReceived: 0,
-                    grossScore: null,
-                    netScore: null,
-                    stablefordPoints: null,
-                    isNTP: r.specialHoles.ntp.includes(h.number),
-                    isLD: r.specialHoles.ld === h.number,
-                    isT2: r.specialHoles.t2 === h.number,
-                    isT3: r.specialHoles.t3 === h.number,
-                    savedAt: null,
-                  }))
-            );
+            setRound(null);
+            setLoading(false);
           }
         }
-      } catch {
-        setError("Failed to load your card.");
-      } finally {
+      },
+      (err) => {
+        console.warn("Unable to subscribe to round", err);
         setLoading(false);
       }
-    };
-    load();
+    );
   }, [roundId, appUser, isActive, router]);
+
+  // Subscribe to the player's own scorecard in real-time
+  useEffect(() => {
+    if (!roundId || !appUser || !isActive) return;
+
+    return subscribeScorecardForPlayer(
+      roundId,
+      appUser.uid,
+      (nextCard) => setCard(nextCard),
+      {
+        groupId: appUser.groupId,
+        onError: (err) => console.warn("Unable to subscribe to player scorecard", err),
+      }
+    );
+  }, [roundId, appUser, isActive]);
+
+  // Fetch the card this player is marking (one-time, just for the link button)
+  useEffect(() => {
+    if (!roundId || !appUser || !isActive) return;
+    let cancelled = false;
+    getScorecardForMarker(roundId, appUser.uid, appUser.groupId)
+      .then((mc) => { if (!cancelled) setMarkedCard(mc ?? null); })
+      .catch(() => { if (!cancelled) setMarkedCard(null); });
+    return () => { cancelled = true; };
+  }, [roundId, appUser, isActive]);
+
+  // Subscribe to hole scores when we have a card
+  useEffect(() => {
+    if (!card?.id) {
+      setHoles([]);
+      return;
+    }
+
+    return subscribeHoleScores(
+      card.id,
+      (nextHoles) => setHoles(nextHoles),
+      (err) => console.warn("Unable to subscribe to hole scores", err)
+    );
+  }, [card?.id]);
 
   if (!isActive) {
     return (
@@ -111,7 +116,7 @@ export default function MyCardPage() {
     );
   }
 
-  if (loading && !round) {
+  if (loading) {
     return (
       <div className="px-4 py-6 animate-pulse space-y-4">
         <div className="h-8 bg-gray-200 rounded w-2/3" />
@@ -151,12 +156,9 @@ export default function MyCardPage() {
 
   const layout = buildCourseLayout(round, card);
   const markerName =
-    card &&
-    members.find((m) => m.uid === card.markerId)?.displayName;
-
+    card && activeMembers.find((m) => m.uid === card.markerId)?.displayName;
   const markedPlayerName =
-    markedCard &&
-    members.find((m) => m.uid === markedCard.playerId)?.displayName;
+    markedCard && activeMembers.find((m) => m.uid === markedCard.playerId)?.displayName;
 
   const frontNine = holesForNine(holes, layout, 1, 9, round);
   const backNine = holesForNine(holes, layout, 10, 18, round);
@@ -176,12 +178,6 @@ export default function MyCardPage() {
       <p className="text-gray-500 text-sm">
         {format(round.date, "EEEE d MMMM yyyy")}
       </p>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
-          {error}
-        </div>
-      )}
 
       {!card && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-sm text-gray-500">
@@ -316,20 +312,20 @@ function holesForNine(
             isT3: specialHoles.t3 === n,
           }
         : ({
-        holeNumber: n,
-        par: course.par,
-        strokeIndex: course.strokeIndex,
-        distanceMeters: course.distanceMeters,
-        strokesReceived: 0,
-        grossScore: null,
-        netScore: null,
-        stablefordPoints: null,
-        isNTP: specialHoles.ntp.includes(n),
-        isLD: specialHoles.ld === n,
-        isT2: specialHoles.t2 === n,
-        isT3: specialHoles.t3 === n,
-        savedAt: null,
-      } as HoleScore)
+            holeNumber: n,
+            par: course.par,
+            strokeIndex: course.strokeIndex,
+            distanceMeters: course.distanceMeters,
+            strokesReceived: 0,
+            grossScore: null,
+            netScore: null,
+            stablefordPoints: null,
+            isNTP: specialHoles.ntp.includes(n),
+            isLD: specialHoles.ld === n,
+            isT2: specialHoles.t2 === n,
+            isT3: specialHoles.t3 === n,
+            savedAt: null,
+          } as HoleScore)
     );
   }
   return result;
@@ -337,9 +333,14 @@ function holesForNine(
 
 function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
   const hasPoints = hole.stablefordPoints != null;
+  const isScored = hole.grossScore != null;
 
   return (
-    <div className="grid grid-cols-5 gap-2 items-center py-1 border-b border-gray-50 last:border-0">
+    <div
+      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-gray-50 last:border-0 rounded-lg px-1 -mx-1 ${
+        isScored ? "bg-green-50" : ""
+      }`}
+    >
       <div className="text-sm font-medium text-gray-700">
         {hole.holeNumber}
         {hole.isNTP && (
@@ -368,10 +369,7 @@ function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
           </span>
         )}
       </div>
-      <div className="text-sm text-gray-600">
-        {hole.par}
-        <span className="text-[10px] text-gray-400 ml-1">(M/W)</span>
-      </div>
+      <div className="text-sm text-gray-600">{hole.par}</div>
       <div className="text-sm text-gray-800">
         {hole.grossScore != null ? hole.grossScore : "—"}
       </div>
