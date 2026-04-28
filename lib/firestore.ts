@@ -1,5 +1,6 @@
 import {
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocFromServer,
@@ -2982,6 +2983,34 @@ export const subscribePostReaction = (
   onSnapshot(
     doc(db, "posts", postId, "reactions", userId),
     (snap) => onChange(snap.exists() ? mapPostReaction(snap) : null),
+    onError
+  );
+
+/**
+ * Subscribe to ALL reactions by a single user across every post in a group.
+ * Returns a Record<postId, PostReaction> updated via one collectionGroup listener
+ * instead of N individual doc listeners.
+ */
+export const subscribeUserReactionsForGroup = (
+  groupId: string,
+  userId: string,
+  onChange: (reactionsByPostId: Record<string, PostReaction>) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(
+      collectionGroup(db, "reactions"),
+      where("groupId", "==", groupId),
+      where("userId", "==", userId)
+    ),
+    (snap) => {
+      const result: Record<string, PostReaction> = {};
+      snap.forEach((docSnap) => {
+        const reaction = mapPostReaction(docSnap);
+        result[reaction.postId] = reaction;
+      });
+      onChange(result);
+    },
     onError
   );
 

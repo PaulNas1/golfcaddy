@@ -17,7 +17,7 @@ import {
   subscribeFeedPosts,
   subscribePinnedAnnouncement,
   subscribePostComments,
-  subscribePostReaction,
+  subscribeUserReactionsForGroup,
   updateFeedPost,
 } from "@/lib/firestore";
 import {
@@ -131,27 +131,24 @@ export default function FeedPage() {
     setLinkedRoundId((current) => current || roundIdFromQuery);
   }, [roundsById, searchParams]);
 
+  // Single collectionGroup listener for all of the current user's reactions —
+  // replaces the previous N-per-post individual doc listeners.
+  useEffect(() => {
+    if (!appUser?.uid || !appUser?.groupId) return;
+    return subscribeUserReactionsForGroup(
+      appUser.groupId,
+      appUser.uid,
+      (reactionsByPostId) => setMyReactionsByPostId(reactionsByPostId),
+      (err) => console.warn("Unable to subscribe to user reactions", err)
+    );
+  }, [appUser?.groupId, appUser?.uid]);
+
   useEffect(() => {
     if (!appUser?.uid) return;
     if (visiblePosts.length === 0) {
-      setMyReactionsByPostId({});
       setCommentsByPostId({});
       return;
     }
-
-    const reactionUnsubscribes = visiblePosts.map((post) =>
-      subscribePostReaction(
-        post.id,
-        appUser.uid,
-        (reaction) => {
-          setMyReactionsByPostId((current) => ({
-            ...current,
-            [post.id]: reaction,
-          }));
-        },
-        (err) => console.warn("Unable to subscribe to post reaction", err)
-      )
-    );
 
     const commentUnsubscribes = visiblePosts
       .filter((post) => openRepliesByPostId[post.id])
@@ -169,7 +166,6 @@ export default function FeedPage() {
     );
 
     return () => {
-      reactionUnsubscribes.forEach((unsubscribe) => unsubscribe());
       commentUnsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }, [appUser?.uid, openRepliesByPostId, visiblePosts]);
