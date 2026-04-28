@@ -29,6 +29,13 @@ const NAV_ITEMS = [
 // and gets rendered via Next.js `children` normally.
 const TAB_PATHS = new Set(["/home", "/rounds", "/leaderboard", "/feed", "/photos", "/profile"]);
 
+/** Return the tab that "owns" the given pathname (handles sub-routes too). */
+function resolveActiveTab(path: string): string {
+  if (TAB_PATHS.has(path)) return path;
+  const match = NAV_ITEMS.find(({ href }) => path.startsWith(href + "/"));
+  return match ? match.href : "/home";
+}
+
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { firebaseUser, appUser, loading, canAccessAdmin } = useAuth();
   const { group } = useGroupData();
@@ -36,6 +43,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const contentRef = useRef<HTMLElement | null>(null);
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+
+  // activeTab drives which tab div is visible. It is updated *immediately* on
+  // tap so the UI responds in the same frame — no waiting for Next.js router.
+  const [activeTab, setActiveTab] = useState(() => resolveActiveTab(pathname));
 
   useEffect(() => {
     if (!appUser?.uid || appUser.status !== "active") {
@@ -71,10 +82,22 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, appUser, router]);
 
-  // Scroll to top whenever the active tab or route changes
+  // Keep activeTab in sync with URL-driven changes (browser back/forward,
+  // deep links, auth redirects) that bypass the tap handler.
+  useEffect(() => {
+    setActiveTab(resolveActiveTab(pathname));
+  }, [pathname]);
+
+  // Scroll to top on every tab switch or sub-route navigation.
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, [pathname]);
+  }, [activeTab, pathname]);
+
+  // Navigate to a tab: flip display state immediately, then push URL.
+  const handleTabTap = (href: string) => {
+    setActiveTab(href);   // instant — same render frame as the tap
+    router.push(href);    // updates URL / browser history
+  };
 
   if (loading || !appUser || appUser.status !== "active") {
     return (
@@ -140,50 +163,53 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
           FeedPage uses useSearchParams() and needs a Suspense boundary.
         */}
-        <div style={{ display: pathname === "/home" ? "block" : "none" }}>
+        {/* Tab display is driven by activeTab, NOT pathname.
+            activeTab updates synchronously on tap so there is zero
+            perceived delay — the CSS flip happens in the same frame. */}
+        <div style={{ display: activeTab === "/home" ? "block" : "none" }}>
           <HomePage />
         </div>
-        <div style={{ display: pathname === "/rounds" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/rounds" ? "block" : "none" }}>
           <RoundsPage />
         </div>
-        <div style={{ display: pathname === "/leaderboard" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/leaderboard" ? "block" : "none" }}>
           <LeaderboardPage />
         </div>
         <Suspense fallback={null}>
-          <div style={{ display: pathname === "/feed" ? "block" : "none" }}>
+          <div style={{ display: activeTab === "/feed" ? "block" : "none" }}>
             <FeedPage />
           </div>
         </Suspense>
-        <div style={{ display: pathname === "/photos" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/photos" ? "block" : "none" }}>
           <PhotosPage />
         </div>
-        <div style={{ display: pathname === "/profile" ? "block" : "none" }}>
+        <div style={{ display: activeTab === "/profile" ? "block" : "none" }}>
           <ProfilePage />
         </div>
 
-        {/*
-          Sub-routes (round detail, notifications, admin, etc.) are rendered
-          via Next.js children as normal — they are NOT tab pages.
-        */}
+        {/* Sub-routes (round detail, notifications, admin, etc.)
+            still render via Next.js children — isTabRoute uses pathname. */}
         {!isTabRoute && children}
       </main>
 
-      {/* Bottom nav */}
+      {/* Bottom nav — buttons instead of Links so handleTabTap fires
+          synchronously without a router transition delay. */}
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white border-t border-gray-200 z-20">
         <div className="flex">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-            const active = pathname === href || pathname.startsWith(href + "/");
+            const active = activeTab === href;
             return (
-              <Link
+              <button
                 key={href}
-                href={href}
+                type="button"
+                onClick={() => handleTabTap(href)}
                 className={`flex-1 flex flex-col items-center py-2 gap-0.5 transition-colors ${
-                  active ? "text-green-600" : "text-gray-400 hover:text-gray-600"
+                  active ? "text-green-600" : "text-gray-400"
                 }`}
               >
                 <Icon className="w-6 h-6" />
                 <span className="text-[10px] font-medium">{label}</span>
-              </Link>
+              </button>
             );
           })}
         </div>
