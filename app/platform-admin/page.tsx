@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
-import { getMemberLimit } from "@/lib/subscription";
+import { getMemberLimit, getPlanLabel } from "@/lib/subscription";
 import type { SubscriptionStatus, SubscriptionPlan } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -342,10 +342,11 @@ export default function PlatformAdminPage() {
                             const pct = limit === Infinity ? 0 : Math.min(100, (count / limit) * 100);
                             const atLimit = limit !== Infinity && count >= limit;
                             const nearLimit = limit !== Infinity && pct >= 80 && !atLimit;
+                            const planStr = getPlanLabel(group.subscription);
                             return (
-                              <span className="flex items-center gap-1.5">
+                              <span className="flex items-center gap-1.5 flex-wrap">
                                 <span className={atLimit ? "font-semibold text-red-500" : nearLimit ? "font-semibold text-amber-500" : ""}>
-                                  {limit === Infinity ? `${count} members` : `${count} / ${limit}`}
+                                  {limit === Infinity ? `${count} members` : `${count} / ${limit} members`}
                                 </span>
                                 {limit !== Infinity && (
                                   <span className="inline-flex w-16 h-1.5 rounded-full bg-gray-200 overflow-hidden">
@@ -355,6 +356,7 @@ export default function PlatformAdminPage() {
                                     />
                                   </span>
                                 )}
+                                <span className="text-gray-400">· {planStr}</span>
                               </span>
                             );
                           })()}
