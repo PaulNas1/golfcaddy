@@ -3,9 +3,9 @@ import type { GroupSubscription, SubscriptionPlan } from "@/types";
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
 export const PLAN_PRICES: Record<SubscriptionPlan, { monthly: number; annual: number }> = {
-  starter: { monthly: 19.99, annual: 199.90 },
-  club:    { monthly: 39.99, annual: 399.90 },
-  society: { monthly: 79.99, annual: 799.90 },
+  starter: { monthly: 29, annual: 290 },
+  club:    { monthly: 49, annual: 490 },
+  society: { monthly: 79, annual: 790 },
 };
 
 export const PLAN_LABELS: Record<SubscriptionPlan, string> = {

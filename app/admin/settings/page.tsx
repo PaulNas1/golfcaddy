@@ -23,7 +23,9 @@ import {
   validateImageFile,
 } from "@/lib/storageUploads";
 import { useAuth } from "@/contexts/AuthContext";
-import type { AppUser, Group, GroupSettings, HandicapMode } from "@/types";
+import { startCheckout, openBillingPortal } from "@/lib/billingClient";
+import { PLAN_LABELS, PLAN_PRICES, getPlanLabel } from "@/lib/subscription";
+import type { AppUser, Group, GroupSettings, HandicapMode, SubscriptionPlan } from "@/types";
 
 type ResetAction =
   | "clear_feed"
@@ -71,6 +73,8 @@ export default function AdminSettingsPage() {
     new Date().getFullYear()
   );
   const [handicapRebuildBusy, setHandicapRebuildBusy] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingError, setBillingError] = useState("");
   const [handicapPreview, setHandicapPreview] = useState<{
     season: number;
     standings: number;
@@ -845,6 +849,82 @@ export default function AdminSettingsPage() {
       >
         {saving ? "Saving..." : "Save Settings"}
       </button>
+
+      {/* ── Subscription & Billing ── */}
+      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+        <h2 className="font-semibold text-gray-800">Subscription &amp; Billing</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Manage your GolfCaddy plan. Changes take effect immediately.
+        </p>
+
+        {/* Current plan */}
+        <div className="mt-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-green-800">
+              {getPlanLabel(group?.subscription)}
+            </p>
+            {group?.subscription?.currentPeriodEndsAt && (
+              <p className="text-xs text-green-600 mt-0.5">
+                Renews {new Date(group.subscription.currentPeriodEndsAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+              </p>
+            )}
+          </div>
+          {group?.subscription?.status === "active" && (
+            <button
+              type="button"
+              disabled={billingBusy}
+              onClick={async () => {
+                setBillingError("");
+                setBillingBusy(true);
+                try { await openBillingPortal(); }
+                catch (e) { setBillingError(e instanceof Error ? e.message : "Failed."); }
+                finally { setBillingBusy(false); }
+              }}
+              className="shrink-0 rounded-lg bg-white border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+            >
+              Manage
+            </button>
+          )}
+        </div>
+
+        {/* Plan picker (shown when not yet on an active paid plan) */}
+        {(!group?.subscription?.status || group.subscription.status === "trial" || group.subscription.status === "past_due" || group.subscription.status === "suspended") && (
+          <div className="mt-4 space-y-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Choose a plan</p>
+            {(["starter", "club", "society"] as SubscriptionPlan[]).map((plan) => (
+              <div
+                key={plan}
+                className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{PLAN_LABELS[plan]}</p>
+                  <p className="text-xs text-gray-500">A${PLAN_PRICES[plan].monthly}/month</p>
+                </div>
+                <button
+                  type="button"
+                  disabled={billingBusy}
+                  onClick={async () => {
+                    setBillingError("");
+                    setBillingBusy(true);
+                    try { await startCheckout(plan); }
+                    catch (e) { setBillingError(e instanceof Error ? e.message : "Failed."); }
+                    finally { setBillingBusy(false); }
+                  }}
+                  className="rounded-lg bg-green-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:bg-green-300 transition-colors"
+                >
+                  {billingBusy ? "..." : "Subscribe"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {billingError && (
+          <p className="mt-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+            {billingError}
+          </p>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
         <h2 className="font-semibold text-red-700">Danger Zone</h2>
