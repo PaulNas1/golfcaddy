@@ -354,46 +354,53 @@ export const getGroup = async (
   } as Group;
 };
 
+const mapGroupSnap = (snap: import("firebase/firestore").DocumentSnapshot): Group => {
+  const data = snap.data()!;
+  return {
+    id: snap.id,
+    ...data,
+    logoUrl: data.logoUrl ?? null,
+    logoPath: data.logoPath ?? null,
+    settings: normaliseGroupSettings(data.settings),
+  } as Group;
+};
+
 export const getGroupBySlug = async (input: string): Promise<Group | null> => {
-  const slug = input.trim().toLowerCase().replace(/\s+/g, "-");
-  // Try doc ID (slug) first
-  const byId = await getDoc(doc(db, "groups", slug));
-  if (byId.exists()) {
-    const data = byId.data();
-    return {
-      id: byId.id,
-      ...data,
-      logoUrl: data.logoUrl ?? null,
-      logoPath: data.logoPath ?? null,
-      settings: normaliseGroupSettings(data.settings),
-    } as Group;
+  const trimmed = input.trim();
+
+  // Build candidate slugs to try as direct doc-ID lookups (public `get` is allowed).
+  // We try several normalisations so "Four Play", "four-play", and "fourplay" all work.
+  const withHyphens = trimmed.toLowerCase().replace(/\s+/g, "-");
+  const noSpaces    = trimmed.toLowerCase().replace(/\s+/g, "");
+  const asIs        = trimmed.toLowerCase();
+
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const s of [withHyphens, noSpaces, asIs]) {
+    if (!seen.has(s)) { seen.add(s); candidates.push(s); }
   }
-  // Fall back to querying the slug field
-  const snap = await getDocs(query(collection(db, "groups"), where("slug", "==", slug)));
-  if (!snap.empty) {
-    const d = snap.docs[0];
-    const data = d.data();
-    return {
-      id: d.id,
-      ...data,
-      logoUrl: data.logoUrl ?? null,
-      logoPath: data.logoPath ?? null,
-      settings: normaliseGroupSettings(data.settings),
-    } as Group;
+
+  for (const candidate of candidates) {
+    const snap = await getDoc(doc(db, "groups", candidate));
+    if (snap.exists()) return mapGroupSnap(snap);
   }
-  // Fall back to case-insensitive name match
-  const byName = await getDocs(query(collection(db, "groups"), where("name", "==", input.trim())));
-  if (!byName.empty) {
-    const d = byName.docs[0];
-    const data = d.data();
-    return {
-      id: d.id,
-      ...data,
-      logoUrl: data.logoUrl ?? null,
-      logoPath: data.logoPath ?? null,
-      settings: normaliseGroupSettings(data.settings),
-    } as Group;
+
+  // Fall back to field queries (requires auth; safe to skip if they throw).
+  try {
+    const bySlug = await getDocs(
+      query(collection(db, "groups"), where("slug", "==", withHyphens))
+    );
+    if (!bySlug.empty) return mapGroupSnap(bySlug.docs[0]);
+
+    const byName = await getDocs(
+      query(collection(db, "groups"), where("name", "==", trimmed))
+    );
+    if (!byName.empty) return mapGroupSnap(byName.docs[0]);
+  } catch {
+    // Unauthenticated list queries are denied by rules — that's fine;
+    // the doc-ID lookups above are sufficient for the sign-in flow.
   }
+
   return null;
 };
 

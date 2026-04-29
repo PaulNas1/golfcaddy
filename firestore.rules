@@ -70,7 +70,10 @@ service cloud.firestore {
     // ─── Groups ───────────────────────────────────────────────────────────
 
     match /groups/{groupId} {
-      allow read: if isActiveUser() && isSameGroup(groupId);
+      // Single-doc reads are public so unauthenticated users can look up a group
+      // by slug on the sign-in and create-group pages.
+      allow get: if true;
+      allow list: if isActiveUser() && isSameGroup(groupId);
       allow write: if isAdmin();
     }
 
