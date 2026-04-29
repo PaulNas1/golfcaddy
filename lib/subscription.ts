@@ -27,8 +27,10 @@ export const TRIAL_MEMBER_LIMIT = 20;
 /**
  * Returns the maximum number of active members allowed for a group
  * based on its current subscription. Returns Infinity for exempt groups.
+ * Accepts the full GroupSubscription type or a partial shape (e.g. from API responses
+ * where date fields are serialised as strings).
  */
-export function getMemberLimit(subscription: GroupSubscription | null | undefined): number {
+export function getMemberLimit(subscription: Pick<GroupSubscription, "status" | "plan"> | null | undefined): number {
   if (!subscription) return TRIAL_MEMBER_LIMIT; // no subscription yet → grace at starter cap
 
   switch (subscription.status) {
@@ -50,7 +52,7 @@ export function getMemberLimit(subscription: GroupSubscription | null | undefine
  * Returns a human-readable description of the current plan for display
  * in the admin members page.
  */
-export function getPlanLabel(subscription: GroupSubscription | null | undefined): string {
+export function getPlanLabel(subscription: Pick<GroupSubscription, "status" | "plan"> | null | undefined): string {
   if (!subscription) return "No plan";
   switch (subscription.status) {
     case "exempt":  return "Exempt";

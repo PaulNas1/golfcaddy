@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/contexts/AuthContext";
+import { getMemberLimit } from "@/lib/subscription";
 import type { SubscriptionStatus, SubscriptionPlan } from "@/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -334,7 +335,29 @@ export default function PlatformAdminPage() {
                           )}
                         </div>
                         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                          <span>{group.memberCount} member{group.memberCount !== 1 ? "s" : ""}</span>
+                          {/* Member usage */}
+                          {(() => {
+                            const limit = getMemberLimit(group.subscription);
+                            const count = group.memberCount;
+                            const pct = limit === Infinity ? 0 : Math.min(100, (count / limit) * 100);
+                            const atLimit = limit !== Infinity && count >= limit;
+                            const nearLimit = limit !== Infinity && pct >= 80 && !atLimit;
+                            return (
+                              <span className="flex items-center gap-1.5">
+                                <span className={atLimit ? "font-semibold text-red-500" : nearLimit ? "font-semibold text-amber-500" : ""}>
+                                  {limit === Infinity ? `${count} members` : `${count} / ${limit}`}
+                                </span>
+                                {limit !== Infinity && (
+                                  <span className="inline-flex w-16 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                                    <span
+                                      className={`h-full rounded-full ${atLimit ? "bg-red-400" : nearLimit ? "bg-amber-400" : "bg-green-500"}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })()}
                           {group.adminEmail && <span>Admin: {group.adminEmail}</span>}
                           <span>Created {formatDate(group.createdAt)}</span>
                           {group.subscription?.trialEndsAt && (
