@@ -67,7 +67,9 @@ function StatusBadge({ status }: { status: SubscriptionStatus | "none" }) {
 
 function formatDate(iso: string | null) {
   if (!iso) return "—";
-  return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
+  const d = new Date(iso);
+  if (!isFinite(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(d);
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────

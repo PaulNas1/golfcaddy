@@ -39,7 +39,14 @@ export async function GET(request: NextRequest) {
           memberCount: data.memberCount ?? 0,
           currentSeason: data.currentSeason ?? new Date().getFullYear(),
           adminEmail,
-          subscription: data.subscription ?? null,
+          subscription: data.subscription
+            ? {
+                ...data.subscription,
+                trialEndsAt: data.subscription.trialEndsAt?.toDate?.()?.toISOString() ?? null,
+                currentPeriodEndsAt: data.subscription.currentPeriodEndsAt?.toDate?.()?.toISOString() ?? null,
+                updatedAt: data.subscription.updatedAt?.toDate?.()?.toISOString() ?? null,
+              }
+            : null,
           createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
         };
       })
