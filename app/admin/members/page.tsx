@@ -17,6 +17,7 @@ import {
   updateUser,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
+import { getMemberLimit, getPlanLabel } from "@/lib/subscription";
 import type {
   AppUser,
   Group,
@@ -381,6 +382,11 @@ export default function AdminMembersPage() {
     .sort(compareUsersByFirstName)
     .filter((user) => matchesMemberSearch(user, activeSearch));
 
+  // Subscription / member limit
+  const memberLimit = getMemberLimit(group?.subscription);
+  const atLimit = active.length >= memberLimit;
+  const planLabel = getPlanLabel(group?.subscription);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-800">Members</h1>
@@ -409,6 +415,40 @@ export default function AdminMembersPage() {
             <InviteIcon className="h-5 w-5" />
           </span>
         </div>
+
+        {/* Member usage meter */}
+        <div className="mt-3 rounded-xl bg-gray-50 px-3 py-2.5">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-medium text-gray-600">
+              {memberLimit === Infinity
+                ? `${active.length} members · ${planLabel}`
+                : `${active.length} / ${memberLimit} members · ${planLabel}`}
+            </span>
+            {atLimit && memberLimit !== Infinity && (
+              <span className="text-xs font-semibold text-amber-600">At limit</span>
+            )}
+          </div>
+          {memberLimit !== Infinity && (
+            <div className="h-1.5 w-full rounded-full bg-gray-200">
+              <div
+                className={`h-1.5 rounded-full transition-all ${
+                  atLimit ? "bg-red-400" : active.length / memberLimit >= 0.8 ? "bg-amber-400" : "bg-green-500"
+                }`}
+                style={{ width: `${Math.min(100, (active.length / memberLimit) * 100)}%` }}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* At-limit warning */}
+        {atLimit && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+            <p className="font-semibold">Member limit reached ({active.length}/{memberLimit})</p>
+            <p className="mt-0.5">
+              Your {planLabel} has reached its limit. Contact your GolfCaddy administrator to upgrade your plan before adding new members.
+            </p>
+          </div>
+        )}
         <div className="mt-4 space-y-3">
           <input
             type="text"
@@ -452,12 +492,14 @@ export default function AdminMembersPage() {
           <button
             type="button"
             onClick={handleCreateInvite}
-            disabled={actioning === "invite"}
+            disabled={actioning === "invite" || atLimit}
             className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
           >
             {actioning === "invite"
               ? "Creating..."
-              : getInviteActionLabel(inviteContact)}
+              : atLimit
+                ? `Limit reached (${active.length}/${memberLimit})`
+                : getInviteActionLabel(inviteContact)}
           </button>
           {inviteLink && (
             <div className="rounded-xl bg-gray-50 px-3 py-3">
@@ -671,10 +713,15 @@ export default function AdminMembersPage() {
                     </label>
                   )}
                 </div>
+                {atLimit && (
+                  <p className="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+                    Member limit reached — upgrade your plan before approving new members.
+                  </p>
+                )}
                 <div className="flex gap-2 mt-3">
                   <button
                     onClick={() => handleApprove(user.uid)}
-                    disabled={actioning === user.uid}
+                    disabled={actioning === user.uid || atLimit}
                     className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
                   >
                     {actioning === user.uid ? "Approving..." : "✓ Approve"}
