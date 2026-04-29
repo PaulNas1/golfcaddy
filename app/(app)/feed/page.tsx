@@ -132,6 +132,7 @@ export default function FeedPage() {
     const roundIdFromQuery = searchParams.get("roundId");
     if (!roundIdFromQuery || !roundsById.has(roundIdFromQuery)) return;
     setLinkedRoundId((current) => current || roundIdFromQuery);
+    setComposerOpen(true);
   }, [roundsById, searchParams]);
 
   // Single collectionGroup listener for all of the current user's reactions —
