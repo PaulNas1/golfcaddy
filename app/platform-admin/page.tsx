@@ -87,6 +87,7 @@ export default function PlatformAdminPage() {
   const [actionGroupId, setActionGroupId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   // Modals
@@ -242,25 +243,40 @@ export default function PlatformAdminPage() {
           <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{success}</div>
         )}
 
-        {/* Stats */}
+        {/* Stats — click to filter */}
         {stats && (
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-7">
             {(
               [
-                ["Total",     stats.total,     "bg-white",       "text-gray-800"],
-                ["Exempt",    stats.exempt,    "bg-purple-50",   "text-purple-700"],
-                ["Trial",     stats.trial,     "bg-blue-50",     "text-blue-700"],
-                ["Active",    stats.active,    "bg-green-50",    "text-green-700"],
-                ["Past Due",  stats.past_due,  "bg-amber-50",    "text-amber-700"],
-                ["Suspended", stats.suspended, "bg-red-50",      "text-red-700"],
-                ["No Plan",   stats.none,      "bg-gray-50",     "text-gray-500"],
-              ] as [string, number, string, string][]
-            ).map(([label, count, bg, text]) => (
-              <div key={label} className={`rounded-2xl border border-gray-100 ${bg} p-3 text-center shadow-sm`}>
-                <p className={`text-2xl font-bold ${text}`}>{count}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{label}</p>
-              </div>
-            ))}
+                ["Total",     stats.total,     "bg-white",     "text-gray-800",    null],
+                ["Exempt",    stats.exempt,    "bg-purple-50", "text-purple-700",  "exempt"],
+                ["Trial",     stats.trial,     "bg-blue-50",   "text-blue-700",    "trial"],
+                ["Active",    stats.active,    "bg-green-50",  "text-green-700",   "active"],
+                ["Past Due",  stats.past_due,  "bg-amber-50",  "text-amber-700",   "past_due"],
+                ["Suspended", stats.suspended, "bg-red-50",    "text-red-700",     "suspended"],
+                ["No Plan",   stats.none,      "bg-gray-50",   "text-gray-500",    "none"],
+              ] as [string, number, string, string, string | null][]
+            ).map(([label, count, bg, text, filterKey]) => {
+              const isActive = activeFilter === filterKey;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setActiveFilter(isActive ? null : filterKey)}
+                  className={`rounded-2xl border p-3 text-center shadow-sm transition-all ${bg} ${
+                    isActive
+                      ? "border-gray-400 ring-2 ring-gray-400 ring-offset-1"
+                      : "border-gray-100 hover:border-gray-300"
+                  }`}
+                >
+                  <p className={`text-2xl font-bold ${text}`}>{count}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{label}</p>
+                  {isActive && (
+                    <p className="mt-1 text-[10px] font-semibold text-gray-400">✕ clear</p>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -289,7 +305,14 @@ export default function PlatformAdminPage() {
         {/* Groups list */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-bold text-gray-800">Groups</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-gray-800">Groups</h2>
+              {activeFilter && (
+                <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600 capitalize">
+                  {activeFilter.replace("_", " ")}
+                </span>
+              )}
+            </div>
             <button
               onClick={fetchGroups}
               disabled={loadingData}
@@ -311,7 +334,13 @@ export default function PlatformAdminPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {groups.map((group) => {
+              {groups
+                .filter((g) => {
+                  if (!activeFilter) return true;
+                  const status = g.subscription?.status ?? "none";
+                  return status === activeFilter;
+                })
+                .map((group) => {
                 const subStatus = group.subscription?.status ?? "none";
                 const isActioning = actionGroupId === group.id;
                 return (
@@ -362,17 +391,40 @@ export default function PlatformAdminPage() {
                           })()}
                           {group.adminEmail && <span>Admin: {group.adminEmail}</span>}
                           <span>Created {formatDate(group.createdAt)}</span>
-                          {group.subscription?.trialEndsAt && (
-                            <span className="text-blue-600">
-                              Trial ends {formatDate(group.subscription.trialEndsAt)}
-                            </span>
-                          )}
                           {group.subscription?.exemptReason && (
                             <span className="text-purple-600">
                               {group.subscription.exemptReason}
                             </span>
                           )}
                         </div>
+
+                        {/* Trial countdown bar */}
+                        {group.subscription?.status === "trial" && group.subscription.trialEndsAt && (() => {
+                          const end = new Date(group.subscription.trialEndsAt!);
+                          const now = new Date();
+                          const totalDays = 30;
+                          const daysLeft = Math.max(0, Math.ceil((end.getTime() - now.getTime()) / 86400000));
+                          const daysUsed = totalDays - daysLeft;
+                          const pct = Math.min(100, (daysUsed / totalDays) * 100);
+                          const urgent = daysLeft <= 7;
+                          const warning = daysLeft <= 14 && !urgent;
+                          return (
+                            <div className="mt-2.5">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] text-gray-400">Trial period</span>
+                                <span className={`text-[11px] font-semibold ${urgent ? "text-red-500" : warning ? "text-amber-500" : "text-blue-500"}`}>
+                                  {daysLeft === 0 ? "Expires today" : `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`}
+                                </span>
+                              </div>
+                              <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${urgent ? "bg-red-400" : warning ? "bg-amber-400" : "bg-blue-400"}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Actions menu */}
@@ -438,6 +490,7 @@ export default function PlatformAdminPage() {
       </div>
 
       {/* ── Exempt Modal ── */}
+
       {exemptModal && (
         <Modal title={`Exempt: ${exemptModal.name}`} onClose={() => setExemptModal(null)}>
           <p className="text-sm text-gray-500 mb-4">
