@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     const adminDb = getFirebaseAdminDb();
 
     // Fetch all groups
-    const groupsSnap = await adminDb.collection("groups").orderBy("createdAt", "desc").get();
+    // No orderBy — Firestore excludes docs missing the field when you use orderBy.
+    // Sort in-memory instead so groups without createdAt still appear.
+    const groupsSnap = await adminDb.collection("groups").get();
 
     // For each group, grab the primary admin's email
     const groups = await Promise.all(
@@ -51,6 +53,14 @@ export async function GET(request: NextRequest) {
         };
       })
     );
+
+    // Sort newest-first; groups without createdAt fall to the bottom.
+    groups.sort((a, b) => {
+      if (!a.createdAt && !b.createdAt) return 0;
+      if (!a.createdAt) return 1;
+      if (!b.createdAt) return -1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
 
     // Platform-level stats
     const stats = {
