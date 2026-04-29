@@ -16,7 +16,7 @@ export default function RootPage() {
     else if (appUser?.status === "active") router.replace("/home");
   }, [loading, firebaseUser, appUser, router]);
 
-  if (loading) {
+  if (loading || firebaseUser) {
     return (
       <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center">
         <div className="text-6xl mb-4">⛳</div>

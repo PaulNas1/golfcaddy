@@ -77,8 +77,9 @@ export default function SignInPage() {
     }
   };
 
-  // While Firebase resolves the session, show the splash so the form never flickers in.
-  if (loading) {
+  // Show splash while loading OR while we have a session and are waiting for the
+  // redirect to complete — this prevents the login form ever flashing on screen.
+  if (loading || appUser) {
     return <GolfCaddySplash />;
   }
 
