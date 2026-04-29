@@ -15,7 +15,6 @@ import {
   deleteRoundCascade,
   getActiveMembers,
   getGroup,
-  getHoleScores,
   getResultsForRound,
   getRound,
   getRoundRsvps,
