@@ -123,8 +123,15 @@ export default function CreateGroupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-green-700 flex items-center justify-center">
-        <p className="text-green-200 text-sm">Loading...</p>
+      <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center">
+        <div className="text-6xl mb-4">⛳</div>
+        <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
+        <p className="text-green-300 mt-2 text-sm">Social golf groups</p>
+        <div className="mt-8 flex gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.3s]" />
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.15s]" />
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce" />
+        </div>
       </div>
     );
   }
