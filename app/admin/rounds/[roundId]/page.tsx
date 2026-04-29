@@ -162,6 +162,7 @@ export default function AdminRoundDetailPage() {
   const [rebookSeason, setRebookSeason] = useState("");
   const [rebookRoundNumber, setRebookRoundNumber] = useState("");
   const [rebookRoundNumberEdited, setRebookRoundNumberEdited] = useState(false);
+  const [courseCorrectionsOpen, setCourseCorrectionsOpen] = useState(false);
   const [editingOverride, setEditingOverride] = useState<HoleOverride | null>(
     null
   );
@@ -362,6 +363,7 @@ export default function AdminRoundDetailPage() {
         setResults(existingResults);
         setSideWinnerIds(buildSideWinnerMap(claims));
         setRound(r);
+        if (r && r.holeOverrides.length > 0) setCourseCorrectionsOpen(true);
         setLoading(false);
         if (r) {
           setCourseId(r.courseId);
@@ -1211,6 +1213,7 @@ export default function AdminRoundDetailPage() {
         roundId: round.id,
       });
       setRound({ ...updatedRound, specialHoles });
+      setCourseCorrectionsOpen(true);
       setEditingOverride(null);
       setSuccess("Hole par updated. Members will be notified.");
       setTimeout(() => setSuccess(""), 3000);
@@ -1980,151 +1983,174 @@ export default function AdminRoundDetailPage() {
         </div>
       )}
 
-      {/* Override hole par */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <h2 className="font-semibold text-gray-800">Override Hole Par</h2>
-        <p className="text-xs text-gray-500">
-          Change a hole&apos;s par for this round only (e.g. GUR). All players are notified instantly.
-        </p>
-        <HoleOverrideForm
-          holes={holeOptions}
-          onSubmit={addHoleOverride}
-          disabled={saving}
-          editingOverride={editingOverride}
-          onCancelEdit={() => setEditingOverride(null)}
-        />
+      {/* Course Corrections — collapsible, auto-opens when par overrides exist */}
+      <div className={`rounded-2xl shadow-sm border p-4 ${
+        round.holeOverrides.length > 0 ? "border-amber-200 bg-amber-50/40" : "border-gray-100 bg-white"
+      }`}>
+        <button
+          type="button"
+          onClick={() => setCourseCorrectionsOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <h2 className="font-semibold text-gray-800">Course Corrections</h2>
+            {round.holeOverrides.length > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                {round.holeOverrides.length} active override{round.holeOverrides.length !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          <span className="shrink-0 text-sm text-gray-400">
+            {courseCorrectionsOpen ? "▲" : "▼"}
+          </span>
+        </button>
 
-        {round.holeOverrides.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs font-medium text-gray-600">Current overrides:</p>
-            {round.holeOverrides.map((o, index) => (
-              <div
-                key={`${o.holeNumber}-${index}`}
-                className="flex items-center justify-between gap-3 bg-amber-50 rounded-xl px-3 py-2 text-sm text-amber-800"
-              >
-                <div className="min-w-0">
-                  <span className="font-medium">
-                    Hole {o.holeNumber}: Par {o.originalPar} → {o.overridePar}
-                  </span>
-                  {o.reason && (
-                    <span className="ml-1 text-amber-600">({o.reason})</span>
+        {courseCorrectionsOpen && (
+          <div className="mt-4 space-y-6">
+            {/* Override Hole Par */}
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Override Hole Par</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Change a hole&apos;s par for this round only (e.g. GUR). All players are notified instantly.
+                </p>
+              </div>
+              <HoleOverrideForm
+                holes={holeOptions}
+                onSubmit={addHoleOverride}
+                disabled={saving}
+                editingOverride={editingOverride}
+                onCancelEdit={() => setEditingOverride(null)}
+              />
+              {round.holeOverrides.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-600">Current overrides:</p>
+                  {round.holeOverrides.map((o, index) => (
+                    <div
+                      key={`${o.holeNumber}-${index}`}
+                      className="flex items-center justify-between gap-3 bg-amber-50 rounded-xl px-3 py-2 text-sm text-amber-800 border border-amber-100"
+                    >
+                      <div className="min-w-0">
+                        <span className="font-medium">
+                          Hole {o.holeNumber}: Par {o.originalPar} → {o.overridePar}
+                        </span>
+                        {o.reason && (
+                          <span className="ml-1 text-amber-600">({o.reason})</span>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingOverride(o)}
+                          disabled={saving}
+                          aria-label={`Edit override for hole ${o.holeNumber}`}
+                          className="rounded-lg border border-amber-200 bg-white p-2 text-amber-700 transition-colors hover:bg-amber-100 disabled:text-amber-300"
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteHoleOverride(o, index)}
+                          disabled={saving}
+                          aria-label={`Delete override for hole ${o.holeNumber}`}
+                          className="rounded-lg border border-red-100 bg-white p-2 text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Stroke Indexes */}
+            {round.courseHoles.length === 18 && (
+              <div className="space-y-3 border-t border-gray-100 pt-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">Stroke Indexes</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Stroke index 1 = hardest hole. All 18 must be unique.
+                    </p>
+                  </div>
+                  {!editingStrokeIndexes ? (
+                    <button
+                      type="button"
+                      onClick={() => setEditingStrokeIndexes(true)}
+                      className="shrink-0 text-xs font-medium text-green-700 hover:underline"
+                    >
+                      Edit
+                    </button>
+                  ) : (
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingStrokeIndexes(false);
+                          const drafts: Record<number, string> = {};
+                          round.courseHoles.forEach((h) => {
+                            drafts[h.number] = String(h.strokeIndex);
+                          });
+                          setStrokeIndexDrafts(drafts);
+                        }}
+                        disabled={savingStrokeIndexes}
+                        className="text-xs font-medium text-gray-500 hover:underline disabled:text-gray-300"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={saveStrokeIndexes}
+                        disabled={savingStrokeIndexes}
+                        className="text-xs font-semibold text-green-700 hover:underline disabled:text-green-300"
+                      >
+                        {savingStrokeIndexes ? "Saving…" : "Save"}
+                      </button>
+                    </div>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditingOverride(o)}
-                    disabled={saving}
-                    aria-label={`Edit override for hole ${o.holeNumber}`}
-                    className="rounded-lg border border-amber-200 bg-white p-2 text-amber-700 transition-colors hover:bg-amber-100 disabled:text-amber-300"
-                  >
-                    <PencilIcon />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteHoleOverride(o, index)}
-                    disabled={saving}
-                    aria-label={`Delete override for hole ${o.holeNumber}`}
-                    className="rounded-lg border border-red-100 bg-white p-2 text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
-                  >
-                    <TrashIcon />
-                  </button>
+                {round.courseHoles.every((h) => h.strokeIndex === h.number) && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    ⚠️ Stroke indexes match hole numbers (1, 2, 3…) — the API likely
+                    didn&apos;t provide real handicap data. Tap Edit to enter the correct values from the scorecard.
+                  </div>
+                )}
+                <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-xs">
+                  {round.courseHoles.flatMap((h) => [
+                    <div
+                      key={`lbl-${h.number}`}
+                      className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1.5 text-[10px] font-semibold text-gray-500"
+                    >
+                      H{h.number}
+                    </div>,
+                    editingStrokeIndexes ? (
+                      <input
+                        key={`si-${h.number}`}
+                        type="number"
+                        min={1}
+                        max={18}
+                        value={strokeIndexDrafts[h.number] ?? ""}
+                        onChange={(e) =>
+                          setStrokeIndexDrafts((d) => ({ ...d, [h.number]: e.target.value }))
+                        }
+                        className="w-full rounded-lg border border-gray-200 px-1 py-1.5 text-center text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      />
+                    ) : (
+                      <div
+                        key={`si-${h.number}`}
+                        className="flex items-center justify-center rounded-lg border border-gray-100 px-1 py-1.5 text-center font-medium text-gray-800"
+                      >
+                        {strokeIndexDrafts[h.number] ?? h.strokeIndex}
+                      </div>
+                    ),
+                  ])}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Stroke index editor */}
-      {round.courseHoles.length === 18 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-800">Stroke Indexes</h2>
-            {!editingStrokeIndexes ? (
-              <button
-                type="button"
-                onClick={() => setEditingStrokeIndexes(true)}
-                className="text-xs font-medium text-green-700 hover:underline"
-              >
-                Edit
-              </button>
-            ) : (
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditingStrokeIndexes(false);
-                    const drafts: Record<number, string> = {};
-                    round.courseHoles.forEach((h) => {
-                      drafts[h.number] = String(h.strokeIndex);
-                    });
-                    setStrokeIndexDrafts(drafts);
-                  }}
-                  disabled={savingStrokeIndexes}
-                  className="text-xs font-medium text-gray-500 hover:underline disabled:text-gray-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveStrokeIndexes}
-                  disabled={savingStrokeIndexes}
-                  className="text-xs font-semibold text-green-700 hover:underline disabled:text-green-300"
-                >
-                  {savingStrokeIndexes ? "Saving…" : "Save"}
-                </button>
               </div>
             )}
           </div>
-
-          {round.courseHoles.every((h) => h.strokeIndex === h.number) && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              ⚠️ Stroke indexes match hole numbers (1, 2, 3…) — the API likely
-              didn&apos;t provide real handicap data. Tap Edit to enter the correct values from the scorecard.
-            </div>
-          )}
-
-          <p className="text-[11px] text-gray-400">
-            Stroke index 1 = hardest hole. All 18 must be unique.
-          </p>
-
-          {/* Holes grid — label + SI alternating in a 6-column grid */}
-          <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-xs">
-            {round.courseHoles.flatMap((h) => [
-              <div
-                key={`lbl-${h.number}`}
-                className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1.5 text-[10px] font-semibold text-gray-500"
-              >
-                H{h.number}
-              </div>,
-              editingStrokeIndexes ? (
-                <input
-                  key={`si-${h.number}`}
-                  type="number"
-                  min={1}
-                  max={18}
-                  value={strokeIndexDrafts[h.number] ?? ""}
-                  onChange={(e) =>
-                    setStrokeIndexDrafts((d) => ({
-                      ...d,
-                      [h.number]: e.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-gray-200 px-1 py-1.5 text-center text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
-                />
-              ) : (
-                <div
-                  key={`si-${h.number}`}
-                  className="flex items-center justify-center rounded-lg border border-gray-100 px-1 py-1.5 text-center font-medium text-gray-800"
-                >
-                  {strokeIndexDrafts[h.number] ?? h.strokeIndex}
-                </div>
-              ),
-            ])}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Quick info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
