@@ -62,7 +62,7 @@ import {
   inferHandicapStatus,
 } from "./season";
 import { withSeededCourseData } from "./courseData";
-import { normaliseGroupSettings } from "./settings";
+import { DEFAULT_GROUP_SETTINGS, normaliseGroupSettings } from "./settings";
 import { sendPushNotificationsToUsers } from "./pushClient";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -352,6 +352,131 @@ export const getGroup = async (
     logoPath: data.logoPath ?? null,
     settings: normaliseGroupSettings(data.settings),
   } as Group;
+};
+
+export const getGroupBySlug = async (input: string): Promise<Group | null> => {
+  const slug = input.trim().toLowerCase().replace(/\s+/g, "-");
+  // Try doc ID (slug) first
+  const byId = await getDoc(doc(db, "groups", slug));
+  if (byId.exists()) {
+    const data = byId.data();
+    return {
+      id: byId.id,
+      ...data,
+      logoUrl: data.logoUrl ?? null,
+      logoPath: data.logoPath ?? null,
+      settings: normaliseGroupSettings(data.settings),
+    } as Group;
+  }
+  // Fall back to querying the slug field
+  const snap = await getDocs(query(collection(db, "groups"), where("slug", "==", slug)));
+  if (!snap.empty) {
+    const d = snap.docs[0];
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      logoUrl: data.logoUrl ?? null,
+      logoPath: data.logoPath ?? null,
+      settings: normaliseGroupSettings(data.settings),
+    } as Group;
+  }
+  // Fall back to case-insensitive name match
+  const byName = await getDocs(query(collection(db, "groups"), where("name", "==", input.trim())));
+  if (!byName.empty) {
+    const d = byName.docs[0];
+    const data = d.data();
+    return {
+      id: d.id,
+      ...data,
+      logoUrl: data.logoUrl ?? null,
+      logoPath: data.logoPath ?? null,
+      settings: normaliseGroupSettings(data.settings),
+    } as Group;
+  }
+  return null;
+};
+
+export const checkGroupSlugAvailable = async (slug: string): Promise<boolean> => {
+  const snap = await getDoc(doc(db, "groups", slug));
+  return !snap.exists();
+};
+
+export const createGroup = async ({
+  name,
+  slug,
+  adminUid,
+  adminDisplayName,
+  adminEmail,
+}: {
+  name: string;
+  slug: string;
+  adminUid: string;
+  adminDisplayName: string;
+  adminEmail: string;
+}): Promise<void> => {
+  const batch = writeBatch(db);
+  const now = serverTimestamp();
+  const currentYear = new Date().getFullYear();
+
+  batch.set(doc(db, "groups", slug), {
+    name,
+    slug,
+    logoUrl: null,
+    logoPath: null,
+    adminIds: [adminUid],
+    memberCount: 1,
+    currentSeason: currentYear,
+    settings: DEFAULT_GROUP_SETTINGS,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  batch.set(doc(db, "users", adminUid), {
+    uid: adminUid,
+    email: adminEmail,
+    displayName: adminDisplayName,
+    role: "admin",
+    status: "active",
+    groupId: slug,
+    nickname: null,
+    mobileNumber: null,
+    dateOfBirth: null,
+    gender: null,
+    usesSeniorTees: false,
+    usesProBackTees: false,
+    avatarUrl: null,
+    avatarPath: null,
+    fcmToken: null,
+    address: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  batch.set(doc(db, "members", adminUid), {
+    userId: adminUid,
+    groupId: slug,
+    displayName: adminDisplayName,
+    avatarUrl: null,
+    currentHandicap: 0,
+    handicapStatus: "provisional",
+    officialHandicapAssignedAt: null,
+    seasonYear: currentYear,
+    seasonPoints: 0,
+    seasonRank: null,
+    roundsPlayed: 0,
+    ntpWins: 0,
+    ldWins: 0,
+    t2Wins: 0,
+    t3Wins: 0,
+    avgStableford: null,
+    bestStableford: null,
+    bestRoundId: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await batch.commit();
 };
 
 export const subscribeGroup = (

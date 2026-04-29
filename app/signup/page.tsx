@@ -15,7 +15,7 @@ export default function SignUpPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-green-700 flex items-center justify-center">
-          <div className="text-sm text-green-100">Loading signup...</div>
+          <div className="text-sm text-green-100">Loading...</div>
         </div>
       }
     >
@@ -28,18 +28,18 @@ function SignUpForm() {
   const { signUp } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const inviteId = searchParams.get("invite") ?? "";
+  const inviteToken = searchParams.get("token") ?? "";
+  const urlGroupId = searchParams.get("groupId") ?? "";
+  const urlGroupName = searchParams.get("groupName") ?? "";
   const invitedName = searchParams.get("name") ?? "";
   const invitedContact = searchParams.get("contact") ?? "";
   const invitedEmail = invitedContact.includes("@") ? invitedContact : "";
-  const invitedMobile = invitedContact && !invitedContact.includes("@")
-    ? invitedContact
-    : "";
-  const inviteId = searchParams.get("invite") ?? "";
-  const inviteToken = searchParams.get("token") ?? "";
-  const groupId = searchParams.get("groupId") ?? "fourplay";
-  const groupName = searchParams.get("groupName") ?? "your golf group";
-  const [resolvedGroupId, setResolvedGroupId] = useState(groupId);
-  const [resolvedGroupName, setResolvedGroupName] = useState(groupName);
+  const invitedMobile = invitedContact && !invitedContact.includes("@") ? invitedContact : "";
+
+  const [resolvedGroupId, setResolvedGroupId] = useState(urlGroupId);
+  const [resolvedGroupName, setResolvedGroupName] = useState(urlGroupName || "your golf group");
   const [name, setName] = useState(invitedName);
   const [email, setEmail] = useState(invitedEmail);
   const [password, setPassword] = useState("");
@@ -55,78 +55,40 @@ function SignUpForm() {
   const [checkingInvite, setCheckingInvite] = useState(Boolean(inviteId));
   const [loading, setLoading] = useState(false);
 
+  // No invite link at all → show a clear wall
+  const hasInvite = Boolean(inviteId);
+
   useEffect(() => {
     if (!inviteId) {
       setCheckingInvite(false);
-      setInviteError("");
       return;
     }
-
     let cancelled = false;
     setCheckingInvite(true);
-    setInviteError("");
-
     getMemberInvite(inviteId)
       .then((invite) => {
         if (cancelled) return;
-        if (!invite || invite.token !== inviteToken) {
-          setInviteError("This invite link is invalid.");
-          return;
-        }
-        if (invite.status === "cancelled") {
-          setInviteError("This invite has been revoked.");
-          return;
-        }
-        if (invite.status === "used") {
-          setInviteError("This invite has already been used.");
-          return;
-        }
-
+        if (!invite || invite.token !== inviteToken) { setInviteError("This invite link is invalid."); return; }
+        if (invite.status === "cancelled") { setInviteError("This invite has been revoked."); return; }
+        if (invite.status === "used") { setInviteError("This invite has already been used."); return; }
         setResolvedGroupId(invite.groupId);
         setResolvedGroupName(invite.groupName);
         setName(invite.inviteeName);
-        if (invite.contact?.includes("@")) {
-          setEmail(invite.contact);
-          setMobileNumber("");
-        } else {
-          setMobileNumber(invite.contact ?? "");
-        }
+        if (invite.contact?.includes("@")) { setEmail(invite.contact); setMobileNumber(""); }
+        else { setMobileNumber(invite.contact ?? ""); }
       })
-      .catch(() => {
-        if (!cancelled) {
-          setInviteError("This invite could not be verified. Please ask for a new link.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setCheckingInvite(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      .catch(() => { if (!cancelled) setInviteError("This invite could not be verified. Please ask for a new link."); })
+      .finally(() => { if (!cancelled) setCheckingInvite(false); });
+    return () => { cancelled = true; };
   }, [inviteId, inviteToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-
-    if (inviteError) {
-      setError(inviteError);
-      return;
-    }
-    if (checkingInvite) {
-      setError("Checking your invite. Please wait a moment and try again.");
-      return;
-    }
-
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    if (inviteError) { setError(inviteError); return; }
+    if (checkingInvite) { setError("Checking your invite. Please wait a moment and try again."); return; }
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
 
     setLoading(true);
     try {
@@ -152,6 +114,37 @@ function SignUpForm() {
     }
   };
 
+  // ── No invite — invitation-only wall ──────────────────────────────────────
+  if (!hasInvite) {
+    return (
+      <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center px-6">
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-3">⛳</div>
+          <h1 className="text-2xl font-bold text-white">GolfCaddy</h1>
+        </div>
+        <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 text-center">
+          <div className="text-3xl mb-3">🔒</div>
+          <h2 className="text-lg font-bold text-gray-800 mb-2">Invitation required</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            GolfCaddy groups are private. You need an invite link from your group
+            organiser to create an account.
+          </p>
+          <p className="text-gray-400 text-xs mb-6">
+            Ask your group admin to send you an invite from the Members section of
+            their GolfCaddy admin panel.
+          </p>
+          <Link
+            href="/signin"
+            className="block w-full bg-green-600 text-white font-semibold py-3 rounded-xl text-sm hover:bg-green-700 transition-colors"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Valid invite — registration form ──────────────────────────────────────
   return (
     <div className="min-h-screen bg-green-700 flex flex-col">
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
@@ -166,158 +159,78 @@ function SignUpForm() {
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
           <h2 className="text-xl font-bold text-gray-800 mb-2">Create account</h2>
           <p className="text-gray-500 text-sm mb-6">
-            An admin will review and approve your request before you can access
-            the app.
+            An admin will review and approve your request before you can access the app.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Full name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Paul Smith"
-                autoComplete="name"
-              />
+                placeholder="Paul Smith" autoComplete="name" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="you@example.com"
-                autoComplete="email"
-              />
+                placeholder="you@example.com" autoComplete="email" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
+              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Min 8 characters"
-                autoComplete="new-password"
-              />
+                placeholder="Min 8 characters" autoComplete="new-password" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm password
-              </label>
-              <input
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
+              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
+              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="••••••••"
-                autoComplete="new-password"
-              />
+                placeholder="••••••••" autoComplete="new-password" />
             </div>
 
             <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-gray-800">
-                  Player profile
-                </h3>
-                <p className="mt-1 text-xs text-gray-500">
-                  Optional, but recommended so admins can assign tees properly.
-                </p>
+                <h3 className="text-sm font-semibold text-gray-800">Player profile</h3>
+                <p className="mt-1 text-xs text-gray-500">Optional, but recommended so admins can assign tees properly.</p>
               </div>
-
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nickname
-                  </label>
-                  <input
-                    type="text"
-                    value={nickname}
-                    onChange={(e) => setNickname(e.target.value)}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
+                  <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Optional nickname"
-                  />
+                    placeholder="Optional nickname" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Mobile number
-                  </label>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value)}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile number</label>
+                  <input type="tel" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)}
                     className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Optional mobile"
-                    autoComplete="tel"
-                  />
+                    placeholder="Optional mobile" autoComplete="tel" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date of birth
-                  </label>
-                  <input
-                    type="date"
-                    value={dateOfBirth}
-                    onChange={(e) => setDateOfBirth(e.target.value)}
-                    className={DATE_INPUT_CLASSNAME}
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
+                  <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={DATE_INPUT_CLASSNAME} />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Gender
-                  </label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value as UserGender | "")}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                  >
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select value={gender} onChange={(e) => setGender(e.target.value as UserGender | "")}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500">
                     <option value="">Not set</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
                 </div>
-
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  <span className="text-sm font-medium text-gray-700">
-                    I usually play senior tees
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={usesSeniorTees}
-                    onChange={(e) => setUsesSeniorTees(e.target.checked)}
-                    className="h-5 w-5 rounded border-gray-300 text-green-600"
-                  />
+                  <span className="text-sm font-medium text-gray-700">I usually play senior tees</span>
+                  <input type="checkbox" checked={usesSeniorTees} onChange={(e) => setUsesSeniorTees(e.target.checked)}
+                    className="h-5 w-5 rounded border-gray-300 text-green-600" />
                 </label>
-
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  <span className="text-sm font-medium text-gray-700">
-                    I usually play pro/back tees
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={usesProBackTees}
-                    onChange={(e) => setUsesProBackTees(e.target.checked)}
-                    className="h-5 w-5 rounded border-gray-300 text-green-600"
-                  />
+                  <span className="text-sm font-medium text-gray-700">I usually play pro/back tees</span>
+                  <input type="checkbox" checked={usesProBackTees} onChange={(e) => setUsesProBackTees(e.target.checked)}
+                    className="h-5 w-5 rounded border-gray-300 text-green-600" />
                 </label>
               </div>
             </div>
@@ -327,7 +240,6 @@ function SignUpForm() {
                 {inviteError || error}
               </div>
             )}
-
             {checkingInvite && (
               <div className="bg-white/80 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600">
                 Verifying your invite...
@@ -339,20 +251,14 @@ function SignUpForm() {
               disabled={loading || checkingInvite || Boolean(inviteError)}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
             >
-              {loading
-                ? "Submitting..."
-                : checkingInvite
-                  ? "Checking invite..."
-                  : "Request access"}
+              {loading ? "Submitting..." : checkingInvite ? "Checking invite..." : "Request access"}
             </button>
           </form>
 
           <div className="mt-6 pt-6 border-t border-gray-100 text-center">
             <p className="text-gray-500 text-sm">
               Already have an account?{" "}
-              <Link href="/signin" className="text-green-600 font-medium hover:underline">
-                Sign in
-              </Link>
+              <Link href="/signin" className="text-green-600 font-medium hover:underline">Sign in</Link>
             </p>
           </div>
         </div>
