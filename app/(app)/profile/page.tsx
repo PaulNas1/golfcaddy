@@ -1214,6 +1214,23 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      {/* Platform Admin entry point — only visible to the founder account */}
+      {appUser?.platformAdmin && (
+        <Link
+          href="/platform-admin"
+          className="flex items-center justify-between gap-3 w-full bg-green-700 hover:bg-green-800 transition-colors rounded-2xl px-4 py-3.5"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🏌️</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-white">Founder Platform</p>
+              <p className="text-xs text-green-200">Manage groups &amp; subscriptions</p>
+            </div>
+          </div>
+          <span className="text-green-300 text-lg">›</span>
+        </Link>
+      )}
+
       <button
         onClick={handleSignOut}
         className="w-full py-3 border border-gray-200 rounded-2xl text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
