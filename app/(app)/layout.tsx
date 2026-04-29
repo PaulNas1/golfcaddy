@@ -160,7 +160,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       </header>
 
       {/* Page content */}
-      <main ref={contentRef} className="flex-1 overflow-y-auto pb-20">
+      <main ref={contentRef} className="flex-1 min-h-0 overflow-y-auto pb-20">
         {/*
           Virtual tabs: all six pages are permanently mounted in the React tree
           and toggled with CSS display. This means Firestore subscriptions stay
