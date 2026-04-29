@@ -91,10 +91,11 @@ export default function CreateGroupPage() {
 
     setSubmitting(true);
     try {
-      // Create Firebase Auth user — this signs them in automatically
+      // Create Firebase Auth user — signs them in automatically
       const { user } = await createUserWithEmailAndPassword(auth, adminEmail.trim(), password);
 
-      // Write group + user + member docs in one batch
+      // Write user doc first (rules allow isSignedIn + own uid),
+      // then group + member batch (rules require isAdmin — user doc must exist first).
       await createGroup({
         name: groupName.trim(),
         slug,
@@ -103,7 +104,8 @@ export default function CreateGroupPage() {
         adminEmail: adminEmail.trim(),
       });
 
-      // onAuthStateChanged picks up the new user and appUser becomes active → redirects to /home
+      // All writes succeeded — go straight home, no need to search for the group.
+      router.replace("/home");
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.message.includes("email-already-in-use")) {

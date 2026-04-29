@@ -422,24 +422,14 @@ export const createGroup = async ({
   adminDisplayName: string;
   adminEmail: string;
 }): Promise<void> => {
-  const batch = writeBatch(db);
   const now = serverTimestamp();
   const currentYear = new Date().getFullYear();
 
-  batch.set(doc(db, "groups", slug), {
-    name,
-    slug,
-    logoUrl: null,
-    logoPath: null,
-    adminIds: [adminUid],
-    memberCount: 1,
-    currentSeason: currentYear,
-    settings: DEFAULT_GROUP_SETTINGS,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  batch.set(doc(db, "users", adminUid), {
+  // Step 1: write the user doc first.
+  // Firestore rules allow `create` for any signed-in user creating their own
+  // doc (isSignedIn() && uid == userId). The group and member writes require
+  // isAdmin(), which reads the user doc — so the user doc must exist first.
+  await setDoc(doc(db, "users", adminUid), {
     uid: adminUid,
     email: adminEmail,
     displayName: adminDisplayName,
@@ -456,6 +446,22 @@ export const createGroup = async ({
     avatarPath: null,
     fcmToken: null,
     address: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Step 2: now that the user doc exists with role:"admin", write group + member.
+  const batch = writeBatch(db);
+
+  batch.set(doc(db, "groups", slug), {
+    name,
+    slug,
+    logoUrl: null,
+    logoPath: null,
+    adminIds: [adminUid],
+    memberCount: 1,
+    currentSeason: currentYear,
+    settings: DEFAULT_GROUP_SETTINGS,
     createdAt: now,
     updatedAt: now,
   });
