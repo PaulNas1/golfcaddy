@@ -119,9 +119,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-lg mx-auto">
+    <div className="h-screen bg-gray-50 flex flex-col max-w-lg mx-auto overflow-hidden">
       {/* Top bar */}
-      <header className="bg-green-700 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+      <header className="bg-green-700 text-white px-4 py-3 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-2">
           {group?.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
