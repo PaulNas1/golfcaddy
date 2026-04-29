@@ -18,6 +18,7 @@ import {
   subscribeResultsForRound,
   subscribeRound,
   subscribeRoundLinkedPosts,
+  subscribeScorecardsForRound,
   subscribeSideClaimsForRound,
 } from "@/lib/firestore";
 import {
@@ -39,6 +40,7 @@ import type {
   Results,
   Round,
   RoundRsvp,
+  Scorecard,
   SideClaim,
   SidePrizeType,
 } from "@/types";
@@ -52,6 +54,7 @@ export default function RoundDetailPage() {
   const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
+  const [liveCards, setLiveCards] = useState<Scorecard[]>([]);
   const [roundPosts, setRoundPosts] = useState<Post[]>([]);
   const [savingRsvp, setSavingRsvp] = useState(false);
   const [changingRsvp, setChangingRsvp] = useState(false);
@@ -148,6 +151,18 @@ export default function RoundDetailPage() {
       (err) => console.warn("Unable to subscribe to side claims", err)
     );
   }, [roundId]);
+
+  useEffect(() => {
+    if (!roundId || round?.status !== "live") {
+      setLiveCards([]);
+      return;
+    }
+    return subscribeScorecardsForRound(
+      roundId,
+      setLiveCards,
+      (err) => console.warn("Unable to subscribe to live scorecards", err)
+    );
+  }, [roundId, round?.status]);
 
   useEffect(() => {
     if (!roundId) return;
@@ -402,6 +417,54 @@ export default function RoundDetailPage() {
           >
             Enter Scores →
           </a>
+        </div>
+      )}
+
+      {/* Live standings */}
+      {round.status === "live" && liveCards.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold text-gray-800">Live Standings</h2>
+            <span className="text-[11px] font-medium text-gray-400 rounded-full bg-gray-50 px-2 py-0.5">
+              Unofficial
+            </span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {liveCards
+              .slice()
+              .sort((a, b) => {
+                if (round.format === "stableford") {
+                  return (b.totalStableford ?? -Infinity) - (a.totalStableford ?? -Infinity);
+                }
+                return (a.totalGross ?? Infinity) - (b.totalGross ?? Infinity);
+              })
+              .map((card, idx) => {
+                const member = members.find((m) => m.uid === card.playerId);
+                const name = member?.displayName ?? `Player ${card.playerId.slice(0, 6)}`;
+                const isMe = card.playerId === appUser?.uid;
+                return (
+                  <div
+                    key={card.id}
+                    className={`flex items-center justify-between py-2 text-sm ${isMe ? "font-semibold" : ""}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 text-xs text-gray-400">#{idx + 1}</span>
+                      <span className={isMe ? "text-green-700" : "text-gray-700"}>
+                        {name}{isMe ? " (you)" : ""}
+                      </span>
+                    </div>
+                    <span className={isMe ? "text-green-700" : "text-gray-800"}>
+                      {round.format === "stableford"
+                        ? card.totalStableford != null ? `${card.totalStableford} pts` : "—"
+                        : card.totalGross != null ? String(card.totalGross) : "—"}
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+          <p className="text-[11px] text-gray-400">
+            Scores update in real time. Final results are published by the admin after the round.
+          </p>
         </div>
       )}
 
