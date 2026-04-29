@@ -26,8 +26,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 max-w-lg mx-auto">
-      <header className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-20">
+    <div className="h-screen bg-gray-50 max-w-lg mx-auto flex flex-col overflow-hidden">
+      <header className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-2">
           <AdminIcon className="h-5 w-5 text-green-300" />
           <span className="font-bold">Admin</span>
@@ -37,7 +37,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </Link>
       </header>
 
-      <nav className="border-b border-gray-100 bg-white px-4 py-3">
+      <nav className="border-b border-gray-100 bg-white px-4 py-3 shrink-0">
         <div className="flex gap-2 overflow-x-auto">
           {adminNavItems
             .filter(({ adminOnly }) => !adminOnly || isAdmin)
@@ -63,7 +63,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </nav>
 
-      <main className="p-4">{children}</main>
+      <main className="flex-1 overflow-y-auto p-4">{children}</main>
     </div>
   );
 }
