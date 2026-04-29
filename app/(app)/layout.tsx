@@ -88,6 +88,16 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     }
   }, [loading, firebaseUser, appUser, router]);
 
+  // Subscription gate — redirect suspended groups to the wall page.
+  // Platform admins bypass this so they can always access the app.
+  useEffect(() => {
+    if (!group) return;
+    if (appUser?.platformAdmin) return;
+    if (group.subscription?.status === "suspended") {
+      router.replace("/subscription");
+    }
+  }, [group, appUser?.platformAdmin, router]);
+
   // Keep activeTab and isOnSubRoute in sync with URL-driven changes
   // (browser back/forward, deep links, auth redirects) that bypass the tap handler.
   useEffect(() => {

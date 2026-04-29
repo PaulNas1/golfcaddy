@@ -7,6 +7,28 @@ export type HandicapMode = "local" | "slope_adjusted";
 export type HandicapStatus = "provisional" | "official";
 export type DistanceUnit = "meters" | "yards";
 
+// ─── Subscription / Entitlements ─────────────────────────────────────────────
+
+export type SubscriptionStatus =
+  | "exempt"     // free forever (e.g. founder group)
+  | "trial"      // time-limited free trial
+  | "active"     // paid and current
+  | "past_due"   // payment failed, grace period
+  | "suspended"; // access blocked
+
+export type SubscriptionPlan = "starter" | "club" | "society";
+
+export interface GroupSubscription {
+  status: SubscriptionStatus;
+  plan: SubscriptionPlan | null;
+  trialEndsAt: Date | null;
+  currentPeriodEndsAt: Date | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  exemptReason: string | null;
+  updatedAt: Date;
+}
+
 export interface AppUser {
   uid: string;
   email: string;
@@ -26,6 +48,7 @@ export interface AppUser {
   avatarPath?: string | null;
   distanceUnit?: DistanceUnit;
   fcmToken: string | null;
+  platformAdmin?: boolean;  // true only for the GolfCaddy platform owner
   createdAt: Date;
   updatedAt: Date;
 }
@@ -71,6 +94,7 @@ export interface Group {
   memberCount: number;
   currentSeason: number;
   settings: GroupSettings;
+  subscription?: GroupSubscription;
   createdAt: Date;
   updatedAt: Date;
 }
