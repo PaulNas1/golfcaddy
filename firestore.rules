@@ -54,16 +54,19 @@ service cloud.firestore {
     // ─── Users ────────────────────────────────────────────────────────────
 
     match /users/{userId} {
-      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId
+        // Prevent clients from self-granting platform admin on creation
+        && !('platformAdmin' in request.resource.data);
       allow read: if isSignedIn() && (
         request.auth.uid == userId ||
         isAdmin() ||
         isActiveSameGroupResource()
       );
-      allow update: if isSignedIn() && (
-        request.auth.uid == userId ||
-        isAdmin()
-      );
+      // Users and group admins can update user docs but must never touch platformAdmin.
+      // Only the Firebase Admin SDK (used by our API routes) can set that field.
+      allow update: if isSignedIn() &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformAdmin']) &&
+        (request.auth.uid == userId || isAdmin());
       allow delete: if isAdmin();
     }
 
