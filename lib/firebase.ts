@@ -1,6 +1,6 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { enableIndexedDbPersistence, getFirestore } from "firebase/firestore";
+import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getMessaging, isSupported } from "firebase/messaging";
 
@@ -17,16 +17,11 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Memory-only cache: Firestore always reads from the server, never from
+// IndexedDB. This ensures danger-zone operations (factory reset, clear feed)
+// take effect immediately for all clients without stale cached data appearing.
+export const db = initializeFirestore(app, { localCache: memoryLocalCache() });
 export const storage = getStorage(app);
-
-if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-  enableIndexedDbPersistence(db).catch((error) => {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Unable to enable Firestore offline persistence", error);
-    }
-  });
-}
 
 // Messaging is only available in the browser and only in supported environments
 export const getMessagingInstance = async () => {
