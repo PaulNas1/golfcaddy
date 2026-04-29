@@ -95,10 +95,17 @@ export default function PlatformAdminPage() {
   const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>("starter");
 
   // ── Auth gate ────────────────────────────────────────────────────────────
+  // Allow access if the Firestore flag is set OR if the signed-in email matches
+  // the platform admin email (bootstrap: flag not yet written via seed).
+  const platformAdminEmail = process.env.NEXT_PUBLIC_PLATFORM_ADMIN_EMAIL ?? "";
+  const isAuthorised =
+    appUser?.platformAdmin === true ||
+    (!!appUser?.email && appUser.email.toLowerCase() === platformAdminEmail.toLowerCase());
+
   useEffect(() => {
     if (authLoading) return;
-    if (!appUser || !appUser.platformAdmin) router.replace("/home");
-  }, [authLoading, appUser, router]);
+    if (!appUser || !isAuthorised) router.replace("/home");
+  }, [authLoading, appUser, isAuthorised, router]);
 
   // ── Close menu on outside click ──────────────────────────────────────────
   useEffect(() => {
@@ -131,8 +138,8 @@ export default function PlatformAdminPage() {
   }, []);
 
   useEffect(() => {
-    if (!authLoading && appUser?.platformAdmin) fetchGroups();
-  }, [authLoading, appUser, fetchGroups]);
+    if (!authLoading && isAuthorised) fetchGroups();
+  }, [authLoading, isAuthorised, fetchGroups]);
 
   // ── One-time seed (first visit) ──────────────────────────────────────────
   const handleSeed = async () => {
@@ -185,7 +192,7 @@ export default function PlatformAdminPage() {
     }
   };
 
-  if (authLoading || (!appUser?.platformAdmin && !authLoading)) {
+  if (authLoading || (!isAuthorised && !authLoading)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <p className="text-gray-400 text-sm">Loading...</p>
