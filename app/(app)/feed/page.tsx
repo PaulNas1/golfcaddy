@@ -81,6 +81,7 @@ export default function FeedPage() {
   const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
   const [editingBusyPostId, setEditingBusyPostId] = useState("");
   const [deleteBusyPostId, setDeleteBusyPostId] = useState("");
+  const [pendingDeletePostId, setPendingDeletePostId] = useState("");
   const [deleteCommentBusyId, setDeleteCommentBusyId] = useState("");
   const [pinningPostId, setPinningPostId] = useState("");
   const [openMenuPostId, setOpenMenuPostId] = useState("");
@@ -387,10 +388,12 @@ export default function FeedPage() {
   };
 
   const handleDeletePost = async (post: Post) => {
-    const confirmed = window.confirm("Delete this post?");
-    if (!confirmed) return;
-
     setOpenMenuPostId("");
+    setPendingDeletePostId(post.id);
+  };
+
+  const handleConfirmDeletePost = async (post: Post) => {
+    setPendingDeletePostId("");
     setDeleteBusyPostId(post.id);
     try {
       await deleteFeedPost(post.id);
@@ -399,6 +402,7 @@ export default function FeedPage() {
       );
     } catch (error) {
       console.error("Failed to delete post", error);
+      alert("Failed to delete post. Please try again.");
     } finally {
       setDeleteBusyPostId("");
     }
@@ -423,9 +427,6 @@ export default function FeedPage() {
   };
 
   const handleDeleteComment = async (post: Post, comment: PostComment) => {
-    const confirmed = window.confirm("Delete this reply?");
-    if (!confirmed) return;
-
     setOpenCommentMenuId("");
     setDeleteCommentBusyId(comment.id);
     try {
@@ -721,7 +722,7 @@ export default function FeedPage() {
                           >
                             <EllipsisIcon className="h-4 w-4" />
                           </button>
-                          {isMenuOpen && (
+                          {isMenuOpen && pendingDeletePostId !== post.id && (
                             <div className="absolute right-0 top-9 z-10 min-w-[128px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
                               {isAdmin && post.type === "announcement" && (
                                 <button
@@ -762,6 +763,28 @@ export default function FeedPage() {
                                   ? "Deleting..."
                                   : "Delete post"}
                               </button>
+                            </div>
+                          )}
+                          {pendingDeletePostId === post.id && (
+                            <div className="absolute right-0 top-9 z-10 w-52 rounded-xl border border-red-100 bg-white p-3 shadow-lg">
+                              <p className="mb-2 text-sm font-medium text-gray-800">Delete this post?</p>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setPendingDeletePostId("")}
+                                  className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleConfirmDeletePost(post)}
+                                  disabled={deleteBusyPostId === post.id}
+                                  className="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300"
+                                >
+                                  {deleteBusyPostId === post.id ? "Deleting…" : "Delete"}
+                                </button>
+                              </div>
                             </div>
                           )}
                         </div>

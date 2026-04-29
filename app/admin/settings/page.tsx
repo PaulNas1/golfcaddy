@@ -31,6 +31,15 @@ type ResetAction =
   | "remove_selected_members"
   | "full_reset_except_me";
 
+type PendingDangerConfig = {
+  action: ResetAction;
+  label: string;
+  confirmation: string;
+  confirmationWord: "CLEAR" | "REMOVE" | "RESET";
+  userIds: string[];
+  onSuccess?: () => void;
+};
+
 export default function AdminSettingsPage() {
   const { appUser, isAdmin } = useAuth();
   const [group, setGroup] = useState<Group | null>(null);
@@ -48,6 +57,8 @@ export default function AdminSettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resettingAction, setResettingAction] = useState<ResetAction | "">("");
+  const [pendingDangerConfig, setPendingDangerConfig] = useState<PendingDangerConfig | null>(null);
+  const [dangerConfirmInput, setDangerConfirmInput] = useState("");
   const [removablePlayers, setRemovablePlayers] = useState<AppUser[]>([]);
   const [showRemovePlayersModal, setShowRemovePlayersModal] = useState(false);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
@@ -282,34 +293,43 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleDangerAction = async ({
+  const handleDangerAction = ({
     action,
     label,
     confirmation,
     confirmationWord,
     userIds = [],
+    onSuccess,
   }: {
     action: ResetAction;
     label: string;
     confirmation: string;
     confirmationWord: "CLEAR" | "REMOVE" | "RESET";
     userIds?: string[];
+    onSuccess?: () => void;
   }) => {
-    const typed = window.prompt(
-      `${confirmation}\n\nType ${confirmationWord} to continue.`
-    );
-    if (typed == null) return false;
-    if (typed.trim().toUpperCase() !== confirmationWord) {
+    setDangerConfirmInput("");
+    setPendingDangerConfig({ action, label, confirmation, confirmationWord, userIds: userIds ?? [], onSuccess });
+  };
+
+  const submitPendingDangerAction = async () => {
+    if (!pendingDangerConfig) return;
+    const { action, label, confirmationWord, userIds, onSuccess } = pendingDangerConfig;
+
+    if (dangerConfirmInput.trim().toUpperCase() !== confirmationWord) {
       setError(`You must type "${confirmationWord}" to continue.`);
       setSuccess("");
-      return false;
+      return;
     }
+
+    setPendingDangerConfig(null);
+    setDangerConfirmInput("");
 
     const idToken = await auth.currentUser?.getIdToken();
     if (!idToken) {
       setError("You need to be signed in again before using this tool.");
       setSuccess("");
-      return false;
+      return;
     }
 
     setResettingAction(action);
@@ -343,13 +363,12 @@ export default function AdminSettingsPage() {
         [result?.message ?? `${label} complete.`, summaryText].filter(Boolean).join(" ")
       );
       await loadRemovablePlayers(appUser?.groupId, appUser?.uid);
-      return true;
+      onSuccess?.();
     } catch (resetError) {
       setError(
         resetError instanceof Error ? resetError.message : "Reset failed."
       );
       setSuccess("");
-      return false;
     } finally {
       setResettingAction("");
     }
@@ -380,7 +399,7 @@ export default function AdminSettingsPage() {
       .map((player) => player.displayName)
       .join(", ");
 
-    const completed = await handleDangerAction({
+    handleDangerAction({
       action: "remove_selected_members",
       label: "Remove selected players",
       confirmation: `Remove ${selectedPlayerIds.length} player${
@@ -388,12 +407,11 @@ export default function AdminSettingsPage() {
       } from this group?\n\n${selectedNames}`,
       confirmationWord: "REMOVE",
       userIds: selectedPlayerIds,
+      onSuccess: () => {
+        setShowRemovePlayersModal(false);
+        setSelectedPlayerIds([]);
+      },
     });
-
-    if (completed) {
-      setShowRemovePlayersModal(false);
-      setSelectedPlayerIds([]);
-    }
   };
 
   if (loading) {
@@ -955,6 +973,47 @@ export default function AdminSettingsPage() {
                 {resettingAction === "remove_selected_members"
                   ? "Removing..."
                   : "Remove selected"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDangerConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="font-semibold text-gray-800">{pendingDangerConfig.label}</h3>
+            <p className="mt-2 text-sm text-gray-600">{pendingDangerConfig.confirmation}</p>
+            <p className="mt-3 text-sm text-gray-700">
+              Type <span className="font-mono font-bold">{pendingDangerConfig.confirmationWord}</span> to confirm.
+            </p>
+            <input
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              type="text"
+              value={dangerConfirmInput}
+              onChange={(event) => setDangerConfirmInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") submitPendingDangerAction();
+              }}
+              placeholder={pendingDangerConfig.confirmationWord}
+              className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-mono uppercase text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setPendingDangerConfig(null); setDangerConfirmInput(""); }}
+                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={submitPendingDangerAction}
+                disabled={dangerConfirmInput.trim().toUpperCase() !== pendingDangerConfig.confirmationWord}
+                className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white disabled:bg-red-200"
+              >
+                Confirm
               </button>
             </div>
           </div>
