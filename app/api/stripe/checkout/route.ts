@@ -81,8 +81,8 @@ export async function POST(request: NextRequest) {
       subscription_data: {
         metadata: { groupId },
       },
-      success_url: successUrl ?? `${appUrl}/admin/settings/billing?success=1`,
-      cancel_url:  cancelUrl  ?? `${appUrl}/admin/settings/billing?cancel=1`,
+      success_url: successUrl ?? `${appUrl}/checkout/success`,
+      cancel_url:  cancelUrl  ?? `${appUrl}/checkout/cancelled`,
       allow_promotion_codes: true,
       metadata: { groupId },
     });
