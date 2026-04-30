@@ -865,7 +865,7 @@ export default function AdminSettingsPage() {
             </p>
             {group?.subscription?.currentPeriodEndsAt && (
               <p className="text-xs text-green-600 mt-0.5">
-                Renews {new Date(group.subscription.currentPeriodEndsAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                Renews {(() => { const raw = group.subscription.currentPeriodEndsAt; const d = typeof (raw as unknown as { toDate?: () => Date }).toDate === "function" ? (raw as unknown as { toDate: () => Date }).toDate() : new Date(raw as unknown as string | number); return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }); })()}
               </p>
             )}
           </div>

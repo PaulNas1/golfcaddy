@@ -40,13 +40,16 @@ export default function BillingPage() {
   const isActive = subscription?.status === "active";
   const isPastDue = subscription?.status === "past_due";
   const plan = subscription?.plan;
-  const renewalDate = subscription?.currentPeriodEndsAt
-    ? new Date(subscription.currentPeriodEndsAt).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : null;
+  const renewalDate = (() => {
+    const raw = subscription?.currentPeriodEndsAt;
+    if (!raw) return null;
+    const d = typeof (raw as unknown as { toDate?: () => Date }).toDate === "function"
+      ? (raw as unknown as { toDate: () => Date }).toDate()
+      : new Date(raw as unknown as string | number);
+    return isNaN(d.getTime()) ? null : d.toLocaleDateString("en-AU", {
+      day: "numeric", month: "long", year: "numeric",
+    });
+  })();
 
   return (
     <div className="space-y-6 max-w-lg">
