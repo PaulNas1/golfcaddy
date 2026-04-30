@@ -6,7 +6,6 @@ import Link from "next/link";
 import { auth } from "@/lib/firebase";
 import {
   getActiveMembers,
-  getGroup,
   subscribeGroup,
   getPendingMembers,
   previewSeasonHandicapRebuild,
