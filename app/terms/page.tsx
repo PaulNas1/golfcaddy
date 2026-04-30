@@ -26,7 +26,8 @@ export default function TermsPage() {
             you agree to be bound by these Terms of Use. If you do not agree, do not use the Service.
           </p>
           <p className="text-gray-600 leading-relaxed">
-            GolfCaddy is operated by <strong>[Your Legal Name / Business Name]</strong> (ABN: <strong>[ABN]</strong>), Australia.
+            GolfCaddy is operated by <strong>Paul Nasrallah</strong> (ABN: <strong>50 329 199 579</strong>),
+            a sole trader based in Victoria, Australia.
           </p>
         </section>
 
@@ -125,8 +126,8 @@ export default function TermsPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-gray-800">10. Governing law</h2>
           <p className="text-gray-600 leading-relaxed">
-            These terms are governed by the laws of New South Wales, Australia. Any disputes will
-            be subject to the exclusive jurisdiction of the courts of New South Wales.
+            These terms are governed by the laws of Victoria, Australia. Any disputes will
+            be subject to the exclusive jurisdiction of the courts of Victoria.
           </p>
         </section>
 

@@ -21,8 +21,8 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-gray-800">1. Who we are</h2>
           <p className="text-gray-600 leading-relaxed">
-            GolfCaddy is operated by <strong>[Your Legal Name / Business Name]</strong> (ABN: <strong>[ABN]</strong>),
-            based in Australia. We provide a private golf group management platform at{" "}
+            GolfCaddy is operated by <strong>Paul Nasrallah</strong> (ABN: <strong>50 329 199 579</strong>),
+            a sole trader based in Victoria, Australia. We provide a private golf group management platform at{" "}
             <a href="https://golfcaddy.club" className="text-green-700 underline">golfcaddy.club</a>.
           </p>
           <p className="text-gray-600 leading-relaxed">
