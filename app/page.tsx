@@ -58,13 +58,17 @@ export default function RootPage() {
       </div>
 
       {/* Footer */}
-      <div className="text-center pb-10 px-6">
+      <div className="text-center pb-10 px-6 space-y-3">
         <p className="text-green-300 text-xs">
           Running your own social golf group?{" "}
           <span className="text-green-100 font-medium">
             Ask your organiser to set up GolfCaddy.
           </span>
         </p>
+        <div className="flex justify-center gap-4 text-xs text-green-400">
+          <Link href="/terms" className="hover:text-green-200 transition-colors">Terms of Use</Link>
+          <Link href="/privacy" className="hover:text-green-200 transition-colors">Privacy Policy</Link>
+        </div>
       </div>
     </div>
   );
