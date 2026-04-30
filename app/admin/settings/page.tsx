@@ -7,6 +7,7 @@ import { auth } from "@/lib/firebase";
 import {
   getActiveMembers,
   getGroup,
+  subscribeGroup,
   getPendingMembers,
   previewSeasonHandicapRebuild,
   rebuildSeasonHandicaps,
@@ -114,24 +115,28 @@ export default function AdminSettingsPage() {
   };
 
   useEffect(() => {
-    getGroup(appUser?.groupId)
-      .then((groupRecord) => {
+    if (!appUser?.groupId) return;
+    let initialised = false;
+    const unsub = subscribeGroup(
+      appUser.groupId,
+      (groupRecord) => {
         setGroup(groupRecord);
-        setGroupName(groupRecord?.name ?? "");
-        setLogoPreviewUrl(groupRecord?.logoUrl ?? "");
-        setLogoFile(null);
-        setLogoRemoved(false);
-        setSettings(normaliseGroupSettings(groupRecord?.settings));
-        setSeasonDraft(
-          groupRecord?.currentSeason ?? new Date().getFullYear()
-        );
-        setHandicapRebuildSeason(
-          groupRecord?.currentSeason ?? new Date().getFullYear()
-        );
-      })
-      .catch(() => setError("Failed to load settings."))
-      .finally(() => setLoading(false));
-    loadRemovablePlayers(appUser?.groupId, appUser?.uid);
+        if (!initialised) {
+          initialised = true;
+          setGroupName(groupRecord?.name ?? "");
+          setLogoPreviewUrl(groupRecord?.logoUrl ?? "");
+          setLogoFile(null);
+          setLogoRemoved(false);
+          setSettings(normaliseGroupSettings(groupRecord?.settings));
+          setSeasonDraft(groupRecord?.currentSeason ?? new Date().getFullYear());
+          setHandicapRebuildSeason(groupRecord?.currentSeason ?? new Date().getFullYear());
+          setLoading(false);
+        }
+      },
+      () => { setError("Failed to load settings."); setLoading(false); }
+    );
+    loadRemovablePlayers(appUser.groupId, appUser.uid);
+    return unsub;
   }, [appUser?.groupId, appUser?.uid]);
 
   useEffect(() => {
