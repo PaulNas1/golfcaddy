@@ -66,9 +66,11 @@ async function syncSubscription(
 
   const status = toSubscriptionStatus(subscription.status);
   const plan = extractPlan(subscription);
-  const currentPeriodEndsAt = subscription.items?.data?.[0]?.current_period_end
-    ? new Date(subscription.items.data[0].current_period_end * 1000)
-    : null;
+  const periodEndSeconds =
+    (subscription as unknown as { current_period_end?: number }).current_period_end ??
+    subscription.items?.data?.[0]?.current_period_end ??
+    null;
+  const currentPeriodEndsAt = periodEndSeconds ? new Date(periodEndSeconds * 1000) : null;
 
   await adminDb
     .collection("groups")
