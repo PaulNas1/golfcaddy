@@ -241,6 +241,10 @@ export default function SignInPage() {
           </div>
         )}
       </div>
+      <footer className="mt-6 text-center text-xs text-gray-400 space-x-4">
+        <Link href="/terms">Terms of Use</Link>
+        <Link href="/privacy">Privacy Policy</Link>
+      </footer>
     </div>
   );
 }
