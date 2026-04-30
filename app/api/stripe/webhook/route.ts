@@ -73,20 +73,17 @@ async function syncSubscription(
   await adminDb
     .collection("groups")
     .doc(groupId)
-    .set(
-      {
-        "subscription.status": status,
-        "subscription.plan": plan,
-        "subscription.stripeSubscriptionId": subscription.id,
-        "subscription.stripeCustomerId": String(subscription.customer),
-        "subscription.currentPeriodEndsAt": currentPeriodEndsAt,
-        "subscription.trialEndsAt": null,
-        "subscription.exemptReason": null,
-        "subscription.updatedAt": FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    .update({
+      "subscription.status": status,
+      "subscription.plan": plan,
+      "subscription.stripeSubscriptionId": subscription.id,
+      "subscription.stripeCustomerId": String(subscription.customer),
+      "subscription.currentPeriodEndsAt": currentPeriodEndsAt,
+      "subscription.trialEndsAt": null,
+      "subscription.exemptReason": null,
+      "subscription.updatedAt": FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
   console.log(`[webhook] synced group ${groupId} → status=${status} plan=${plan}`);
 }
@@ -112,14 +109,11 @@ async function handleInvoicePaymentFailed(
   await adminDb
     .collection("groups")
     .doc(groupId)
-    .set(
-      {
-        "subscription.status": "past_due" as SubscriptionStatus,
-        "subscription.updatedAt": FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
+    .update({
+      "subscription.status": "past_due" as SubscriptionStatus,
+      "subscription.updatedAt": FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
   console.log(`[webhook] payment failed for group ${groupId} → past_due`);
 }

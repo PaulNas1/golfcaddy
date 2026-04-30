@@ -66,10 +66,7 @@ export async function POST(request: NextRequest) {
       await adminDb
         .collection("groups")
         .doc(groupId)
-        .set(
-          { "subscription.stripeCustomerId": customerId },
-          { merge: true }
-        );
+        .update({ "subscription.stripeCustomerId": customerId });
     }
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://golfcaddy-alpha.vercel.app";
