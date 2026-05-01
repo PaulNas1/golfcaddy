@@ -586,9 +586,21 @@ export default function AdminRoundDetailPage() {
   const getPlayerName = (playerId: string) =>
     members.find((u) => u.uid === playerId)?.displayName ?? `Player ${playerId.slice(0, 6)}`;
 
-  const playerOptions = members
-    .map((m) => ({ id: m.uid, name: m.displayName }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const playingMemberIds = useMemo(() => {
+    const ids = new Set<string>();
+    rsvps.filter((r) => r.status === "accepted").forEach((r) => ids.add(r.memberId));
+    (round?.teeTimes ?? []).forEach((tt) => tt.playerIds.forEach((id) => ids.add(id)));
+    return ids;
+  }, [rsvps, round?.teeTimes]);
+
+  const playerOptions = useMemo(
+    () =>
+      members
+        .filter((m) => playingMemberIds.has(m.uid))
+        .map((m) => ({ id: m.uid, name: m.displayName }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [members, playingMemberIds]
+  );
 
   const buildSideResult = (key: string, holeNumber: number | null): SideResult => {
     const winnerId = sideWinnerIds[key] || null;
@@ -1328,6 +1340,62 @@ export default function AdminRoundDetailPage() {
     }
   };
 
+  const correctCoursePar = async (
+    holeNumber: number,
+    newPar: number,
+    yardage?: number
+  ) => {
+    if (!round) return;
+    setSaving(true);
+    try {
+      const holeType = (p: number): "par3" | "par4" | "par5" =>
+        p === 3 ? "par3" : p === 5 ? "par5" : "par4";
+
+      const updatedHoles = (
+        round.courseHoles.length === 18 ? round.courseHoles : getFallbackCourseHoles()
+      ).map((h) => {
+        if (h.number !== holeNumber) return h;
+        return {
+          ...h,
+          par: newPar,
+          type: holeType(newPar),
+          ...(yardage != null ? { distanceMeters: yardage } : {}),
+        };
+      });
+
+      const updatedTeeSets = (round.availableTeeSets ?? []).map((ts) => {
+        if (ts.id !== round.teeSetId || ts.holes.length !== 18) return ts;
+        const updatedTeeHoles = ts.holes.map((h) => {
+          if (h.number !== holeNumber) return h;
+          return {
+            ...h,
+            par: newPar,
+            type: holeType(newPar),
+            ...(yardage != null ? { distanceMeters: yardage } : {}),
+          };
+        });
+        return {
+          ...ts,
+          holes: updatedTeeHoles,
+          par: updatedTeeHoles.reduce((sum, h) => sum + h.par, 0),
+        };
+      });
+
+      const updatedRound = { ...round, courseHoles: updatedHoles, availableTeeSets: updatedTeeSets };
+      const specialHoles = getEffectiveSpecialHoles(updatedRound);
+      await updateRound(round.id, {
+        courseHoles: updatedHoles,
+        availableTeeSets: updatedTeeSets,
+        specialHoles,
+      });
+      setRound({ ...updatedRound, specialHoles });
+      setSuccess("Course data corrected.");
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const saveToCorrectionsLibrary = async () => {
     if (!round || !round.teeSetId || !appUser) return;
 
@@ -1904,6 +1972,25 @@ export default function AdminRoundDetailPage() {
             </div>
           )}
 
+          {/* Live par override — quick on-the-fly changes during play */}
+          {round.status === "live" && !round.resultsPublished && (
+            <div className="space-y-3 border-t border-amber-100 pt-3">
+              <div>
+                <p className="text-xs font-semibold text-gray-700">Live Par Override</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Apply an on-the-fly change (GUR, temporary tee). Players are notified instantly.
+                </p>
+              </div>
+              <HoleOverrideForm
+                holes={holeOptions}
+                onSubmit={addHoleOverride}
+                disabled={saving}
+                editingOverride={editingOverride}
+                onCancelEdit={() => setEditingOverride(null)}
+              />
+            </div>
+          )}
+
           {/* Side winners — only shown before publish */}
           {!round.resultsPublished && (
             <div className="space-y-3 border-t border-gray-100 pt-3">
@@ -2077,24 +2164,22 @@ export default function AdminRoundDetailPage() {
 
         {courseCorrectionsOpen && (
           <div className="mt-4 space-y-6">
-            {/* Override Hole Par */}
+            {/* Correct Hole Par — pre-round data fix, no notification */}
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-gray-800">Override Hole Par &amp; Yardage</p>
+                <p className="text-sm font-semibold text-gray-800">Correct Hole Par &amp; Yardage</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Change a hole&apos;s par or yardage for this round (e.g. GUR, temporary tee). All players are notified instantly.
+                  Fix incorrect course data — writes directly to this round&apos;s hole data. No players are notified. For in-round changes (GUR etc.) use the Live Par Override in the round panel.
                 </p>
               </div>
-              <HoleOverrideForm
+              <CourseParCorrectionForm
                 holes={holeOptions}
-                onSubmit={addHoleOverride}
+                onSubmit={correctCoursePar}
                 disabled={saving}
-                editingOverride={editingOverride}
-                onCancelEdit={() => setEditingOverride(null)}
               />
               {round.holeOverrides.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-600">Current overrides:</p>
+                  <p className="text-xs font-medium text-gray-600">Active live overrides:</p>
                   {round.holeOverrides.map((o, index) => (
                     <div
                       key={`${o.holeNumber}-${index}`}
@@ -2507,6 +2592,75 @@ function WinnerSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function CourseParCorrectionForm({
+  holes,
+  onSubmit,
+  disabled,
+}: {
+  holes: Round["courseHoles"];
+  onSubmit: (hole: number, par: number, yardage?: number) => void;
+  disabled: boolean;
+}) {
+  const [hole, setHole] = useState("");
+  const [par, setPar] = useState("");
+  const [yardage, setYardage] = useState("");
+
+  const handle = () => {
+    if (!hole || !par) return;
+    const parsedYardage = yardage.trim() !== "" ? parseInt(yardage, 10) : undefined;
+    onSubmit(parseInt(hole), parseInt(par), parsedYardage);
+    setHole("");
+    setPar("");
+    setYardage("");
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <select
+          value={hole}
+          onChange={(e) => setHole(e.target.value)}
+          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option value="">Hole</option>
+          {holes.map((h) => (
+            <option key={h.number} value={h.number}>
+              {getHoleOptionLabel(h)}
+            </option>
+          ))}
+        </select>
+        <select
+          value={par}
+          onChange={(e) => setPar(e.target.value)}
+          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option value="">Correct par</option>
+          {[3, 4, 5].map((n) => (
+            <option key={n} value={n}>Par {n}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          min={1}
+          value={yardage}
+          onChange={(e) => setYardage(e.target.value)}
+          placeholder="m"
+          className="w-16 min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-center text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          aria-label="Distance in metres"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={handle}
+        disabled={disabled || !hole || !par}
+        className="w-full rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-400"
+      >
+        Save Correction
+      </button>
+    </div>
   );
 }
 
