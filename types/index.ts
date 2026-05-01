@@ -179,6 +179,7 @@ export interface HoleOverride {
   holeNumber: number;
   originalPar: number;
   overridePar: number;
+  overrideYardage?: number;
   reason: string;
   overriddenAt: Date;
 }

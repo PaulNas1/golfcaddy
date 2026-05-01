@@ -172,6 +172,10 @@ export default function AdminRoundDetailPage() {
   const [savingStrokeIndexes, setSavingStrokeIndexes] = useState(false);
   const [savingCorrectionLibrary, setSavingCorrectionLibrary] = useState(false);
   const [correctionLibrarySaved, setCorrectionLibrarySaved] = useState(false);
+  const [editingRatingSlope, setEditingRatingSlope] = useState(false);
+  const [courseRatingDraft, setCourseRatingDraft] = useState("");
+  const [slopeRatingDraft, setSlopeRatingDraft] = useState("");
+  const [savingRatingSlope, setSavingRatingSlope] = useState(false);
   const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
@@ -1175,7 +1179,8 @@ export default function AdminRoundDetailPage() {
   const addHoleOverride = async (
     holeNumber: number,
     overridePar: number,
-    reason: string
+    reason: string,
+    yardage?: number
   ) => {
     if (!round) return;
     setSaving(true);
@@ -1192,6 +1197,7 @@ export default function AdminRoundDetailPage() {
         holeNumber,
         originalPar: existingOverride?.originalPar ?? courseHole?.par ?? 4,
         overridePar,
+        ...(yardage != null ? { overrideYardage: yardage } : {}),
         reason: reason.trim(),
         overriddenAt: new Date(),
       };
@@ -1206,12 +1212,13 @@ export default function AdminRoundDetailPage() {
       const specialHoles = getEffectiveSpecialHoles(updatedRound);
       await updateRound(round.id, { holeOverrides: updated, specialHoles });
       const activeUsers = await getActiveMembers(round.groupId);
+      const yardageNote = yardage != null ? ` · ${yardage}m` : "";
       await createNotificationsForUsers({
         recipientUserIds: activeUsers.map((user) => user.uid),
         groupId: round.groupId,
         type: "change_alert",
         title: "Course update",
-        body: `Hole ${holeNumber} is now Par ${overridePar}${reason.trim() ? `: ${reason.trim()}` : "."}`,
+        body: `Hole ${holeNumber} is now Par ${overridePar}${yardageNote}${reason.trim() ? `: ${reason.trim()}` : "."}`,
         deepLink: `/rounds/${round.id}`,
         roundId: round.id,
       });
@@ -1350,6 +1357,34 @@ export default function AdminRoundDetailPage() {
       setTimeout(() => setCorrectionLibrarySaved(false), 4000);
     } finally {
       setSavingCorrectionLibrary(false);
+    }
+  };
+
+  const saveRatingSlope = async () => {
+    if (!round) return;
+    const rating = courseRatingDraft.trim() === "" ? null : parseFloat(courseRatingDraft);
+    const slope = slopeRatingDraft.trim() === "" ? null : parseInt(slopeRatingDraft, 10);
+
+    if (courseRatingDraft.trim() !== "" && (isNaN(rating!) || rating! < 50 || rating! > 85)) {
+      setDetailsError("Course rating must be a number between 50 and 85.");
+      setTimeout(() => setDetailsError(""), 4000);
+      return;
+    }
+    if (slopeRatingDraft.trim() !== "" && (isNaN(slope!) || slope! < 55 || slope! > 155)) {
+      setDetailsError("Slope rating must be a number between 55 and 155.");
+      setTimeout(() => setDetailsError(""), 4000);
+      return;
+    }
+
+    setSavingRatingSlope(true);
+    try {
+      await updateRound(round.id, { courseRating: rating, slopeRating: slope });
+      setRound({ ...round, courseRating: rating, slopeRating: slope });
+      setEditingRatingSlope(false);
+      setSuccess("Course rating and slope saved.");
+      setTimeout(() => setSuccess(""), 3000);
+    } finally {
+      setSavingRatingSlope(false);
     }
   };
 
@@ -2045,9 +2080,9 @@ export default function AdminRoundDetailPage() {
             {/* Override Hole Par */}
             <div className="space-y-3">
               <div>
-                <p className="text-sm font-semibold text-gray-800">Override Hole Par</p>
+                <p className="text-sm font-semibold text-gray-800">Override Hole Par &amp; Yardage</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Change a hole&apos;s par for this round only (e.g. GUR). All players are notified instantly.
+                  Change a hole&apos;s par or yardage for this round (e.g. GUR, temporary tee). All players are notified instantly.
                 </p>
               </div>
               <HoleOverrideForm
@@ -2068,6 +2103,7 @@ export default function AdminRoundDetailPage() {
                       <div className="min-w-0">
                         <span className="font-medium">
                           Hole {o.holeNumber}: Par {o.originalPar} → {o.overridePar}
+                          {o.overrideYardage != null && ` · ${o.overrideYardage}m`}
                         </span>
                         {o.reason && (
                           <span className="ml-1 text-amber-600">({o.reason})</span>
@@ -2099,30 +2135,93 @@ export default function AdminRoundDetailPage() {
               )}
             </div>
 
-            {/* Save to Corrections Library */}
-            {round.teeSetId && (
-              <div className="border-t border-gray-100 pt-5 space-y-2">
+            {/* Course Rating & Slope */}
+            <div className="space-y-3 border-t border-gray-100 pt-5">
+              <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Save as Course Corrections</p>
+                  <p className="text-sm font-semibold text-gray-800">Course Rating &amp; Slope</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Saves the current Course Rating, Slope, and all hole Stroke Indexes as permanent corrections for this tee set. Next time you select this course, you&apos;ll be offered these values.
+                    Used for slope-adjusted playing handicap. Leave blank if not applicable.
                   </p>
                 </div>
-                {correctionLibrarySaved && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
-                    Corrections saved — they&apos;ll be offered next time this tee set is selected.
+                {!editingRatingSlope ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCourseRatingDraft(round.courseRating != null ? String(round.courseRating) : "");
+                      setSlopeRatingDraft(round.slopeRating != null ? String(round.slopeRating) : "");
+                      setEditingRatingSlope(true);
+                    }}
+                    className="shrink-0 text-xs font-medium text-green-700 hover:underline"
+                  >
+                    Edit
+                  </button>
+                ) : (
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setEditingRatingSlope(false)}
+                      disabled={savingRatingSlope}
+                      className="text-xs font-medium text-gray-500 hover:underline disabled:text-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveRatingSlope}
+                      disabled={savingRatingSlope}
+                      className="text-xs font-semibold text-green-700 hover:underline disabled:text-green-300"
+                    >
+                      {savingRatingSlope ? "Saving…" : "Save"}
+                    </button>
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={saveToCorrectionsLibrary}
-                  disabled={savingCorrectionLibrary}
-                  className="w-full rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-400"
-                >
-                  {savingCorrectionLibrary ? "Saving…" : "Save as course corrections"}
-                </button>
               </div>
-            )}
+              {!editingRatingSlope ? (
+                <div className="flex gap-3">
+                  <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Course Rating</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                      {round.courseRating != null ? round.courseRating : "—"}
+                    </p>
+                  </div>
+                  <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Slope</p>
+                    <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                      {round.slopeRating != null ? round.slopeRating : "—"}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Course Rating</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min={50}
+                      max={85}
+                      value={courseRatingDraft}
+                      onChange={(e) => setCourseRatingDraft(e.target.value)}
+                      placeholder="e.g. 71.5"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Slope</label>
+                    <input
+                      type="number"
+                      min={55}
+                      max={155}
+                      value={slopeRatingDraft}
+                      onChange={(e) => setSlopeRatingDraft(e.target.value)}
+                      placeholder="e.g. 125"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Stroke Indexes */}
             {round.courseHoles.length === 18 && (
@@ -2176,7 +2275,7 @@ export default function AdminRoundDetailPage() {
                     didn&apos;t provide real handicap data. Tap Edit to enter the correct values from the scorecard.
                   </div>
                 )}
-                <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-xs">
+                <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-xs" aria-label="Stroke indexes">
                   {round.courseHoles.flatMap((h) => [
                     <div
                       key={`lbl-${h.number}`}
@@ -2206,6 +2305,31 @@ export default function AdminRoundDetailPage() {
                     ),
                   ])}
                 </div>
+              </div>
+            )}
+
+            {/* Save to Corrections Library */}
+            {round.teeSetId && (
+              <div className="border-t border-gray-100 pt-5 space-y-2">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Save as Course Corrections</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Saves the current Course Rating, Slope, and all hole Stroke Indexes as permanent corrections for this tee set. Next time you select this course, you&apos;ll be offered these values.
+                  </p>
+                </div>
+                {correctionLibrarySaved && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                    Corrections saved — they&apos;ll be offered next time this tee set is selected.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={saveToCorrectionsLibrary}
+                  disabled={savingCorrectionLibrary}
+                  className="w-full rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-400"
+                >
+                  {savingCorrectionLibrary ? "Saving…" : "Save as course corrections"}
+                </button>
               </div>
             )}
           </div>
@@ -2376,13 +2500,14 @@ function HoleOverrideForm({
   onCancelEdit,
 }: {
   holes: Round["courseHoles"];
-  onSubmit: (hole: number, par: number, reason: string) => void;
+  onSubmit: (hole: number, par: number, reason: string, yardage?: number) => void;
   disabled: boolean;
   editingOverride: HoleOverride | null;
   onCancelEdit: () => void;
 }) {
   const [hole, setHole] = useState("");
   const [par, setPar] = useState("");
+  const [yardage, setYardage] = useState("");
   const [reason, setReason] = useState("");
   const isEditing = Boolean(editingOverride);
 
@@ -2390,19 +2515,23 @@ function HoleOverrideForm({
     if (!editingOverride) {
       setHole("");
       setPar("");
+      setYardage("");
       setReason("");
       return;
     }
     setHole(String(editingOverride.holeNumber));
     setPar(String(editingOverride.overridePar));
+    setYardage(editingOverride.overrideYardage != null ? String(editingOverride.overrideYardage) : "");
     setReason(editingOverride.reason);
   }, [editingOverride]);
 
   const handle = () => {
     if (!hole || !par) return;
-    onSubmit(parseInt(hole), parseInt(par), reason);
+    const parsedYardage = yardage.trim() !== "" ? parseInt(yardage, 10) : undefined;
+    onSubmit(parseInt(hole), parseInt(par), reason, parsedYardage);
     setHole("");
     setPar("");
+    setYardage("");
     setReason("");
   };
 
@@ -2432,6 +2561,15 @@ function HoleOverrideForm({
             <option key={n} value={n}>Par {n}</option>
           ))}
         </select>
+        <input
+          type="number"
+          min={1}
+          value={yardage}
+          onChange={(e) => setYardage(e.target.value)}
+          placeholder="m"
+          className="w-16 min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-center text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          aria-label="Yardage override in metres"
+        />
       </div>
       <input
         type="text"
@@ -2457,6 +2595,7 @@ function HoleOverrideForm({
             onCancelEdit();
             setHole("");
             setPar("");
+            setYardage("");
             setReason("");
           }}
           disabled={disabled}

@@ -173,6 +173,9 @@ export function applyHoleOverrides(
       ...hole,
       par: override.overridePar,
       type: holeType(override.overridePar),
+      ...(override.overrideYardage != null
+        ? { distanceMeters: override.overrideYardage }
+        : {}),
     };
   });
 }
