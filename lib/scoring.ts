@@ -33,14 +33,14 @@ export function calculatePlayingHandicap({
     return Math.max(0, Math.round(handicap));
   }
 
-  let adjusted = handicap;
-  if (typeof slopeRating === "number" && slopeRating > 0) {
-    adjusted = (adjusted * slopeRating) / 113;
-  }
-  if (
-    typeof courseRating === "number" &&
-    typeof coursePar === "number"
-  ) {
+  // USGA formula: Playing HCP = (HCP × Slope/113) + (Course Rating − Par)
+  // When slope is unknown, 113 is the standard scratch value — still allows
+  // the course rating differential to apply correctly.
+  const effectiveSlope =
+    typeof slopeRating === "number" && slopeRating > 0 ? slopeRating : 113;
+  let adjusted = (handicap * effectiveSlope) / 113;
+
+  if (typeof courseRating === "number" && typeof coursePar === "number") {
     adjusted += courseRating - coursePar;
   }
 

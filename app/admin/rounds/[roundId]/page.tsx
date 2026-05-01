@@ -2177,6 +2177,22 @@ export default function AdminRoundDetailPage() {
                   </div>
                 )}
               </div>
+              {group?.settings?.handicapMode === "slope_adjusted" &&
+                (round.courseRating == null || round.slopeRating == null) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  ⚠️ Slope-adjusted handicaps are on, but{" "}
+                  {round.courseRating == null && round.slopeRating == null
+                    ? "Course Rating and Slope are"
+                    : round.courseRating == null
+                    ? "Course Rating is"
+                    : "Slope is"}{" "}
+                  not set. Scorecards created without this data will use{" "}
+                  {round.slopeRating == null ? "Slope 113 (standard)" : ""}
+                  {round.slopeRating == null && round.courseRating == null ? " and " : ""}
+                  {round.courseRating == null ? "no course rating differential" : ""}
+                  . Set correct values before play begins.
+                </div>
+              )}
               {!editingRatingSlope ? (
                 <div className="flex gap-3">
                   <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
@@ -2342,7 +2358,9 @@ export default function AdminRoundDetailPage() {
         <InfoRow label="Format" value={round.format === "stableford" ? "Stableford" : "Stroke Play"} />
         <InfoRow label="Tee set" value={round.teeSetName || "Custom"} />
         <InfoRow label="Course par" value={round.coursePar?.toString() || "Not set"} />
+        <InfoRow label="Course rating" value={round.courseRating?.toString() || "Not set"} />
         <InfoRow label="Slope rating" value={round.slopeRating?.toString() || "Not set"} />
+        <InfoRow label="Handicap mode" value={group?.settings?.handicapMode === "slope_adjusted" ? "Slope adjusted" : "Local"} />
         <InfoRow label="NTP holes" value={round.specialHoles.ntp.join(", ") || "None set"} />
         <InfoRow label="LD hole" value={round.specialHoles.ld?.toString() || "None set"} />
         <InfoRow label="T2 hole" value={round.specialHoles.t2?.toString() || "None set"} />
