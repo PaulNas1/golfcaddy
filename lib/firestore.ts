@@ -7,6 +7,7 @@ import {
   getDocs,
   getDocsFromServer,
   setDoc,
+  deleteDoc,
   updateDoc,
   addDoc,
   writeBatch,
@@ -52,6 +53,7 @@ import type {
   PostComment,
   HandicapHistory,
   NotificationType,
+  CourseCorrection,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -3338,4 +3340,56 @@ export const subscribeNotifications = (
 
 export const markNotificationRead = async (notificationId: string) => {
   await updateDoc(doc(db, "notifications", notificationId), { read: true });
+};
+
+// ─── Course Corrections ───────────────────────────────────────────────────────
+
+const mapCourseCorrection = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
+): CourseCorrection => {
+  const data = d.data() ?? {};
+  return {
+    id: d.id,
+    ...data,
+    savedAt: toDate(data.savedAt),
+  } as CourseCorrection;
+};
+
+export const saveCourseCorrection = async (
+  groupId: string,
+  correction: Omit<CourseCorrection, "id" | "savedAt">
+): Promise<void> => {
+  await setDoc(
+    doc(db, "groups", groupId, "courseCorrections", correction.teeSetId),
+    { ...correction, savedAt: serverTimestamp() }
+  );
+};
+
+export const getCourseCorrection = async (
+  groupId: string,
+  teeSetId: string
+): Promise<CourseCorrection | null> => {
+  const snap = await getDoc(
+    doc(db, "groups", groupId, "courseCorrections", teeSetId)
+  );
+  if (!snap.exists()) return null;
+  return mapCourseCorrection(snap);
+};
+
+export const getCourseCorrectionsForGroup = async (
+  groupId: string
+): Promise<CourseCorrection[]> => {
+  const snap = await getDocs(
+    collection(db, "groups", groupId, "courseCorrections")
+  );
+  return snap.docs
+    .map(mapCourseCorrection)
+    .sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
+};
+
+export const deleteCourseCorrection = async (
+  groupId: string,
+  teeSetId: string
+): Promise<void> => {
+  await deleteDoc(doc(db, "groups", groupId, "courseCorrections", teeSetId));
 };

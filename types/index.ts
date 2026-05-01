@@ -183,6 +183,26 @@ export interface HoleOverride {
   overriddenAt: Date;
 }
 
+export interface HoleCorrectionItem {
+  holeNumber: number;
+  strokeIndex: number;
+  par: number;
+}
+
+export interface CourseCorrection {
+  id: string;
+  groupId: string;
+  teeSetId: string;
+  courseName: string;
+  teeSetName: string;
+  correctedCourseRating: number | null;
+  correctedSlopeRating: number | null;
+  holeCorrections: HoleCorrectionItem[];
+  savedAt: Date;
+  savedBy: string;
+  savedByName: string;
+}
+
 export interface SpecialHoles {
   ntp: number[];          // all par 3 hole numbers
   ld: number | null;

@@ -11,6 +11,7 @@ import {
 import {
   createRound,
   getActiveMembers,
+  getCourseCorrection,
   getRounds,
   notifyRoundPlayers,
   subscribeGroup,
@@ -32,6 +33,7 @@ import {
 } from "@/lib/teeTimes";
 import type {
   AppUser,
+  CourseCorrection,
   CourseHole,
   Round,
   ScoringFormat,
@@ -66,6 +68,8 @@ export default function CreateRoundPage() {
   const [showCustomCourseSetup, setShowCustomCourseSetup] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [activeSeason, setActiveSeason] = useState<number | null>(null);
+  const [pendingCorrection, setPendingCorrection] = useState<CourseCorrection | null>(null);
+  const [dismissedCorrectionId, setDismissedCorrectionId] = useState<string | null>(null);
 
   // Tee times state
   const [teeTimes, setTeeTimes] = useState<TeeTimeDraftValue[]>([
@@ -182,11 +186,55 @@ export default function CreateRoundPage() {
     applyCourse(courseToApply);
   };
 
+  useEffect(() => {
+    if (!teeSetId || !appUser?.groupId || !activeCourse) return;
+    if (teeSetId === dismissedCorrectionId) return;
+
+    getCourseCorrection(appUser.groupId, teeSetId)
+      .then((correction) => {
+        if (correction) setPendingCorrection(correction);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teeSetId]);
+
+  const applyCorrections = (correction: CourseCorrection) => {
+    setApiCourses((current) =>
+      current.map((course) => ({
+        ...course,
+        teeSets: course.teeSets.map((teeSet) => {
+          if (teeSet.id !== correction.teeSetId) return teeSet;
+          return {
+            ...teeSet,
+            courseRating: correction.correctedCourseRating ?? teeSet.courseRating,
+            slopeRating: correction.correctedSlopeRating ?? teeSet.slopeRating,
+            holes: teeSet.holes.map((hole) => {
+              const item = correction.holeCorrections.find(
+                (c) => c.holeNumber === hole.number
+              );
+              if (!item) return hole;
+              return {
+                ...hole,
+                strokeIndex: item.strokeIndex,
+                par: item.par,
+                type:
+                  item.par === 3 ? "par3" : item.par === 5 ? "par5" : "par4",
+              };
+            }),
+          };
+        }),
+      }))
+    );
+    setPendingCorrection(null);
+  };
+
   const handleCourseNameChange = (value: string) => {
     setCourseSearchActive(true);
     setCourseName(value);
     setCourseId("");
     setTeeSetId("");
+    setPendingCorrection(null);
+    setDismissedCorrectionId(null);
   };
 
   useEffect(() => {
@@ -610,6 +658,41 @@ export default function CreateRoundPage() {
                     distanceUnit={appUser?.distanceUnit ?? "meters"}
                     teeSetName={selectedTeeSet.name}
                   />
+                </div>
+              )}
+
+              {pendingCorrection && (
+                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+                  <p className="text-sm font-semibold text-amber-800">
+                    Saved course corrections available
+                  </p>
+                  <p className="text-xs text-amber-700">
+                    You have saved corrections for {pendingCorrection.courseName} — {pendingCorrection.teeSetName}.
+                    {pendingCorrection.correctedCourseRating != null &&
+                      ` Course Rating: ${pendingCorrection.correctedCourseRating}.`}
+                    {pendingCorrection.correctedSlopeRating != null &&
+                      ` Slope: ${pendingCorrection.correctedSlopeRating}.`}
+                    {" "}Hole Stroke Indexes and pars have been corrected for all 18 holes.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => applyCorrections(pendingCorrection)}
+                      className="flex-1 rounded-lg bg-amber-600 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
+                    >
+                      Apply corrections
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDismissedCorrectionId(pendingCorrection.teeSetId);
+                        setPendingCorrection(null);
+                      }}
+                      className="flex-1 rounded-lg border border-amber-200 bg-white py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50"
+                    >
+                      Use API data as-is
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

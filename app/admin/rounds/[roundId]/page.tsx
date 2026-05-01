@@ -21,6 +21,7 @@ import {
   getSideClaimsForRound,
   notifyRoundPlayers,
   publishRoundResultsWithStage3,
+  saveCourseCorrection,
   setSideClaim,
   subscribeHoleScores,
   subscribeResultsForRound,
@@ -169,6 +170,8 @@ export default function AdminRoundDetailPage() {
   const [strokeIndexDrafts, setStrokeIndexDrafts] = useState<Record<number, string>>({});
   const [editingStrokeIndexes, setEditingStrokeIndexes] = useState(false);
   const [savingStrokeIndexes, setSavingStrokeIndexes] = useState(false);
+  const [savingCorrectionLibrary, setSavingCorrectionLibrary] = useState(false);
+  const [correctionLibrarySaved, setCorrectionLibrarySaved] = useState(false);
   const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
   const [apiCourseLoading, setApiCourseLoading] = useState(false);
   const [apiCourseError, setApiCourseError] = useState("");
@@ -1318,6 +1321,38 @@ export default function AdminRoundDetailPage() {
     }
   };
 
+  const saveToCorrectionsLibrary = async () => {
+    if (!round || !round.teeSetId || !appUser) return;
+
+    const holes =
+      round.courseHoles.length === 18
+        ? round.courseHoles
+        : getFallbackCourseHoles();
+
+    setSavingCorrectionLibrary(true);
+    try {
+      await saveCourseCorrection(round.groupId, {
+        groupId: round.groupId,
+        teeSetId: round.teeSetId,
+        courseName: round.courseName,
+        teeSetName: round.teeSetName ?? "Unknown",
+        correctedCourseRating: round.courseRating,
+        correctedSlopeRating: round.slopeRating,
+        holeCorrections: holes.map((h) => ({
+          holeNumber: h.number,
+          strokeIndex: h.strokeIndex,
+          par: h.par,
+        })),
+        savedBy: appUser.uid,
+        savedByName: appUser.displayName,
+      });
+      setCorrectionLibrarySaved(true);
+      setTimeout(() => setCorrectionLibrarySaved(false), 4000);
+    } finally {
+      setSavingCorrectionLibrary(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="animate-pulse space-y-4">
@@ -2063,6 +2098,31 @@ export default function AdminRoundDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Save to Corrections Library */}
+            {round.teeSetId && (
+              <div className="border-t border-gray-100 pt-5 space-y-2">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Save as Course Corrections</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Saves the current Course Rating, Slope, and all hole Stroke Indexes as permanent corrections for this tee set. Next time you select this course, you&apos;ll be offered these values.
+                  </p>
+                </div>
+                {correctionLibrarySaved && (
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                    Corrections saved — they&apos;ll be offered next time this tee set is selected.
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={saveToCorrectionsLibrary}
+                  disabled={savingCorrectionLibrary}
+                  className="w-full rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-400"
+                >
+                  {savingCorrectionLibrary ? "Saving…" : "Save as course corrections"}
+                </button>
+              </div>
+            )}
 
             {/* Stroke Indexes */}
             {round.courseHoles.length === 18 && (

@@ -189,6 +189,13 @@ export default function AdminDashboard() {
               tone="amber"
             />
           )}
+          <ActionTile
+            href="/admin/course-corrections"
+            label="Course corrections"
+            description="Saved tee set fixes"
+            icon={<CourseIcon className="h-6 w-6" />}
+            tone="gray"
+          />
         </div>
       </div>
     </div>
@@ -265,6 +272,14 @@ function SettingsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Zm8.25 3.75a8.2 8.2 0 0 0-.08-1.13l2.08-1.62-2-3.46-2.46.99a8.68 8.68 0 0 0-1.96-1.13L15.45 3h-3.9l-.38 2.65a8.68 8.68 0 0 0-1.96 1.13l-2.46-.99-2 3.46 2.08 1.62a8.2 8.2 0 0 0 0 2.26L4.75 14.75l2 3.46 2.46-.99a8.68 8.68 0 0 0 1.96 1.13l.38 2.65h3.9l.38-2.65a8.68 8.68 0 0 0 1.96-1.13l2.46.99 2-3.46-2.08-1.62c.05-.37.08-.75.08-1.13Z" />
+    </svg>
+  );
+}
+
+function CourseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18M3 8l4-2 4 2 4-2 4 2M7 21v-5m4 5v-8m4 8v-5" />
     </svg>
   );
 }
