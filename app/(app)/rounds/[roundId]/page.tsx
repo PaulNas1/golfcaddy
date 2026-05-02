@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
 import {
+  createFeedPost,
   getLiveRound,
   getActiveMembers,
   getResultsForRound,
@@ -62,6 +63,9 @@ export default function RoundDetailPage() {
   const [savingClaim, setSavingClaim] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showPostSheet, setShowPostSheet] = useState(false);
+  const [postContent, setPostContent] = useState("");
+  const [postingUpdate, setPostingUpdate] = useState(false);
   const { appUser, canAccessAdmin } = useAuth();
 
   useEffect(() => {
@@ -301,6 +305,25 @@ export default function RoundDetailPage() {
       });
     } finally {
       setSavingClaim("");
+    }
+  };
+
+  const handlePostUpdate = async () => {
+    if (!appUser?.groupId || !postContent.trim()) return;
+    setPostingUpdate(true);
+    try {
+      await createFeedPost({
+        groupId: appUser.groupId,
+        author: appUser,
+        content: postContent,
+        roundId: round?.id ?? null,
+      });
+      setPostContent("");
+      setShowPostSheet(false);
+    } catch (err) {
+      console.error("Failed to post round update", err);
+    } finally {
+      setPostingUpdate(false);
     }
   };
 
@@ -610,12 +633,13 @@ export default function RoundDetailPage() {
               Updates and photos posted for this round.
             </p>
           </div>
-          <Link
-            href={`/feed?roundId=${round.id}`}
+          <button
+            type="button"
+            onClick={() => setShowPostSheet(true)}
             className="shrink-0 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white"
           >
             Post update
-          </Link>
+          </button>
         </div>
         {roundPosts.length === 0 ? (
           <div className="rounded-xl border border-dashed border-surface-overlay bg-surface-muted px-4 py-6 text-center text-sm text-ink-hint">
@@ -661,6 +685,67 @@ export default function RoundDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Inline post sheet */}
+      {showPostSheet && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setShowPostSheet(false)}
+          />
+          <div className="relative bg-surface-card rounded-t-2xl p-4 space-y-3 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-ink-title">Post round update</h3>
+              <button
+                type="button"
+                onClick={() => setShowPostSheet(false)}
+                className="text-ink-hint hover:text-ink-body transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <textarea
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              value={postContent}
+              onChange={(event) => setPostContent(event.target.value)}
+              placeholder="Share a moment from the round…"
+              rows={4}
+              className="w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body placeholder:text-ink-hint focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <Link
+                href={`/feed?roundId=${round.id}`}
+                prefetch={false}
+                className="text-xs text-ink-hint hover:text-ink-muted transition-colors"
+                onClick={() => setShowPostSheet(false)}
+              >
+                Add photos in Feed →
+              </Link>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPostSheet(false)}
+                  className="rounded-xl border border-surface-overlay px-4 py-2 text-sm font-semibold text-ink-muted"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!postContent.trim() || postingUpdate}
+                  onClick={handlePostUpdate}
+                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {postingUpdate ? "Posting…" : "Post"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Admin quick link */}
       {canAccessAdmin && (
