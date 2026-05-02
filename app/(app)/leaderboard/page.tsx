@@ -262,7 +262,7 @@ function StandingCard({
           <p className="text-xl font-bold text-ink-title">
             {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
           </p>
-          <p className="text-xs text-ink-hint">
+          <p className="mt-0.5 text-xs text-ink-hint">
             {entry.hasStanding ? getRankMovement(entry) : "Unranked"}
           </p>
         </div>
