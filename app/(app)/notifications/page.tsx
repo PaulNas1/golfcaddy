@@ -75,11 +75,11 @@ export default function NotificationsPage() {
       {loading ? (
         <div className="space-y-3 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-4 h-16 bg-gray-100" />
+            <div key={i} className="bg-surface-muted rounded-2xl p-4 h-16" />
           ))}
         </div>
       ) : notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+        <div className="flex flex-col items-center justify-center py-16 text-ink-hint">
           <div className="text-4xl mb-3">🔔</div>
           <p className="text-sm">No notifications yet</p>
         </div>
