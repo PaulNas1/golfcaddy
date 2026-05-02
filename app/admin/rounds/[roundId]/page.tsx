@@ -1621,7 +1621,7 @@ export default function AdminRoundDetailPage() {
                               </p>
                               {suggestedReview &&
                                 !playerTeeAssignments[member.uid] && (
-                                  <p className="text-[10px] font-medium text-amber-600">
+                                  <p className="text-xs font-medium text-amber-600">
                                     Review
                                   </p>
                                 )}
@@ -2277,13 +2277,13 @@ export default function AdminRoundDetailPage() {
               {!editingRatingSlope ? (
                 <div className="flex gap-3">
                   <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Course Rating</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Course Rating</p>
                     <p className="mt-0.5 text-sm font-semibold text-gray-800">
                       {round.courseRating != null ? round.courseRating : "—"}
                     </p>
                   </div>
                   <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Slope</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Slope</p>
                     <p className="mt-0.5 text-sm font-semibold text-gray-800">
                       {round.slopeRating != null ? round.slopeRating : "—"}
                     </p>
@@ -2376,7 +2376,7 @@ export default function AdminRoundDetailPage() {
                   {round.courseHoles.flatMap((h) => [
                     <div
                       key={`lbl-${h.number}`}
-                      className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1.5 text-[10px] font-semibold text-gray-500"
+                      className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1.5 text-xs font-semibold text-gray-500"
                     >
                       H{h.number}
                     </div>,

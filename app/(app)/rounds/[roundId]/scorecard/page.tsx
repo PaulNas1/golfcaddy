@@ -1089,12 +1089,12 @@ function HoleRow({
     >
       <div className="text-sm font-medium text-gray-700">
         {hole.holeNumber}
-        {hole.isNTP && <span className="ml-1 text-[10px] text-yellow-600">NTP</span>}
-        {hole.isLD && <span className="ml-1 text-[10px] text-blue-600">LD</span>}
-        {hole.isT2 && <span className="ml-1 text-[10px] text-emerald-600">T2</span>}
-        {hole.isT3 && <span className="ml-1 text-[10px] text-fuchsia-600">T3</span>}
+        {hole.isNTP && <span className="ml-1 text-xs text-yellow-600">NTP</span>}
+        {hole.isLD && <span className="ml-1 text-xs text-blue-600">LD</span>}
+        {hole.isT2 && <span className="ml-1 text-xs text-emerald-600">T2</span>}
+        {hole.isT3 && <span className="ml-1 text-xs text-fuchsia-600">T3</span>}
         {hole.distanceMeters && (
-          <div className="text-[10px] font-normal text-gray-400">
+          <div className="text-xs font-normal text-gray-400">
             {hole.distanceMeters}m
           </div>
         )}
@@ -1137,7 +1137,7 @@ function HoleRow({
             <button
               type="button"
               onClick={commitPoints}
-              className="text-[10px] font-semibold text-green-700 px-1.5 py-1 rounded-md bg-green-100 hover:bg-green-200"
+              className="text-xs font-semibold text-green-700 px-1.5 py-1 rounded-md bg-green-100 hover:bg-green-200"
             >
               OK
             </button>

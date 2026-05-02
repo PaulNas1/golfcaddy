@@ -272,7 +272,7 @@ function StandingCard({
           <div className="flex items-center gap-1.5">
             <p className="font-semibold text-ink-title truncate">{entry.memberName}</p>
             {isCurrentUser && (
-              <span className="shrink-0 rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700">
+              <span className="shrink-0 rounded-full bg-brand-100 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
                 you
               </span>
             )}

@@ -272,7 +272,7 @@ export default function PlatformAdminPage() {
                   <p className={`text-2xl font-bold ${text}`}>{count}</p>
                   <p className="mt-0.5 text-xs text-gray-500">{label}</p>
                   {isActive && (
-                    <p className="mt-1 text-[10px] font-semibold text-gray-400">✕ clear</p>
+                    <p className="mt-1 text-xs font-semibold text-gray-400">✕ clear</p>
                   )}
                 </button>
               );

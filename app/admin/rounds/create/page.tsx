@@ -725,7 +725,7 @@ export default function CreateRoundPage() {
               </div>
               {showCustomCourseSetup && (
                 <div className="mt-3">
-                  <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-[10px] font-semibold text-gray-500">
+                  <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs font-semibold text-gray-500">
                       <span>Hole</span>
                       <span>Par</span>
                       <span>Index</span>

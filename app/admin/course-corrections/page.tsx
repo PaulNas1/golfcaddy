@@ -146,7 +146,7 @@ export default function CourseCorrectionsPage() {
                 </div>
 
                 {correction.holeCorrections.length > 0 && (
-                  <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-[10px]">
+                  <div className="grid grid-cols-6 gap-x-1.5 gap-y-1.5 text-xs">
                     {correction.holeCorrections.map((h) => (
                       <>
                         <div

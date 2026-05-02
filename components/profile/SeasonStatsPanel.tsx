@@ -251,7 +251,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
                           {h.qualifyingRoundCount ? ` · ${h.qualifyingRoundCount} qualifying rounds` : ""}
                         </p>
                       </div>
-                      <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
                         isHistoryOfficial(h) ? "bg-brand-100 text-brand-700" : "bg-amber-100 text-amber-700"
                       }`}>
                         {isHistoryOfficial(h) ? "Official" : "Provisional"}
@@ -436,7 +436,7 @@ function RoundHistoryRow({
               {roundResult.courseName}
             </Link>
             {archiveLabel && (
-              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[10px] font-semibold text-ink-muted">{archiveLabel}</span>
+              <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs font-semibold text-ink-muted">{archiveLabel}</span>
             )}
           </div>
           <p className="text-xs text-ink-hint">
@@ -487,7 +487,7 @@ function HandicapTrendChart({ history }: { history: HandicapHistory[] }) {
             </p>
             <p className="text-xs text-ink-hint">{entry.roundDate ? format(entry.roundDate, "d MMM yyyy") : "Manual update"}</p>
           </div>
-          <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isHistoryOfficial(entry) ? "bg-brand-100 text-brand-700" : "bg-amber-100 text-amber-700"}`}>
+          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${isHistoryOfficial(entry) ? "bg-brand-100 text-brand-700" : "bg-amber-100 text-amber-700"}`}>
             {isHistoryOfficial(entry) ? "Official" : "Provisional"}
           </span>
         </div>
