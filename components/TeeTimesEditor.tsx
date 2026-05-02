@@ -23,7 +23,7 @@ type TeeTimesEditorProps = {
   onUpdateTeeTimeTime: (index: number, value: string) => void;
   onAssignPlayer: (teeTimeIndex: number, member: AppUser) => void;
   onRemovePlayer: (teeTimeIndex: number, member: AppUser) => void;
-  onAddGuest: (teeTimeIndex: number) => void;
+  onAddGuest: (teeTimeIndex: number, guestName: string) => void;
   onRemoveGuest: (teeTimeIndex: number, guestName: string) => void;
 };
 
@@ -47,6 +47,8 @@ export default function TeeTimesEditor({
     teeTimeIndex: number;
     member: AppUser;
   } | null>(null);
+  const [guestInputIndex, setGuestInputIndex] = useState<number | null>(null);
+  const [guestInputValue, setGuestInputValue] = useState("");
   const longPressTimerRef = useRef<number | null>(null);
   const availableMembers = assignableMembers ?? members;
 
@@ -60,6 +62,13 @@ export default function TeeTimesEditor({
   const openRemovalPrompt = (teeTimeIndex: number, member: AppUser) => {
     clearLongPressTimer();
     setPendingRemoval({ teeTimeIndex, member });
+  };
+
+  const confirmGuest = (teeTimeIndex: number) => {
+    const trimmed = guestInputValue.trim();
+    if (trimmed) onAddGuest(teeTimeIndex, trimmed);
+    setGuestInputIndex(null);
+    setGuestInputValue("");
   };
 
   const startLongPress = (teeTimeIndex: number, member: AppUser) => {
@@ -184,7 +193,8 @@ export default function TeeTimesEditor({
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
-                      onAddGuest(index);
+                      setGuestInputIndex(index);
+                      setGuestInputValue("");
                     }}
                     className="text-green-700 text-xs font-medium hover:underline"
                   >
@@ -249,9 +259,53 @@ export default function TeeTimesEditor({
                       }}
                       className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
                     >
-                      {guestName} x
+                      {guestName} ×
                     </button>
                   ))}
+                </div>
+              )}
+
+              {guestInputIndex === index && (
+                <div
+                  className="mt-2 flex items-center gap-2"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <input
+                    // eslint-disable-next-line jsx-a11y/no-autofocus
+                    autoFocus
+                    type="text"
+                    value={guestInputValue}
+                    onChange={(event) => setGuestInputValue(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        confirmGuest(index);
+                      } else if (event.key === "Escape") {
+                        setGuestInputIndex(null);
+                        setGuestInputValue("");
+                      }
+                    }}
+                    placeholder="Guest name"
+                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => confirmGuest(index)}
+                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setGuestInputIndex(null);
+                      setGuestInputValue("");
+                    }}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500"
+                  >
+                    Cancel
+                  </button>
                 </div>
               )}
             </button>

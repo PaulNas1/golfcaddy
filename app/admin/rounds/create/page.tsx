@@ -333,12 +333,8 @@ export default function CreateRoundPage() {
     );
   };
 
-  const addGuestToTeeTime = (teeTimeIndex: number) => {
-    const guestName =
-      typeof window !== "undefined"
-        ? window.prompt("Guest name")
-        : null;
-    const trimmed = guestName?.trim();
+  const addGuestToTeeTime = (teeTimeIndex: number, guestName: string) => {
+    const trimmed = guestName.trim();
     if (!trimmed) return;
 
     setTeeTimes((current) =>
