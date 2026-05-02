@@ -128,15 +128,15 @@ export function CourseCardPreview({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left"
+        className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
-        <div>
-          <span className="font-semibold text-gray-800 text-sm">Course Card</span>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
+          <span className="shrink-0 font-semibold text-gray-800 text-sm">Course Card</span>
           {teeSetName && (
-            <span className="ml-2 text-[11px] text-gray-400">{teeSetName}</span>
+            <span className="truncate text-xs text-gray-400">{teeSetName}</span>
           )}
         </div>
-        <span className="text-gray-400 text-xs flex items-center gap-1 shrink-0">
+        <span className="shrink-0 text-gray-400 text-xs flex items-center gap-1">
           {open ? "Hide" : `Par ${totalPar} · tap to view`}
           <svg
             className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`}
