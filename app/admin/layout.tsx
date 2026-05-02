@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { ChevronLeftIcon } from "@/components/ui/icons";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { appUser, loading, canAccessAdmin, isAdmin } = useAuth();
@@ -41,9 +42,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         <Link
           href="/home"
-          className="text-gray-400 hover:text-white text-sm transition-colors"
+          className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
         >
-          ← Back to app
+          <ChevronLeftIcon className="w-4 h-4" />
+          Back to app
         </Link>
       </header>
 
