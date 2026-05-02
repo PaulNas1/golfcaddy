@@ -181,11 +181,11 @@ export default function RoundDetailPage() {
   if (loading) {
     return (
       <div className="px-4 py-6 animate-pulse space-y-4">
-        <div className="h-8 bg-gray-200 rounded w-2/3" />
-        <div className="h-4 bg-gray-100 rounded w-1/2" />
-        <div className="bg-white rounded-2xl p-4 space-y-3">
-          <div className="h-4 bg-gray-100 rounded" />
-          <div className="h-4 bg-gray-100 rounded w-3/4" />
+        <div className="h-8 bg-surface-overlay rounded w-2/3" />
+        <div className="h-4 bg-surface-muted rounded w-1/2" />
+        <div className="bg-surface-card rounded-2xl p-4 space-y-3">
+          <div className="h-4 bg-surface-muted rounded" />
+          <div className="h-4 bg-surface-muted rounded w-3/4" />
         </div>
       </div>
     );
@@ -193,30 +193,30 @@ export default function RoundDetailPage() {
 
   if (!round) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+      <div className="flex flex-col items-center justify-center py-24 text-ink-hint">
         <div className="text-4xl mb-3">🚫</div>
         <p className="text-sm">
           {error ? "Could not load round." : "Round not found."}
         </p>
         {roundId && (
-          <p className="mt-2 max-w-xs break-all text-center text-xs text-gray-500">
+          <p className="mt-2 max-w-xs break-all text-center text-xs text-ink-muted">
             Tried round ID: {roundId}
           </p>
         )}
         {error && (
-          <p className="mt-2 max-w-xs text-center text-xs text-gray-500">
+          <p className="mt-2 max-w-xs text-center text-xs text-ink-muted">
             {error}
           </p>
         )}
         <Link
           href="/reset-cache.html"
-          className="mt-4 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700"
+          className="mt-4 rounded-xl border border-surface-overlay bg-surface-card px-4 py-2 text-sm font-semibold text-ink-body"
         >
           Reset app cache
         </Link>
         <Link
           href="/rounds"
-          className="mt-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white"
+          className="mt-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
         >
           Back to rounds
         </Link>
@@ -226,10 +226,10 @@ export default function RoundDetailPage() {
 
   const statusColor =
     round.status === "live"
-      ? "bg-red-100 text-red-700"
+      ? "bg-live-bg text-live-text"
       : round.status === "upcoming"
-      ? "bg-blue-100 text-blue-700"
-      : "bg-gray-100 text-gray-600";
+      ? "bg-upcoming-bg text-upcoming-text"
+      : "bg-completed-bg text-completed-text";
 
   const statusLabel =
     round.status === "live" ? "● Live" : round.status === "upcoming" ? "Upcoming" : "Completed";
@@ -312,10 +312,10 @@ export default function RoundDetailPage() {
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor}`}>
             {statusLabel}
           </span>
-          <span className="text-xs text-gray-400">{getRoundLabel(round)} · {round.season}</span>
+          <span className="text-xs text-ink-hint">{getRoundLabel(round)} · {round.season}</span>
         </div>
-        <h1 className="text-2xl font-bold text-gray-800 leading-tight">{round.courseName}</h1>
-        <p className="text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-ink-title leading-tight">{round.courseName}</h1>
+        <p className="text-ink-muted mt-1">
           {format(round.date, "EEEE d MMMM yyyy")}
           {getFirstTeeTimeLabel(round)
             ? ` · ${getFirstTeeTimeLabel(round)}`
@@ -326,7 +326,7 @@ export default function RoundDetailPage() {
       {/* Scoring format */}
       <div className="flex gap-2">
         <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-          round.format === "stableford" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+          round.format === "stableford" ? "bg-brand-100 text-brand-700" : "bg-blue-100 text-blue-700"
         }`}>
           {round.format === "stableford" ? "🏌️ Stableford" : "📊 Stroke Play"}
         </span>
@@ -346,14 +346,14 @@ export default function RoundDetailPage() {
       )}
 
       {round.resultsPublished && results && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 space-y-4">
+        <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 space-y-4">
           <div>
-            <h2 className="font-semibold text-green-900">Final Results</h2>
-            <p className="text-xs text-green-800 mt-1">
+            <h2 className="font-semibold text-brand-900">Final Results</h2>
+            <p className="text-xs text-brand-800 mt-1">
               Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
             </p>
           </div>
-          <div className="space-y-1 text-sm text-green-950">
+          <div className="space-y-1 text-sm text-ink-title">
             {results.rankings.map((ranking) => (
               <div
                 key={ranking.playerId}
@@ -366,12 +366,12 @@ export default function RoundDetailPage() {
                     #{ranking.rank} {ranking.playerName}
                   </span>
                   {ranking.countbackDetail && (
-                    <p className="text-xs text-green-700">
+                    <p className="text-xs text-brand-700">
                       {ranking.countbackDetail}
                     </p>
                   )}
                   {ranking.playerId === appUser?.uid && (
-                    <span className="ml-2 text-xs font-semibold text-green-700">
+                    <span className="ml-2 text-xs font-semibold text-brand-700">
                       You
                     </span>
                   )}
@@ -382,7 +382,7 @@ export default function RoundDetailPage() {
                       ? `${ranking.stablefordTotal} pts`
                       : `${ranking.grossTotal} strokes`}
                   </p>
-                  <p className="text-xs text-green-700">
+                  <p className="text-xs text-brand-700">
                     {ranking.pointsEligible === false
                       ? ranking.pointsIneligibleReason ?? "Provisional - no ladder points yet"
                       : `${ranking.pointsAwarded} ladder pts`}
@@ -424,14 +424,14 @@ export default function RoundDetailPage() {
 
       {/* Live standings */}
       {round.status === "live" && liveCards.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-gray-800">Live Standings</h2>
-            <span className="text-xs font-medium text-gray-400 rounded-full bg-gray-50 px-2 py-0.5">
+            <h2 className="font-semibold text-ink-title">Live Standings</h2>
+            <span className="text-xs font-medium text-ink-hint rounded-full bg-surface-muted px-2 py-0.5">
               Unofficial
             </span>
           </div>
-          <div className="divide-y divide-gray-100">
+          <div className="divide-y divide-surface-overlay">
             {liveCards
               .slice()
               .sort((a, b) => {
@@ -450,12 +450,12 @@ export default function RoundDetailPage() {
                     className={`flex items-center justify-between py-2 text-sm ${isMe ? "font-semibold" : ""}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-6 text-xs text-gray-400">#{idx + 1}</span>
-                      <span className={isMe ? "text-green-700" : "text-gray-700"}>
+                      <span className="w-6 text-xs text-ink-hint">#{idx + 1}</span>
+                      <span className={isMe ? "text-brand-700" : "text-ink-body"}>
                         {name}{isMe ? " (you)" : ""}
                       </span>
                     </div>
-                    <span className={isMe ? "text-green-700" : "text-gray-800"}>
+                    <span className={isMe ? "text-brand-700" : "text-ink-title"}>
                       {round.format === "stableford"
                         ? card.totalStableford != null ? `${card.totalStableford} pts` : "—"
                         : card.totalGross != null ? String(card.totalGross) : "—"}
@@ -464,25 +464,25 @@ export default function RoundDetailPage() {
                 );
               })}
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-ink-hint">
             Scores update in real time. Final results are published by the admin after the round.
           </p>
         </div>
       )}
 
       {/* Course info */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <h2 className="font-semibold text-gray-800">Course Info</h2>
-        <div className="text-sm text-gray-600 space-y-2">
-          <p className="font-medium text-gray-800">{round.courseName}</p>
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+        <h2 className="font-semibold text-ink-title">Course Info</h2>
+        <div className="text-sm text-ink-body space-y-2">
+          <p className="font-medium text-ink-title">{round.courseName}</p>
           {round.teeSetName && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-muted">
               {round.teeSetName} tees · Par {round.coursePar ?? "—"}
               {round.slopeRating ? ` · Slope ${round.slopeRating}` : ""}
             </p>
           )}
           {round.courseSource && (
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-ink-hint">
               Course data: {round.courseSource.provider}
             </p>
           )}
@@ -490,7 +490,7 @@ export default function RoundDetailPage() {
             href={`https://maps.google.com/?q=${encodeURIComponent(round.courseName)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-green-600 hover:underline"
+            className="inline-flex items-center gap-1 text-brand-600 hover:underline"
           >
             📍 Open in Maps
           </a>
@@ -508,18 +508,18 @@ export default function RoundDetailPage() {
       )}
 
       {round.teeTimes.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h2 className="font-semibold text-gray-800 mb-3">Tee Times</h2>
-          <div className="divide-y divide-gray-100">
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
+          <h2 className="font-semibold text-ink-title mb-3">Tee Times</h2>
+          <div className="divide-y divide-surface-overlay">
             {round.teeTimes.map((teeTime) => (
               <div
                 key={teeTime.id}
                 className="flex items-center justify-between py-2 text-sm"
               >
-                <span className="font-semibold text-gray-800">
+                <span className="font-semibold text-ink-title">
                   {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
                 </span>
-                <span className="text-gray-500 text-right">
+                <span className="text-ink-muted text-right">
                   {getTeeTimeLabel(teeTime.playerIds, teeTime.guestNames ?? [])}
                 </span>
               </div>
@@ -533,8 +533,8 @@ export default function RoundDetailPage() {
         specialHoles.ld ||
         specialHoles.t2 ||
         specialHoles.t3) && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h2 className="font-semibold text-gray-800 mb-3">Special Holes</h2>
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
+          <h2 className="font-semibold text-ink-title mb-3">Special Holes</h2>
           <div className="space-y-3">
             {specialHoles.ntp.map((holeNumber) => (
               <SideClaimSelect
@@ -596,50 +596,50 @@ export default function RoundDetailPage() {
 
       {/* Notes */}
       {round.notes && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <h2 className="font-semibold text-gray-800 mb-2">Notes</h2>
-          <p className="text-gray-600 text-sm whitespace-pre-wrap">{round.notes}</p>
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
+          <h2 className="font-semibold text-ink-title mb-2">Notes</h2>
+          <p className="text-ink-body text-sm whitespace-pre-wrap">{round.notes}</p>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-gray-800">Round activity</h2>
-            <p className="mt-1 text-xs text-gray-500">
+            <h2 className="font-semibold text-ink-title">Round activity</h2>
+            <p className="mt-1 text-xs text-ink-muted">
               Updates and photos posted for this round.
             </p>
           </div>
           <Link
             href={`/feed?roundId=${round.id}`}
-            className="shrink-0 rounded-xl bg-green-600 px-3 py-2 text-sm font-semibold text-white"
+            className="shrink-0 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white"
           >
             Post update
           </Link>
         </div>
         {roundPosts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">
+          <div className="rounded-xl border border-dashed border-surface-overlay bg-surface-muted px-4 py-6 text-center text-sm text-ink-hint">
             No round updates yet.
           </div>
         ) : (
           <div className="space-y-3">
             {roundPosts.map((post) => (
-              <div key={post.id} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <div key={post.id} className="rounded-xl border border-surface-overlay bg-surface-muted p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-gray-800">
+                    <p className="truncate text-sm font-semibold text-ink-title">
                       {post.authorName}
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-ink-hint">
                       {formatDistanceToNow(post.createdAt, { addSuffix: true })}
                     </p>
                   </div>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600">
+                  <span className="rounded-full bg-surface-card px-2 py-0.5 text-xs font-medium text-ink-body">
                     {post.commentCount} replies
                   </span>
                 </div>
                 {post.content ? (
-                  <p className="mt-2 text-sm leading-relaxed text-gray-700">
+                  <p className="mt-2 text-sm leading-relaxed text-ink-body">
                     {post.content}
                   </p>
                 ) : null}
@@ -664,9 +664,9 @@ export default function RoundDetailPage() {
 
       {/* Admin quick link */}
       {canAccessAdmin && (
-        <div className="bg-white rounded-2xl shadow-sm border border-blue-100 p-4">
-          <h2 className="font-semibold text-gray-800 mb-2">Admin</h2>
-          <p className="text-xs text-gray-500 mb-2">
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
+          <h2 className="font-semibold text-ink-title mb-2">Admin</h2>
+          <p className="text-xs text-ink-muted mb-2">
             Edit course details, tee times, and round status.
           </p>
           <Link
@@ -712,17 +712,17 @@ function RsvpCard({
 
   if (showButtons) {
     return (
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-4">
         <div>
-          <h2 className="font-semibold text-gray-800">Playing this round?</h2>
-          <p className="text-xs text-gray-500 mt-1">
+          <h2 className="font-semibold text-ink-title">Playing this round?</h2>
+          <p className="text-xs text-ink-muted mt-1">
             Let the group know so tee-time groups can be arranged.
           </p>
         </div>
 
         {accepted.length > 0 && (
-          <p className="text-xs text-gray-500">
-            <span className="font-semibold text-gray-700">{accepted.length}</span>
+          <p className="text-xs text-ink-muted">
+            <span className="font-semibold text-ink-body">{accepted.length}</span>
             {totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
           </p>
         )}
@@ -732,7 +732,7 @@ function RsvpCard({
             type="button"
             onClick={() => onRespond("accepted")}
             disabled={saving}
-            className="flex items-center justify-center gap-2 rounded-xl border-2 border-green-500 bg-green-500 py-3 text-sm font-bold text-white disabled:opacity-60 active:bg-green-600"
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-brand-600 bg-brand-600 py-3 text-sm font-bold text-white disabled:opacity-60 active:bg-brand-700"
           >
             {saving ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
@@ -744,10 +744,10 @@ function RsvpCard({
             type="button"
             onClick={() => onRespond("declined")}
             disabled={saving}
-            className="flex items-center justify-center gap-2 rounded-xl border-2 border-gray-200 bg-white py-3 text-sm font-bold text-gray-600 disabled:opacity-60 active:bg-gray-50"
+            className="flex items-center justify-center gap-2 rounded-xl border-2 border-surface-overlay bg-surface-card py-3 text-sm font-bold text-ink-body disabled:opacity-60 active:bg-surface-muted"
           >
             {saving ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-ink-hint border-t-transparent" />
             ) : (
               "✗ Can't make it"
             )}
@@ -760,18 +760,18 @@ function RsvpCard({
   // Confirmed response state
   if (myRsvp?.status === "accepted") {
     return (
-      <div className="rounded-2xl border border-green-200 bg-green-50 p-4 space-y-3">
+      <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-bold text-green-800 text-lg">✓ You&apos;re in!</p>
-            <p className="text-xs text-green-700 mt-0.5">
+            <p className="font-bold text-brand-800 text-lg">✓ You&apos;re in!</p>
+            <p className="text-xs text-brand-700 mt-0.5">
               Your RSVP is confirmed.
             </p>
           </div>
           <button
             type="button"
             onClick={onChangeResponse}
-            className="shrink-0 rounded-full border border-green-300 bg-white px-3 py-1 text-xs font-semibold text-green-700"
+            className="shrink-0 rounded-full border border-brand-300 bg-surface-card px-3 py-1 text-xs font-semibold text-brand-700"
           >
             Change
           </button>
@@ -779,10 +779,10 @@ function RsvpCard({
 
         {accepted.length > 0 && (
           <div className="rounded-xl bg-white/70 px-3 py-2.5 space-y-1.5">
-            <p className="text-xs font-semibold text-green-800">
+            <p className="text-xs font-semibold text-brand-800">
               {accepted.length}{totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
             </p>
-            <p className="text-xs text-green-700 leading-relaxed">
+            <p className="text-xs text-brand-700 leading-relaxed">
               {attendeeNames.join(", ")}
               {accepted.length > 6 ? ` +${accepted.length - 6} more` : ""}
             </p>
@@ -794,27 +794,27 @@ function RsvpCard({
 
   // Declined state
   return (
-    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+    <div className="rounded-2xl border border-surface-overlay bg-surface-muted p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-bold text-gray-700 text-lg">✗ Not attending</p>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="font-bold text-ink-body text-lg">✗ Not attending</p>
+          <p className="text-xs text-ink-muted mt-0.5">
             You&apos;ve declined this round.
           </p>
         </div>
         <button
           type="button"
           onClick={onChangeResponse}
-          className="shrink-0 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-gray-600"
+          className="shrink-0 rounded-full border border-surface-overlay bg-surface-card px-3 py-1 text-xs font-semibold text-ink-body"
         >
           Change
         </button>
       </div>
 
       {accepted.length > 0 && (
-        <div className="rounded-xl bg-white/80 px-3 py-2.5">
-          <p className="text-xs text-gray-500">
-            <span className="font-semibold text-gray-700">{accepted.length}</span>
+        <div className="rounded-xl bg-surface-card/80 px-3 py-2.5">
+          <p className="text-xs text-ink-muted">
+            <span className="font-semibold text-ink-body">{accepted.length}</span>
             {totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
           </p>
         </div>
@@ -841,16 +841,16 @@ function SideClaimSelect({
   onChange: (winnerId: string) => void;
 }) {
   return (
-    <label className="block rounded-xl bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-medium text-gray-800">{label}</span>
-      <span className="block text-xs text-gray-500 mb-1">
+    <label className="block rounded-xl bg-surface-muted px-3 py-2">
+      <span className="block text-sm font-medium text-ink-title">{label}</span>
+      <span className="block text-xs text-ink-muted mb-1">
         Current holder: {claim?.winnerName ?? "Not set"}
       </span>
       <select
         value={claim?.winnerId ?? ""}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || saving}
-        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+        className="w-full rounded-lg border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-title disabled:bg-surface-muted disabled:text-ink-hint"
       >
         <option value="">No winner selected</option>
         {members.map((member) => (
@@ -877,8 +877,8 @@ function SideResultsList({ results }: { results: Results }) {
   if (sideResults.length === 0) return null;
 
   return (
-    <div className="border-t border-green-200 pt-3 space-y-1 text-sm text-green-950">
-      <p className="font-semibold text-green-900">Side Winners</p>
+    <div className="border-t border-brand-200 pt-3 space-y-1 text-sm text-ink-title">
+      <p className="font-semibold text-brand-900">Side Winners</p>
       {sideResults.map(({ label, result }) => (
         <div key={label} className="flex items-center justify-between">
           <span>{label}</span>
