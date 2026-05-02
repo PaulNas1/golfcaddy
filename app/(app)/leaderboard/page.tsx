@@ -258,7 +258,7 @@ function StandingCard({
     >
       <div className="flex items-center gap-3">
         {/* Rank column */}
-        <div className="w-10 text-center shrink-0">
+        <div className="w-16 text-center shrink-0">
           <p className="text-xl font-bold text-ink-title">
             {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
           </p>
