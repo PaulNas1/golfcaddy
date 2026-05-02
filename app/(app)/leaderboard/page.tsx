@@ -25,7 +25,6 @@ export default function LeaderboardPage() {
   const { appUser } = useAuth();
   const {
     group,
-    rounds,
     activeMembers,
     groupMembers,
     currentSeason,

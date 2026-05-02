@@ -142,7 +142,7 @@ export default function AccountSecuritySection({
             <div>
               <h4 className="text-sm font-semibold text-ink-title">Email</h4>
               <p className="mt-1 text-xs text-ink-muted">
-                We'll send a verification email before the address changes.
+                We&apos;ll send a verification email before the address changes.
               </p>
             </div>
             <SecurityInput label="Email address" type="email" inputMode="email" value={emailDraft} onChange={setEmailDraft} />

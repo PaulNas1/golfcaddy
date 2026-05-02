@@ -126,7 +126,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
     [activeMembers, appUser.uid, standings]
   );
 
-  const statRounds = standing?.roundResults ?? [];
+  const statRounds = useMemo(() => standing?.roundResults ?? [], [standing]);
 
   const fallback = {
     seasonPoints: memberSeasonMatches ? member?.seasonPoints ?? 0 : 0,
