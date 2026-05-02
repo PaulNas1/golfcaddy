@@ -3342,6 +3342,15 @@ export const markNotificationRead = async (notificationId: string) => {
   await updateDoc(doc(db, "notifications", notificationId), { read: true });
 };
 
+export const markAllNotificationsRead = async (notificationIds: string[]) => {
+  if (notificationIds.length === 0) return;
+  const batch = writeBatch(db);
+  notificationIds.forEach((id) => {
+    batch.update(doc(db, "notifications", id), { read: true });
+  });
+  await batch.commit();
+};
+
 // ─── Course Corrections ───────────────────────────────────────────────────────
 
 const mapCourseCorrection = (
