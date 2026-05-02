@@ -12,54 +12,64 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (loading) return;
-    if (!appUser || !canAccessAdmin) {
-      router.replace("/home");
-    }
+    if (!appUser || !canAccessAdmin) router.replace("/home");
   }, [loading, appUser, canAccessAdmin, router]);
 
   if (loading || !canAccessAdmin) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-400 text-sm">Loading...</div>
+      <div className="min-h-screen bg-surface-page flex items-center justify-center">
+        <div className="flex gap-1">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="h-2 w-2 rounded-full bg-brand-400 animate-bounce"
+              style={{ animationDelay: `${i * 0.15}s` }}
+            />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-gray-50 max-w-lg mx-auto flex flex-col overflow-hidden">
+    <div className="h-screen bg-surface-page max-w-lg mx-auto flex flex-col overflow-hidden">
+      {/* Top bar */}
       <header className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-2">
-          <AdminIcon className="h-5 w-5 text-green-300" />
+          <AdminIcon className="h-5 w-5 text-brand-300" />
           <span className="font-bold">Admin</span>
         </div>
-        <Link href="/home" className="text-gray-400 hover:text-white text-sm transition-colors">
+        <Link
+          href="/home"
+          className="text-gray-400 hover:text-white text-sm transition-colors"
+        >
           ← Back to app
         </Link>
       </header>
 
-      <nav className="border-b border-gray-100 bg-white px-4 py-3 shrink-0">
+      {/* Section nav */}
+      <nav className="border-b border-surface-overlay bg-surface-card px-4 py-3 shrink-0">
         <div className="flex gap-2 overflow-x-auto">
           {adminNavItems
             .filter(({ adminOnly }) => !adminOnly || isAdmin)
             .map(({ href, label, Icon }) => {
-            const active =
-              href === "/admin" ? pathname === href : pathname.startsWith(href);
-
-            return (
-            <Link
-              key={href}
-              href={href}
-              className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
-                active
-                  ? "border-green-200 bg-green-50 text-green-800"
-                  : "border-gray-100 bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800"
-              }`}
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </Link>
-            );
-          })}
+              const active =
+                href === "/admin" ? pathname === href : pathname.startsWith(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors ${
+                    active
+                      ? "border-brand-200 bg-brand-50 text-brand-800"
+                      : "border-surface-overlay bg-surface-muted text-ink-muted hover:bg-surface-overlay hover:text-ink-body"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Link>
+              );
+            })}
         </div>
       </nav>
 
@@ -68,12 +78,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 }
 
+// ── Nav items ────────────────────────────────────────────────────────────────
+
 const adminNavItems = [
-  { href: "/admin", label: "Dashboard", Icon: DashboardIcon },
-  { href: "/admin/rounds", label: "Rounds", Icon: RoundsIcon },
-  { href: "/admin/members", label: "Members", Icon: MembersIcon },
-  { href: "/admin/settings", label: "Settings", Icon: SettingsIcon, adminOnly: true },
+  { href: "/admin",          label: "Dashboard", Icon: DashboardIcon },
+  { href: "/admin/rounds",   label: "Rounds",    Icon: RoundsIcon },
+  { href: "/admin/members",  label: "Members",   Icon: MembersIcon },
+  { href: "/admin/settings", label: "Settings",  Icon: SettingsIcon, adminOnly: true },
 ];
+
+// ── Icons ────────────────────────────────────────────────────────────────────
 
 function AdminIcon({ className }: { className?: string }) {
   return (
