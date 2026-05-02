@@ -120,7 +120,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   if (loading || !appUser || appUser.status !== "active") {
     return (
-      <div className="min-h-screen bg-brand-700 flex items-center justify-center">
+      <div className="min-h-dvh bg-brand-700 flex items-center justify-center">
         <div className="text-center">
           <div className="text-5xl mb-3">⛳</div>
           <div className="flex items-center gap-2 text-brand-200 text-sm">
@@ -134,7 +134,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="h-screen bg-surface-page flex flex-col max-w-lg mx-auto overflow-hidden">
+    <div className="h-dvh bg-surface-page flex flex-col max-w-lg mx-auto overflow-hidden">
       {/* ── Top bar ────────────────────────────────────────────────── */}
       <header className="bg-brand-700 text-white px-4 py-3 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-2.5">

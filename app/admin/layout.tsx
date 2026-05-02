@@ -18,7 +18,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading || !canAccessAdmin) {
     return (
-      <div className="min-h-screen bg-surface-page flex items-center justify-center">
+      <div className="min-h-dvh bg-surface-page flex items-center justify-center">
         <div className="flex gap-1">
           {[0, 1, 2].map((i) => (
             <span
@@ -33,7 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="h-screen bg-surface-page max-w-lg mx-auto flex flex-col overflow-hidden">
+    <div className="h-dvh bg-surface-page max-w-lg mx-auto flex flex-col overflow-hidden">
       {/* Top bar */}
       <header className="bg-gray-900 text-white px-4 py-3 flex items-center justify-between z-20 shrink-0">
         <div className="flex items-center gap-2">
