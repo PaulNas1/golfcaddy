@@ -2137,7 +2137,7 @@ export default function AdminRoundDetailPage() {
       )}
 
       {/* Course Corrections — collapsible, auto-opens when par overrides exist */}
-      <div className={`rounded-2xl shadow-sm border p-4 ${
+      <div className={`rounded-2xl shadow-sm border p-4 overflow-hidden ${
         round.holeOverrides.length > 0 ? "border-amber-200 bg-amber-50/40" : "border-gray-100 bg-white"
       }`}>
         <button
@@ -2615,11 +2615,11 @@ function CourseParCorrectionForm({
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
+      <div className="grid grid-cols-[1fr_7rem_3.5rem] gap-2">
         <select
           value={hole}
           onChange={(e) => setHole(e.target.value)}
-          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="">Hole</option>
           {holes.map((h) => (
@@ -2631,9 +2631,9 @@ function CourseParCorrectionForm({
         <select
           value={par}
           onChange={(e) => setPar(e.target.value)}
-          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 px-2 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
         >
-          <option value="">Correct par</option>
+          <option value="">Par</option>
           {[3, 4, 5].map((n) => (
             <option key={n} value={n}>Par {n}</option>
           ))}
@@ -2644,7 +2644,7 @@ function CourseParCorrectionForm({
           value={yardage}
           onChange={(e) => setYardage(e.target.value)}
           placeholder="m"
-          className="w-16 min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-center text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-center text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
           aria-label="Distance in metres"
         />
       </div>
