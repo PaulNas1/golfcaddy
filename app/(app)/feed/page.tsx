@@ -1,12 +1,23 @@
 "use client";
 
+/**
+ * FeedPage
+ *
+ * Responsibilities:
+ *   - Subscribes to posts, the pinned announcement, and the current user's reactions
+ *   - Owns the "new post" composer state (draft, type, linked round, images)
+ *   - Delegates all per-post interaction state to <PostCard>
+ *
+ * By keeping per-post state inside PostCard, a comment draft or open
+ * menu in one card no longer re-renders every other card.
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
-import { formatDistanceToNow } from "date-fns";
-import ImageGestureViewer from "@/components/ImageGestureViewer";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
+import Avatar from "@/components/ui/Avatar";
+import PostCard from "@/components/feed/PostCard";
 import {
   createFeedPost,
   createPostComment,
@@ -32,24 +43,6 @@ import type {
   PostReactionType,
 } from "@/types";
 
-const POST_LABELS: Record<Post["type"], string> = {
-  announcement: "Announcement",
-  general: "Post",
-  round_linked: "Round update",
-};
-
-const REACTION_OPTIONS: {
-  type: PostReactionType;
-  emoji: string;
-  label: string;
-}[] = [
-  { type: "like", emoji: "👍", label: "Like" },
-  { type: "love", emoji: "❤️", label: "Love" },
-  { type: "laugh", emoji: "😂", label: "Laugh" },
-  { type: "fire", emoji: "🔥", label: "Fire" },
-  { type: "dislike", emoji: "👎", label: "Dislike" },
-];
-
 const MAX_POST_IMAGES = 3;
 
 export default function FeedPage() {
@@ -57,9 +50,15 @@ export default function FeedPage() {
   const { rounds } = useGroupData();
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // ── Feed data ─────────────────────────────────────────────────────────
   const [posts, setPosts] = useState<Post[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [myReactionsByPostId, setMyReactionsByPostId] = useState<Record<string, PostReaction | null>>({});
+  const [feedLoading, setFeedLoading] = useState(true);
+
+  // ── Composer state ────────────────────────────────────────────────────
+  const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [postType, setPostType] = useState<Post["type"]>("general");
   const [linkedRoundId, setLinkedRoundId] = useState("");
@@ -67,45 +66,14 @@ export default function FeedPage() {
   const [postImagePreviews, setPostImagePreviews] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState("");
-  const [reactingPostId, setReactingPostId] = useState("");
-  const [postingCommentPostId, setPostingCommentPostId] = useState("");
-  const [myReactionsByPostId, setMyReactionsByPostId] = useState<
-    Record<string, PostReaction | null>
-  >({});
-  const [commentsByPostId, setCommentsByPostId] = useState<
-    Record<string, PostComment[]>
-  >({});
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
-  const [commentErrors, setCommentErrors] = useState<Record<string, string>>({});
-  const [editingPostId, setEditingPostId] = useState("");
-  const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
-  const [editingBusyPostId, setEditingBusyPostId] = useState("");
-  const [deleteBusyPostId, setDeleteBusyPostId] = useState("");
-  const [pendingDeletePostId, setPendingDeletePostId] = useState("");
-  const [deleteCommentBusyId, setDeleteCommentBusyId] = useState("");
-  const [pinningPostId, setPinningPostId] = useState("");
-  const [openMenuPostId, setOpenMenuPostId] = useState("");
-  const [openCommentMenuId, setOpenCommentMenuId] = useState("");
-  const [openRepliesByPostId, setOpenRepliesByPostId] = useState<Record<string, boolean>>({});
-  const [selectedImageUrl, setSelectedImageUrl] = useState("");
-  const [selectedImageLabel, setSelectedImageLabel] = useState("");
-  const [composerOpen, setComposerOpen] = useState(false);
 
+  // ── Subscriptions ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!appUser?.groupId) return;
     return subscribeFeedPosts(
       appUser.groupId,
-      (feedPosts) => {
-        setPosts(feedPosts);
-        setLoading(false);
-      },
-      {
-        limitCount: 30,
-        onError: (err) => {
-          console.warn("Unable to subscribe to feed posts", err);
-          setLoading(false);
-        },
-      }
+      (feedPosts) => { setPosts(feedPosts); setFeedLoading(false); },
+      { limitCount: 30, onError: (err) => { console.warn("Feed subscription error", err); setFeedLoading(false); } }
     );
   }, [appUser?.groupId]);
 
@@ -114,19 +82,22 @@ export default function FeedPage() {
     return subscribePinnedAnnouncement(
       appUser.groupId,
       setPinnedAnnouncement,
-      (err) => console.warn("Unable to subscribe to pinned announcement", err)
+      (err) => console.warn("Pinned announcement subscription error", err)
     );
   }, [appUser?.groupId]);
 
-  const visiblePosts = useMemo(() => {
-    const nextPosts = pinnedAnnouncement ? [pinnedAnnouncement, ...posts] : posts;
-    return Array.from(new Map(nextPosts.map((post) => [post.id, post])).values());
-  }, [pinnedAnnouncement, posts]);
-  const roundsById = useMemo(
-    () => new Map(rounds.map((round) => [round.id, round])),
-    [rounds]
-  );
-  const linkedRound = linkedRoundId ? roundsById.get(linkedRoundId) ?? null : null;
+  useEffect(() => {
+    if (!appUser?.uid || !appUser?.groupId) return;
+    return subscribeUserReactionsForGroup(
+      appUser.groupId,
+      appUser.uid,
+      (reactionsByPostId) => setMyReactionsByPostId(reactionsByPostId),
+      (err) => console.warn("Reactions subscription error", err)
+    );
+  }, [appUser?.groupId, appUser?.uid]);
+
+  // ── Open composer when deep-linked from a round ───────────────────────
+  const roundsById = useMemo(() => new Map(rounds.map((r) => [r.id, r])), [rounds]);
 
   useEffect(() => {
     const roundIdFromQuery = searchParams.get("roundId");
@@ -135,121 +106,41 @@ export default function FeedPage() {
     setComposerOpen(true);
   }, [roundsById, searchParams]);
 
-  // Single collectionGroup listener for all of the current user's reactions —
-  // replaces the previous N-per-post individual doc listeners.
-  useEffect(() => {
-    if (!appUser?.uid || !appUser?.groupId) return;
-    return subscribeUserReactionsForGroup(
-      appUser.groupId,
-      appUser.uid,
-      (reactionsByPostId) => setMyReactionsByPostId(reactionsByPostId),
-      (err) => console.warn("Unable to subscribe to user reactions", err)
-    );
-  }, [appUser?.groupId, appUser?.uid]);
+  // ── Deduplicate visible posts (pinned + feed may overlap) ─────────────
+  const visiblePosts = useMemo(() => {
+    const merged = pinnedAnnouncement ? [pinnedAnnouncement, ...posts] : posts;
+    return Array.from(new Map(merged.map((p) => [p.id, p])).values());
+  }, [pinnedAnnouncement, posts]);
 
-  useEffect(() => {
-    if (!appUser?.uid) return;
-    if (visiblePosts.length === 0) {
-      setCommentsByPostId({});
-      return;
-    }
-
-    const commentUnsubscribes = visiblePosts
-      .filter((post) => openRepliesByPostId[post.id])
-      .map((post) =>
-      subscribePostComments(
-        post.id,
-        (comments) => {
-          setCommentsByPostId((current) => ({
-            ...current,
-            [post.id]: comments,
-          }));
-        },
-        (err) => console.warn("Unable to subscribe to post comments", err)
-      )
-    );
-
-    return () => {
-      commentUnsubscribes.forEach((unsubscribe) => unsubscribe());
-    };
-  }, [appUser?.uid, openRepliesByPostId, visiblePosts]);
-
+  // ── Image blob URL cleanup ────────────────────────────────────────────
   useEffect(() => {
     return () => {
-      postImagePreviews.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+      postImagePreviews.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [postImagePreviews]);
 
-  useEffect(() => {
-    if (!openMenuPostId && !openCommentMenuId && !selectedImageUrl) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
-
-      if (!target.closest("[data-feed-menu-root]")) {
-        setOpenMenuPostId("");
-        setOpenCommentMenuId("");
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpenMenuPostId("");
-      setOpenCommentMenuId("");
-      setSelectedImageUrl("");
-      setSelectedImageLabel("");
-    };
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [openCommentMenuId, openMenuPostId, selectedImageUrl]);
-
+  // ── Composer helpers ──────────────────────────────────────────────────
   const replacePostImages = (files: File[]) => {
-    postImagePreviews.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
+    postImagePreviews.forEach((url) => URL.revokeObjectURL(url));
     setPostImages(files);
-    setPostImagePreviews(files.map((file) => URL.createObjectURL(file)));
-  };
-
-  const resetFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setPostImagePreviews(files.map((f) => URL.createObjectURL(f)));
   };
 
   const handlePostImagesChange = (files: FileList | null) => {
     const nextFiles = Array.from(files ?? []);
-    if (nextFiles.length === 0) {
-      resetFileInput();
-      return;
-    }
+    if (nextFiles.length === 0) { if (fileInputRef.current) fileInputRef.current.value = ""; return; }
     if (nextFiles.length > MAX_POST_IMAGES) {
       setPostError(`Attach up to ${MAX_POST_IMAGES} images per post.`);
-      resetFileInput();
+      if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
-
     for (const file of nextFiles) {
-      const validationError = validateImageFile(file);
-      if (validationError) {
-        setPostError(validationError);
-        resetFileInput();
-        return;
-      }
+      const err = validateImageFile(file);
+      if (err) { setPostError(err); if (fileInputRef.current) fileInputRef.current.value = ""; return; }
     }
-
     setPostError("");
     replacePostImages(nextFiles);
-    resetFileInput();
-  };
-
-  const handleRemoveComposerImage = (index: number) => {
-    const nextFiles = postImages.filter((_, fileIndex) => fileIndex !== index);
-    replacePostImages(nextFiles);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleCreatePost = async () => {
@@ -257,30 +148,19 @@ export default function FeedPage() {
     setPosting(true);
     setPostError("");
     let uploadedImagePaths: string[] = [];
-
     try {
-      const uploads =
-        postImages.length > 0
-          ? await uploadFeedPostImages(
-              appUser.groupId,
-              appUser.uid,
-              postImages
-            )
-          : [];
-      uploadedImagePaths = uploads.map((upload) => upload.path);
+      const uploads = postImages.length > 0
+        ? await uploadFeedPostImages(appUser.groupId, appUser.uid, postImages)
+        : [];
+      uploadedImagePaths = uploads.map((u) => u.path);
       await createFeedPost({
         groupId: appUser.groupId,
         author: appUser,
         content: draft,
-        type:
-          isAdmin && postType === "announcement"
-            ? "announcement"
-            : linkedRoundId
-            ? "round_linked"
-            : "general",
+        type: isAdmin && postType === "announcement" ? "announcement" : linkedRoundId ? "round_linked" : "general",
         roundId: linkedRoundId || null,
-        photoUrls: uploads.map((upload) => upload.url),
-        photoPaths: uploads.map((upload) => upload.path),
+        photoUrls: uploads.map((u) => u.url),
+        photoPaths: uploads.map((u) => u.path),
       });
       setDraft("");
       setPostType("general");
@@ -288,292 +168,169 @@ export default function FeedPage() {
       replacePostImages([]);
       setComposerOpen(false);
     } catch (error) {
-      await Promise.all(uploadedImagePaths.map((path) => deleteStoredImage(path)));
-      setPostError(
-        error instanceof Error && error.message
-          ? error.message
-          : "Failed to publish post."
-      );
+      await Promise.all(uploadedImagePaths.map((p) => deleteStoredImage(p)));
+      setPostError(error instanceof Error && error.message ? error.message : "Failed to publish post.");
     } finally {
       setPosting(false);
     }
   };
 
-  const handleReaction = async (
-    post: Post,
-    reactionType: PostReactionType
-  ) => {
-    if (!appUser) return;
+  // ── PostCard callbacks ────────────────────────────────────────────────
 
-    const previousReaction = myReactionsByPostId[post.id] ?? null;
-    const currentReaction = previousReaction?.reactionType ?? null;
-    const nextReaction = currentReaction === reactionType ? null : reactionType;
-    setReactingPostId(post.id);
-    setMyReactionsByPostId((current) => ({
-      ...current,
-      [post.id]: nextReaction
-        ? {
-            id: appUser.uid,
-            postId: post.id,
-            groupId: post.groupId,
-            userId: appUser.uid,
-            reactionType: nextReaction,
-            createdAt: previousReaction?.createdAt ?? new Date(),
-            updatedAt: new Date(),
-          }
-        : null,
+  const handleReaction = async (post: Post, type: PostReactionType) => {
+    if (!appUser) return;
+    const previous = myReactionsByPostId[post.id] ?? null;
+    const current = previous?.reactionType ?? null;
+    const next = current === type ? null : type;
+
+    // Optimistic update
+    setMyReactionsByPostId((prev) => ({
+      ...prev,
+      [post.id]: next ? {
+        id: appUser.uid, postId: post.id, groupId: post.groupId,
+        userId: appUser.uid, reactionType: next,
+        createdAt: previous?.createdAt ?? new Date(), updatedAt: new Date(),
+      } : null,
     }));
     try {
-      await setPostReaction({
-        post,
-        user: appUser,
-        reactionType: nextReaction,
-      });
-    } catch (error) {
-      console.error("Failed to update reaction", error);
-      setMyReactionsByPostId((current) => ({
-        ...current,
-        [post.id]: previousReaction,
-      }));
-    } finally {
-      setReactingPostId("");
+      await setPostReaction({ post, user: appUser, reactionType: next });
+    } catch {
+      // Roll back on failure
+      setMyReactionsByPostId((prev) => ({ ...prev, [post.id]: previous }));
     }
   };
 
-  const handleCreateComment = async (post: Post) => {
-    if (!appUser) return;
-    setPostingCommentPostId(post.id);
-    setCommentErrors((current) => ({ ...current, [post.id]: "" }));
-    try {
-      await createPostComment({
-        post,
-        author: appUser,
-        content: commentDrafts[post.id] ?? "",
-      });
-      setCommentDrafts((current) => ({ ...current, [post.id]: "" }));
-    } catch (error) {
-      setCommentErrors((current) => ({
-        ...current,
-        [post.id]:
-          error instanceof Error && error.message
-            ? error.message
-            : "Failed to send reply.",
-      }));
-    } finally {
-      setPostingCommentPostId("");
-    }
-  };
-
-  const handleStartEdit = (post: Post) => {
-    setOpenMenuPostId("");
-    setEditingPostId(post.id);
-    setEditDrafts((current) => ({
-      ...current,
-      [post.id]: post.content,
-    }));
-  };
-
-  const handleSaveEdit = async (post: Post) => {
-    setEditingBusyPostId(post.id);
-    try {
-      await updateFeedPost({
-        postId: post.id,
-        content: editDrafts[post.id] ?? "",
-      });
-      setEditingPostId("");
-    } catch (error) {
-      console.error("Failed to update post", error);
-    } finally {
-      setEditingBusyPostId("");
-    }
+  const handleSaveEdit = async (post: Post, newContent: string) => {
+    await updateFeedPost({ postId: post.id, content: newContent });
   };
 
   const handleDeletePost = async (post: Post) => {
-    setOpenMenuPostId("");
-    setPendingDeletePostId(post.id);
+    await deleteFeedPost(post.id);
+    await Promise.all((post.photoPaths ?? []).map((p) => deleteStoredImage(p)));
   };
 
-  const handleConfirmDeletePost = async (post: Post) => {
-    setPendingDeletePostId("");
-    setDeleteBusyPostId(post.id);
-    try {
-      await deleteFeedPost(post.id);
-      await Promise.all(
-        (post.photoPaths ?? []).map((path) => deleteStoredImage(path))
-      );
-    } catch (error) {
-      console.error("Failed to delete post", error);
-      alert("Failed to delete post. Please try again.");
-    } finally {
-      setDeleteBusyPostId("");
-    }
-  };
-
-  const handleToggleAnnouncementPin = async (post: Post) => {
-    if (!appUser?.groupId || !isAdmin || post.type !== "announcement") return;
-
-    setOpenMenuPostId("");
-    setPinningPostId(post.id);
-    try {
-      await setAnnouncementPinnedState({
-        postId: post.id,
-        groupId: appUser.groupId,
-        pinned: pinnedAnnouncement?.id !== post.id,
-      });
-    } catch (error) {
-      console.error("Failed to update announcement pin state", error);
-    } finally {
-      setPinningPostId("");
-    }
+  const handleCreateComment = async (post: Post, content: string) => {
+    if (!appUser) throw new Error("Not signed in.");
+    await createPostComment({ post, author: appUser, content });
   };
 
   const handleDeleteComment = async (post: Post, comment: PostComment) => {
-    setOpenCommentMenuId("");
-    setDeleteCommentBusyId(comment.id);
-    try {
-      await deletePostComment({
-        postId: post.id,
-        commentId: comment.id,
-      });
-    } catch (error) {
-      console.error("Failed to delete reply", error);
-    } finally {
-      setDeleteCommentBusyId("");
-    }
+    await deletePostComment({ postId: post.id, commentId: comment.id });
   };
 
-  const openImageViewer = (imageUrl: string, label: string) => {
-    setSelectedImageUrl(imageUrl);
-    setSelectedImageLabel(label);
+  const handleTogglePin = async (post: Post) => {
+    if (!appUser?.groupId || !isAdmin || post.type !== "announcement") return;
+    await setAnnouncementPinnedState({
+      postId: post.id,
+      groupId: appUser.groupId,
+      pinned: pinnedAnnouncement?.id !== post.id,
+    });
   };
 
-  const toggleReplies = (postId: string) => {
-    setOpenRepliesByPostId((current) => ({
-      ...current,
-      [postId]: !current[postId],
-    }));
+  const subscribeToComments = (
+    postId: string,
+    onComments: (comments: PostComment[]) => void
+  ) => {
+    return subscribePostComments(postId, onComments, (err) =>
+      console.warn("Comments subscription error", err)
+    );
   };
+
+  // ── Render ────────────────────────────────────────────────────────────
+  const linkedRound = linkedRoundId ? roundsById.get(linkedRoundId) ?? null : null;
 
   return (
     <div className="px-4 py-6 pb-8">
-      <h1 className="mb-5 text-2xl font-bold text-gray-800">Social Feed</h1>
+      <h1 className="mb-5 text-2xl font-bold text-ink-title">Social Feed</h1>
 
-      {/* ── Composer ── collapsed strip → expands inline on tap */}
+      {/* ── Post composer ─────────────────────────────────────────── */}
       {!composerOpen ? (
         <button
           type="button"
           onClick={() => setComposerOpen(true)}
-          className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-sm text-left"
+          className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-surface-overlay bg-surface-card px-4 py-3 shadow-sm text-left"
         >
-          {/* Avatar */}
-          {appUser?.avatarUrl ? (
-            <div
-              className="h-9 w-9 shrink-0 rounded-full bg-cover bg-center"
-              style={{ backgroundImage: `url(${appUser.avatarUrl})` }}
-              role="img"
-              aria-label={appUser.displayName}
-            />
-          ) : (
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
-              {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
-            </span>
-          )}
-          <span className="flex-1 text-sm text-gray-400">
-            What&apos;s on your mind?
-          </span>
-          {/* Photo hint */}
-          <span className="text-gray-300 text-lg">📷</span>
+          <Avatar src={appUser?.avatarUrl} name={appUser?.displayName ?? "?"} size="sm" />
+          <span className="flex-1 text-sm text-ink-hint">What&apos;s on your mind?</span>
+          <span className="text-ink-hint text-lg">📷</span>
         </button>
       ) : (
-        <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-          {/* Header row with avatar + close */}
+        <div className="mb-5 rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+          {/* Composer header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              {appUser?.avatarUrl ? (
-                <div
-                  className="h-8 w-8 shrink-0 rounded-full bg-cover bg-center"
-                  style={{ backgroundImage: `url(${appUser.avatarUrl})` }}
-                  role="img"
-                  aria-label={appUser.displayName}
-                />
-              ) : (
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-600 text-sm font-bold text-white">
-                  {appUser?.displayName?.charAt(0).toUpperCase() ?? "?"}
-                </span>
-              )}
-              <span className="text-sm font-semibold text-gray-800">
-                {appUser?.displayName}
-              </span>
+              <Avatar src={appUser?.avatarUrl} name={appUser?.displayName ?? "?"} size="sm" />
+              <span className="text-sm font-semibold text-ink-title">{appUser?.displayName}</span>
             </div>
             <button
               type="button"
               onClick={() => setComposerOpen(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+              className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-muted text-ink-muted hover:bg-surface-overlay"
               aria-label="Close composer"
             >
               ✕
             </button>
           </div>
 
+          {/* Admin post type selector */}
           {isAdmin && (
-            <div className="mb-3 inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1">
-              {([
-                { id: "general", label: "General post" },
-                { id: "announcement", label: "Announcement" },
-              ] as const).map((option) => (
+            <div className="mb-3 inline-flex rounded-xl border border-surface-overlay bg-surface-muted p-1">
+              {([{ id: "general", label: "General post" }, { id: "announcement", label: "Announcement" }] as const).map((opt) => (
                 <button
-                  key={option.id}
+                  key={opt.id}
                   type="button"
-                  onClick={() => setPostType(option.id)}
+                  onClick={() => setPostType(opt.id)}
                   className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                    postType === option.id
-                      ? "bg-green-600 text-white"
-                      : "text-gray-600 hover:bg-white"
+                    postType === opt.id
+                      ? "bg-brand-600 text-white"
+                      : "text-ink-muted hover:bg-surface-card"
                   }`}
                 >
-                  {option.label}
+                  {opt.label}
                 </button>
               ))}
             </div>
           )}
 
+          {/* Text area */}
           <textarea
             // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(e) => setDraft(e.target.value)}
             rows={4}
             placeholder={
               isAdmin && postType === "announcement"
-                ? "Share an update members should not miss..."
+                ? "Share an update members should not miss…"
                 : linkedRound
-                ? "Share an update from this round..."
-                : "What’s happening in the group?"
+                ? "Share an update from this round…"
+                : "What's happening in the group?"
             }
-            className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-3 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
 
-          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+          {/* Image attachment */}
+          <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
             <input
               ref={fileInputRef}
               type="file"
               accept="image/*"
               multiple
-              onChange={(event) => handlePostImagesChange(event.target.files)}
-              className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
+              onChange={(e) => handlePostImagesChange(e.target.files)}
+              className="block w-full text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
             />
-            <p className="mt-2 text-[11px] text-gray-400">
+            <p className="mt-2 text-[11px] text-ink-hint">
               Attach up to {MAX_POST_IMAGES} images. JPG or PNG up to 5 MB each.
             </p>
             {postImagePreviews.length > 0 && (
               <div className="mt-3 grid grid-cols-3 gap-2">
-                {postImagePreviews.map((previewUrl, index) => (
-                  <div key={previewUrl} className="relative overflow-hidden rounded-xl bg-white">
+                {postImagePreviews.map((url, index) => (
+                  <div key={url} className="relative overflow-hidden rounded-xl bg-surface-card">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={previewUrl} alt="" className="h-24 w-full object-cover" />
+                    <img src={url} alt="" className="h-24 w-full object-cover" />
                     <button
                       type="button"
-                      onClick={() => handleRemoveComposerImage(index)}
+                      onClick={() => replacePostImages(postImages.filter((_, i) => i !== index))}
                       className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold text-white"
                     >
                       Remove
@@ -584,39 +341,32 @@ export default function FeedPage() {
             )}
           </div>
 
-          <div className="mt-3 rounded-xl border border-gray-200 bg-white px-3 py-3">
-            <label className="block text-xs font-semibold text-gray-700">
-              Link to round
-            </label>
-            <p className="mt-1 text-[11px] text-gray-400">
-              Optional. Linked photos will appear in the photo library under that round and course.
+          {/* Round link selector */}
+          <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-card px-3 py-3">
+            <label className="block text-xs font-semibold text-ink-muted">Link to round</label>
+            <p className="mt-1 text-[11px] text-ink-hint">
+              Optional. Linked photos appear in the photo library under that round.
             </p>
             <select
               value={linkedRoundId}
-              onChange={(event) => setLinkedRoundId(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              onChange={(e) => setLinkedRoundId(e.target.value)}
+              className="mt-2 w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">No round linked</option>
-              {rounds.map((round) => (
-                <option key={round.id} value={round.id}>
-                  {`Round ${round.roundNumber} - ${round.courseName}`}
-                </option>
+              {rounds.map((r) => (
+                <option key={r.id} value={r.id}>{`Round ${r.roundNumber} - ${r.courseName}`}</option>
               ))}
             </select>
             {linkedRound && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-green-700">
-                    Round update
-                  </p>
-                  <p className="truncate text-sm font-medium text-green-900">
-                    {`Round ${linkedRound.roundNumber} - ${linkedRound.courseName}`}
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">Round update</p>
+                  <p className="truncate text-sm font-medium text-brand-900">{`Round ${linkedRound.roundNumber} - ${linkedRound.courseName}`}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setLinkedRoundId("")}
-                  className="shrink-0 rounded-full border border-green-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-green-700"
+                  className="shrink-0 rounded-full border border-brand-200 bg-surface-card px-2.5 py-1 text-[11px] font-semibold text-brand-700"
                 >
                   Clear
                 </button>
@@ -624,19 +374,17 @@ export default function FeedPage() {
             )}
           </div>
 
-          {postError && (
-            <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>
-          )}
+          {postError && <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>}
 
           <div className="mt-3 flex justify-end">
             <button
               type="button"
               onClick={handleCreatePost}
               disabled={posting || (draft.trim().length === 0 && postImages.length === 0)}
-              className="rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
+              className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
             >
               {posting
-                ? "Posting..."
+                ? "Posting…"
                 : isAdmin && postType === "announcement"
                 ? "Post announcement"
                 : linkedRound
@@ -647,431 +395,43 @@ export default function FeedPage() {
         </div>
       )}
 
-      {loading ? (
+      {/* ── Post list ─────────────────────────────────────────────── */}
+      {feedLoading ? (
         <div className="space-y-3 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 rounded-2xl bg-white p-4" />
+            <div key={i} className="h-28 rounded-2xl bg-surface-card p-4" />
           ))}
         </div>
       ) : visiblePosts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+        <div className="flex flex-col items-center justify-center py-16 text-ink-hint">
           <div className="mb-4 text-5xl">💬</div>
-          <p className="mb-1 font-medium text-gray-500">No social posts yet</p>
+          <p className="mb-1 font-medium text-ink-muted">No social posts yet</p>
           <p className="max-w-xs text-center text-sm">
             Banter, round photos, and general club chat will live here.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          {visiblePosts.map((post) => {
-            const comments = commentsByPostId[post.id] ?? [];
-            const repliesOpen = openRepliesByPostId[post.id] ?? false;
-            const isAuthor = post.authorId === appUser?.uid;
-            const canDeletePost = isAuthor || isAdmin;
-            const isEditing = editingPostId === post.id;
-            const isMenuOpen = openMenuPostId === post.id;
-            const isPinnedAnnouncement = pinnedAnnouncement?.id === post.id;
-            const postRound =
-              post.roundId && roundsById.has(post.roundId)
-                ? roundsById.get(post.roundId) ?? null
-                : null;
-            return (
-              <div
-                key={post.id}
-                className={`rounded-2xl border p-4 shadow-sm ${
-                  isPinnedAnnouncement
-                    ? "border-amber-200 bg-amber-50/70"
-                    : "border-gray-100 bg-white"
-                }`}
-              >
-                {isPinnedAnnouncement && (
-                  <div className="mb-3 flex items-center gap-2">
-                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-800">
-                      Pinned announcement
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-start gap-3">
-                  {post.authorAvatarUrl ? (
-                    <div
-                      className="h-10 w-10 rounded-full bg-cover bg-center"
-                      style={{ backgroundImage: `url(${post.authorAvatarUrl})` }}
-                      role="img"
-                      aria-label={post.authorName}
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-sm font-bold text-green-700">
-                      {post.authorName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="min-w-0 truncate font-semibold text-gray-800">
-                        {post.authorName}
-                      </p>
-                      {canDeletePost && (
-                        <div className="relative shrink-0" data-feed-menu-root>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setOpenMenuPostId((current) =>
-                                current === post.id ? "" : post.id
-                              )
-                            }
-                            className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
-                            aria-label="Post actions"
-                          >
-                            <EllipsisIcon className="h-4 w-4" />
-                          </button>
-                          {isMenuOpen && pendingDeletePostId !== post.id && (
-                            <div className="absolute right-0 top-9 z-10 min-w-[128px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
-                              {isAdmin && post.type === "announcement" && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleAnnouncementPin(post)}
-                                  disabled={pinningPostId === post.id}
-                                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:text-amber-300"
-                                >
-                                  {pinningPostId === post.id
-                                    ? isPinnedAnnouncement
-                                      ? "Unpinning..."
-                                      : "Pinning..."
-                                    : isPinnedAnnouncement
-                                    ? "Unpin announcement"
-                                    : "Pin announcement"}
-                                </button>
-                              )}
-                              {isAuthor && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    isEditing
-                                      ? setEditingPostId("")
-                                      : handleStartEdit(post)
-                                  }
-                                  className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                >
-                                {isEditing ? "Cancel edit" : "Edit post"}
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePost(post)}
-                                disabled={deleteBusyPostId === post.id}
-                                className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
-                              >
-                                {deleteBusyPostId === post.id
-                                  ? "Deleting..."
-                                  : "Delete post"}
-                              </button>
-                            </div>
-                          )}
-                          {pendingDeletePostId === post.id && (
-                            <div className="absolute right-0 top-9 z-10 w-52 rounded-xl border border-red-100 bg-white p-3 shadow-lg">
-                              <p className="mb-2 text-sm font-medium text-gray-800">Delete this post?</p>
-                              <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setPendingDeletePostId("")}
-                                  className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleConfirmDeletePost(post)}
-                                  disabled={deleteBusyPostId === post.id}
-                                  className="flex-1 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:bg-red-300"
-                                >
-                                  {deleteBusyPostId === post.id ? "Deleting…" : "Delete"}
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-400">
-                      <span>
-                        {formatDistanceToNow(post.createdAt, { addSuffix: true })}
-                      </span>
-                      <span className="rounded-full bg-gray-50 px-2 py-0.5 font-medium text-gray-500">
-                        💬 {post.commentCount}
-                      </span>
-                      {post.type === "announcement" && !isPinnedAnnouncement && (
-                        <span className="rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-800">
-                          Announcement
-                        </span>
-                      )}
-                      {post.type === "round_linked" && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600">
-                          {POST_LABELS[post.type]}
-                        </span>
-                      )}
-                    </div>
-                    {post.type === "round_linked" && postRound && (
-                      <Link
-                        href={`/rounds/${postRound.id}`}
-                        className="mt-2 inline-flex max-w-full items-center gap-2 rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-xs font-medium text-green-800"
-                      >
-                        <span>{`Round ${postRound.roundNumber}`}</span>
-                        <span className="text-green-400">•</span>
-                        <span className="truncate">{postRound.courseName}</span>
-                        <span aria-hidden="true">↗</span>
-                      </Link>
-                    )}
-                    {isEditing ? (
-                      <div className="mt-3 space-y-2">
-                        <textarea
-                          value={editDrafts[post.id] ?? ""}
-                          onChange={(event) =>
-                            setEditDrafts((current) => ({
-                              ...current,
-                              [post.id]: event.target.value,
-                            }))
-                          }
-                          rows={3}
-                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        />
-                        <div className="flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => handleSaveEdit(post)}
-                            disabled={
-                              editingBusyPostId === post.id ||
-                              (editDrafts[post.id] ?? "").trim().length === 0
-                            }
-                            className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 disabled:border-gray-100 disabled:bg-gray-100 disabled:text-gray-400"
-                          >
-                            {editingBusyPostId === post.id ? "Saving..." : "Save"}
-                          </button>
-                        </div>
-                      </div>
-                    ) : post.content ? (
-                      <p className="mt-3 text-sm leading-relaxed text-gray-700">
-                        {post.content}
-                      </p>
-                    ) : null}
-                    {post.photoUrls.length > 0 && (
-                      <div
-                        className={`mt-3 grid gap-2 ${
-                          post.photoUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"
-                        }`}
-                      >
-                        {post.photoUrls.map((photoUrl) => (
-                          <button
-                            key={photoUrl}
-                            type="button"
-                            onClick={() =>
-                              openImageViewer(photoUrl, `${post.authorName} post image`)
-                            }
-                            className="overflow-hidden rounded-xl border border-gray-100 bg-gray-50"
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={photoUrl}
-                              alt=""
-                              className="max-h-72 w-full object-cover"
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {REACTION_OPTIONS.map((reaction) => {
-                        const count = post.reactionCounts[reaction.type] ?? 0;
-                        const selected =
-                          myReactionsByPostId[post.id]?.reactionType ===
-                          reaction.type;
-                        return (
-                          <button
-                            key={reaction.type}
-                            type="button"
-                            onClick={() => handleReaction(post, reaction.type)}
-                            disabled={reactingPostId === post.id}
-                            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
-                              selected
-                                ? "border-green-600 bg-green-50 text-green-700"
-                                : "border-gray-200 bg-white text-gray-600"
-                            }`}
-                            aria-label={reaction.label}
-                          >
-                            {reaction.emoji} {count > 0 ? count : ""}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
-                      <button
-                        type="button"
-                        onClick={() => toggleReplies(post.id)}
-                        className="flex w-full items-center justify-between text-left"
-                      >
-                        <p className="text-xs font-semibold text-gray-700">
-                          Replies
-                        </p>
-                        <span className="text-[11px] font-medium text-gray-400">
-                          {repliesOpen ? "Hide" : `Show (${post.commentCount})`}
-                        </span>
-                      </button>
-                      {repliesOpen && (
-                        <>
-                          <div className="mt-3 space-y-3">
-                            {comments.length === 0 ? (
-                              <p className="text-[11px] text-gray-400">
-                                No replies yet.
-                              </p>
-                            ) : (
-                              comments.map((comment) => {
-                                const canManageComment =
-                                  comment.authorId === appUser?.uid || isAdmin;
-                                const commentMenuId = `${post.id}:${comment.id}`;
-                                const isCommentMenuOpen =
-                                  openCommentMenuId === commentMenuId;
-
-                                return (
-                                  <div
-                                    key={comment.id}
-                                    className="rounded-xl border border-gray-100 bg-white px-3 py-2"
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex min-w-0 items-start gap-2">
-                                        {comment.authorAvatarUrl ? (
-                                          // eslint-disable-next-line @next/next/no-img-element
-                                          <img
-                                            src={comment.authorAvatarUrl}
-                                            alt=""
-                                            className="h-7 w-7 shrink-0 rounded-full object-cover"
-                                          />
-                                        ) : (
-                                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-[11px] font-bold text-green-700">
-                                            {comment.authorName.charAt(0).toUpperCase()}
-                                          </div>
-                                        )}
-                                        <div className="min-w-0">
-                                          <p className="truncate text-xs font-semibold text-gray-700">
-                                            {comment.authorName}
-                                          </p>
-                                          <p className="text-[11px] text-gray-400">
-                                            {formatDistanceToNow(comment.createdAt, {
-                                              addSuffix: true,
-                                            })}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      {canManageComment && (
-                                        <div className="relative shrink-0" data-feed-menu-root>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              setOpenCommentMenuId((current) =>
-                                                current === commentMenuId ? "" : commentMenuId
-                                              )
-                                            }
-                                            className="flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500"
-                                            aria-label="Reply actions"
-                                          >
-                                            <EllipsisIcon className="h-4 w-4" />
-                                          </button>
-                                          {isCommentMenuOpen && (
-                                            <div className="absolute right-0 top-9 z-10 min-w-[124px] rounded-xl border border-gray-100 bg-white p-1.5 shadow-lg">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDeleteComment(post, comment)}
-                                                disabled={deleteCommentBusyId === comment.id}
-                                                className="block w-full rounded-lg px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50 disabled:text-red-300"
-                                              >
-                                                {deleteCommentBusyId === comment.id
-                                                  ? "Deleting..."
-                                                  : "Delete reply"}
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <p className="mt-1 text-sm text-gray-700">
-                                      {comment.content}
-                                    </p>
-                                  </div>
-                                );
-                              })
-                            )}
-                          </div>
-                          <div className="mt-3 space-y-2">
-                            <textarea
-                              value={commentDrafts[post.id] ?? ""}
-                              onChange={(event) =>
-                                setCommentDrafts((current) => ({
-                                  ...current,
-                                  [post.id]: event.target.value,
-                                }))
-                              }
-                              rows={2}
-                              placeholder="Write a reply..."
-                              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            />
-                            {commentErrors[post.id] && (
-                              <p className="text-xs font-medium text-red-600">
-                                {commentErrors[post.id]}
-                              </p>
-                            )}
-                            <div className="flex justify-end">
-                              <button
-                                type="button"
-                                onClick={() => handleCreateComment(post)}
-                                disabled={
-                                  postingCommentPostId === post.id ||
-                                  (commentDrafts[post.id] ?? "").trim().length === 0
-                                }
-                                className="rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 disabled:border-gray-100 disabled:bg-gray-100 disabled:text-gray-400"
-                              >
-                                {postingCommentPostId === post.id
-                                  ? "Posting..."
-                                  : "Reply"}
-                              </button>
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {visiblePosts.map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              appUser={appUser}
+              isAdmin={isAdmin}
+              pinnedPostId={pinnedAnnouncement?.id ?? null}
+              myReaction={myReactionsByPostId[post.id] ?? null}
+              postRound={post.roundId ? roundsById.get(post.roundId) ?? null : null}
+              onReaction={handleReaction}
+              onSaveEdit={handleSaveEdit}
+              onDeletePost={handleDeletePost}
+              onCreateComment={handleCreateComment}
+              onDeleteComment={handleDeleteComment}
+              onTogglePin={handleTogglePin}
+              subscribeToComments={subscribeToComments}
+            />
+          ))}
         </div>
       )}
-
-      {selectedImageUrl && (
-        <ImageGestureViewer
-          src={selectedImageUrl}
-          alt={selectedImageLabel}
-          onClose={() => {
-            setSelectedImageUrl("");
-            setSelectedImageLabel("");
-          }}
-        />
-      )}
     </div>
-  );
-}
-
-
-function EllipsisIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M6 12h.01M12 12h.01M18 12h.01"
-      />
-    </svg>
   );
 }

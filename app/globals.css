@@ -2,31 +2,31 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * GolfCaddy global styles
+ *
+ * Font CSS variables (--font-geist, --font-geist-mono) are injected by
+ * next/font/local in app/layout.tsx and consumed via tailwind.config.ts
+ * fontFamily tokens.
+ *
+ * This app intentionally does NOT support a dark-mode variant — the
+ * product is used on the golf course in bright sunlight and the green
+ * brand palette is designed for daylight readability.
+ */
 
 html,
 body {
+  /* Prevent bounce-scroll hijacking the fixed bottom nav on iOS */
   overscroll-behavior-y: contain;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* Respects iPhone home-indicator / Android nav bar safe area */
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
   }
 }

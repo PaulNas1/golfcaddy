@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   subscribeMembersForGroup,
   subscribeActiveMembers,
@@ -17,6 +17,11 @@ interface GroupDataContextType {
   activeMembers: AppUser[];
   groupMembers: Member[];
   currentSeason: number;
+  /**
+   * All seasons that have at least one round, sorted descending (newest first).
+   * The current season is always included even if it has no rounds yet.
+   */
+  availableSeasons: number[];
   currentSeasonStandings: SeasonStanding[];
   loading: boolean;
 }
@@ -32,6 +37,13 @@ export function GroupDataProvider({ children }: { children: React.ReactNode }) {
   const [currentSeason, setCurrentSeason] = useState(new Date().getFullYear());
   const [currentSeasonStandings, setCurrentSeasonStandings] = useState<SeasonStanding[]>([]);
   const [loading, setLoading] = useState(true);
+
+  /** Derived: seasons that appear in rounds data + the active season, newest first */
+  const availableSeasons = useMemo(() => {
+    const seasonSet = new Set(rounds.map((r) => r.season));
+    seasonSet.add(currentSeason);
+    return Array.from(seasonSet).sort((a, b) => b - a);
+  }, [rounds, currentSeason]);
 
   useEffect(() => {
     if (!appUser?.groupId) return;
@@ -97,6 +109,7 @@ export function GroupDataProvider({ children }: { children: React.ReactNode }) {
         activeMembers,
         groupMembers,
         currentSeason,
+        availableSeasons,
         currentSeasonStandings,
         loading,
       }}

@@ -19,6 +19,15 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function isModerator() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'moderator';
+    }
+
+    function isAdminOrModerator() {
+      return isAdmin() || isModerator();
+    }
+
     function isSameGroup(groupId) {
       return isSignedIn() &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId == groupId;
@@ -55,78 +64,91 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow create: if isSignedIn() && request.auth.uid == userId
-        // Prevent clients from self-granting platform admin on creation
         && !('platformAdmin' in request.resource.data);
       allow read: if isSignedIn() && (
         request.auth.uid == userId ||
         isAdmin() ||
         isActiveSameGroupResource()
       );
-      // Users and group admins can update user docs but must never touch platformAdmin.
-      // Only the Firebase Admin SDK (used by our API routes) can set that field.
+      // Admins can update any field except platformAdmin.
+      // Moderators can update status/displayName/etc but cannot change role.
+      // Users can update their own doc.
       allow update: if isSignedIn() &&
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['platformAdmin']) &&
-        (request.auth.uid == userId || isAdmin());
+        (
+          request.auth.uid == userId ||
+          isAdmin() ||
+          (isModerator() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+        );
       allow delete: if isAdmin();
     }
 
     // ─── Groups ───────────────────────────────────────────────────────────
 
     match /groups/{groupId} {
-      // Single-doc reads are public so unauthenticated users can look up a group
-      // by slug on the sign-in and create-group pages.
       allow get: if true;
       allow list: if isActiveUser() && isSameGroup(groupId);
+      // Only admins can change group settings, season config, points table, etc.
       allow write: if isAdmin();
+
+      // ─── Course Corrections (subcollection) ───────────────────────────
+
+      match /courseCorrections/{correctionId} {
+        allow read: if isAdminOrModerator() && isSameGroup(groupId);
+        allow write: if isAdminOrModerator() && isSameGroup(groupId);
+      }
     }
 
     // ─── Members ──────────────────────────────────────────────────────────
 
     match /members/{memberId} {
       allow read: if isActiveUserOrAdmin();
-      allow write: if isAdmin();
+      // Moderators can update member records (handicap, stats, season points).
+      allow write: if isAdminOrModerator();
     }
 
     // ─── Member Invites ──────────────────────────────────────────────────
 
     match /memberInvites/{inviteId} {
       allow get: if true;
-      allow list, create, delete: if isAdmin();
-      allow update: if isAdmin() || canMarkInviteUsed();
+      allow list, create, delete: if isAdminOrModerator();
+      allow update: if isAdminOrModerator() || canMarkInviteUsed();
     }
 
     // ─── Courses ──────────────────────────────────────────────────────────
 
     match /courses/{courseId} {
       allow read: if isActiveUserOrAdmin();
-      allow write: if isAdmin();
+      allow write: if isAdminOrModerator();
     }
 
     // ─── Rounds ───────────────────────────────────────────────────────────
 
     match /rounds/{roundId} {
       allow read: if isActiveUserOrAdmin();
-      allow write: if isAdmin();
+      // Moderators can create and edit rounds but cannot delete them.
+      allow create, update: if isAdminOrModerator();
+      allow delete: if isAdmin();
 
       match /teeTimes/{teeTimeId} {
         allow read: if isActiveUserOrAdmin();
-        allow write: if isAdmin();
+        allow write: if isAdminOrModerator();
       }
 
       match /rsvps/{memberId} {
         allow read: if isActiveUserOrAdmin();
-        allow create: if isAdmin() || (
+        allow create: if isAdminOrModerator() || (
           isActiveUser() &&
           request.auth.uid == memberId &&
           request.resource.data.memberId == request.auth.uid
         );
-        allow update: if isAdmin() || (
+        allow update: if isAdminOrModerator() || (
           isActiveUser() &&
           request.auth.uid == memberId &&
           resource.data.memberId == request.auth.uid &&
           request.resource.data.memberId == request.auth.uid
         );
-        allow delete: if isAdmin();
+        allow delete: if isAdminOrModerator();
       }
 
       match /sideClaims/{claimId} {
@@ -135,16 +157,14 @@ service cloud.firestore {
           request.resource.data.updatedBy == request.auth.uid &&
           request.resource.data.roundId == roundId &&
           get(/databases/$(database)/documents/rounds/$(roundId)).data.resultsPublished != true;
-        allow delete: if isAdmin();
+        allow delete: if isAdminOrModerator();
       }
     }
 
     // ─── Scorecards ───────────────────────────────────────────────────────
 
     match /scorecards/{scorecardId} {
-      // Members can read their own cards, cards they are marking, and same-group
-      // cards so marker selection can detect cards already started by another marker.
-      allow read: if isAdmin() || (
+      allow read: if isAdminOrModerator() || (
         isActiveUser() &&
         (
           resource.data.playerId == request.auth.uid ||
@@ -152,19 +172,17 @@ service cloud.firestore {
           isSameGroupResource()
         )
       );
-      // Members can create scorecards they are playing in (as player or marker)
-      // and admins can create any scorecard.
       allow create: if isActiveUser() && (
         request.resource.data.playerId == request.auth.uid ||
         request.resource.data.markerId == request.auth.uid ||
-        isAdmin()
+        isAdminOrModerator()
       );
       allow update: if isActiveUser() && (
         (resource.data.playerId == request.auth.uid && resource.data.status != 'admin_locked') ||
         (resource.data.markerId == request.auth.uid && resource.data.status != 'admin_locked') ||
-        isAdmin()
+        isAdminOrModerator()
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdminOrModerator();
 
       match /holeScores/{holeNumber} {
         allow read: if isActiveUserOrAdmin();
@@ -176,32 +194,33 @@ service cloud.firestore {
 
     match /results/{resultId} {
       allow read: if isActiveUserOrAdmin();
-      allow write: if isAdmin();
+      allow write: if isAdminOrModerator();
     }
 
     // ─── Season Standings ─────────────────────────────────────────────────
 
     match /seasonStandings/{standingId} {
       allow read: if isActiveUserOrAdmin();
-      allow write: if isAdmin();
+      allow write: if isAdminOrModerator();
     }
 
     // ─── Handicap History ─────────────────────────────────────────────────
 
     match /handicapHistory/{historyId} {
       allow read: if isActiveUserOrAdmin();
-      allow write: if isAdmin();
+      allow write: if isAdminOrModerator();
     }
 
     // ─── Posts ────────────────────────────────────────────────────────────
 
     match /posts/{postId} {
       allow read: if isActiveUserOrAdmin();
+      // Announcements remain admin-only. Moderators can post general content.
       allow create: if isActiveUser() && (
         request.resource.data.type != 'announcement' || isAdmin()
       );
       allow update: if isActiveUser() && (
-        isAdmin() ||
+        isAdminOrModerator() ||
         (
           resource.data.authorId == request.auth.uid &&
           isSameGroupId(resource.data.groupId) &&
@@ -219,13 +238,13 @@ service cloud.firestore {
           ])
         )
       );
-      allow delete: if isAdmin() ||
+      allow delete: if isAdminOrModerator() ||
         resource.data.authorId == request.auth.uid;
 
       match /comments/{commentId} {
         allow read: if isActiveUserOrAdmin();
         allow create: if isActiveUser();
-        allow delete: if isAdmin() ||
+        allow delete: if isAdminOrModerator() ||
           resource.data.authorId == request.auth.uid;
       }
 
@@ -240,29 +259,31 @@ service cloud.firestore {
     match /photos/{photoId} {
       allow read: if isActiveUser();
       allow create: if isActiveUser();
-      allow delete: if isAdmin() ||
+      allow delete: if isAdminOrModerator() ||
         resource.data.uploaderId == request.auth.uid;
     }
 
     // ─── Notifications ────────────────────────────────────────────────────
 
     match /notifications/{notificationId} {
-      allow read: if isAdmin() || (
+      allow read: if isAdminOrModerator() || (
         isSignedIn() &&
         resource.data.recipientId == request.auth.uid
       );
-      allow update: if isAdmin() || (
+      allow update: if isAdminOrModerator() || (
         isSignedIn() &&
         resource.data.recipientId == request.auth.uid
       );
-      allow create: if isAdmin() || (
+      // Admins/moderators can create any notification (e.g. round announcements).
+      // Members can create comment/reaction notifications for others in their group.
+      allow create: if isAdminOrModerator() || (
         isActiveUser() &&
         isSameGroupId(request.resource.data.groupId) &&
         request.resource.data.recipientId != request.auth.uid &&
         request.resource.data.type in ['new_comment', 'new_reaction'] &&
         request.resource.data.read == false
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdminOrModerator();
     }
   }
 }
