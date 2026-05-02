@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { markNotificationRead, subscribeNotifications } from "@/lib/firestore";
+import { ChevronLeftIcon } from "@/components/ui/icons";
 import type { AppNotification } from "@/types";
 
 const NOTIFICATION_ICONS: Record<string, string> = {
@@ -55,8 +56,21 @@ export default function NotificationsPage() {
   };
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-5">Notifications</h1>
+    <div>
+      {/* Back navigation */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-overlay bg-surface-card">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="flex items-center gap-1 text-brand-600 text-sm font-medium"
+        >
+          <ChevronLeftIcon className="w-4 h-4" />
+          Back
+        </button>
+      </div>
+
+      <div className="px-4 py-6">
+      <h1 className="text-2xl font-bold text-ink-title mb-5">Notifications</h1>
 
       {loading ? (
         <div className="space-y-3 animate-pulse">
@@ -76,29 +90,30 @@ export default function NotificationsPage() {
               key={n.id}
               type="button"
               onClick={() => handleTap(n)}
-              className={`w-full text-left bg-white rounded-2xl border p-4 flex gap-3 transition-colors active:bg-gray-50 ${
-                n.read ? "border-gray-100" : "border-green-200 bg-green-50"
+              className={`w-full text-left bg-surface-card rounded-2xl border p-4 flex gap-3 transition-colors active:bg-surface-muted ${
+                n.read ? "border-surface-overlay" : "border-brand-200 bg-brand-50"
               }`}
             >
               <div className="text-2xl flex-shrink-0">
                 {NOTIFICATION_ICONS[n.type] || "🔔"}
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-semibold ${n.read ? "text-gray-700" : "text-gray-900"}`}>
+                <p className={`text-sm font-semibold ${n.read ? "text-ink-body" : "text-ink-title"}`}>
                   {n.title}
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.body}</p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-ink-muted mt-0.5 line-clamp-2">{n.body}</p>
+                <p className="text-xs text-ink-hint mt-1">
                   {formatDistanceToNow(n.createdAt, { addSuffix: true })}
                 </p>
               </div>
               {!n.read && (
-                <div className="w-2 h-2 rounded-full bg-green-500 mt-1 flex-shrink-0" />
+                <div className="w-2 h-2 rounded-full bg-brand-600 mt-1 flex-shrink-0" />
               )}
             </button>
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

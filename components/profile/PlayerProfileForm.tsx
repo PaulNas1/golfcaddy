@@ -202,7 +202,7 @@ export default function PlayerProfileForm({ appUser, onSaved }: PlayerProfileFor
                   onChange={(e) => handleAvatarChange(e.target.files?.[0] ?? null)}
                   className="block w-full text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
                 />
-                <p className="mt-1 text-[11px] text-ink-hint">JPG, PNG, or WebP up to 5 MB.</p>
+                <p className="mt-1 text-xs text-ink-hint">JPG, PNG, or WebP up to 5 MB.</p>
               </div>
             </div>
             {(avatarPreviewUrl || appUser.avatarUrl) && (
@@ -322,7 +322,7 @@ function ProfileInput({
 function ProfileFact({ label, value }: { label: string; value?: string | null }) {
   return (
     <div className="rounded-xl bg-surface-muted px-3 py-2">
-      <p className="text-[11px] text-ink-hint">{label}</p>
+      <p className="text-xs text-ink-hint">{label}</p>
       <p className="mt-0.5 truncate font-semibold text-ink-body">{value || "Not set"}</p>
     </div>
   );

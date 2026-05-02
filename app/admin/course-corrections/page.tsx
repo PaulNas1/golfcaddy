@@ -105,7 +105,7 @@ export default function CourseCorrectionsPage() {
                     <p className="text-xs text-gray-500">
                       Tee set: {correction.teeSetName}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-gray-400">
+                    <p className="mt-0.5 text-xs text-gray-400">
                       Saved by {correction.savedByName} ·{" "}
                       {correction.savedAt.toLocaleDateString("en-AU", {
                         day: "numeric",
@@ -126,17 +126,17 @@ export default function CourseCorrectionsPage() {
 
                 <div className="flex flex-wrap gap-2">
                   {correction.correctedCourseRating != null && (
-                    <span className="rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                    <span className="rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                       Course Rating: {correction.correctedCourseRating}
                     </span>
                   )}
                   {correction.correctedSlopeRating != null && (
-                    <span className="rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                    <span className="rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                       Slope: {correction.correctedSlopeRating}
                     </span>
                   )}
                   {siCorrected && (
-                    <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700">
+                    <span className="rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
                       {correction.holeCorrections.length} hole corrections
                     </span>
                   )}

@@ -1519,7 +1519,7 @@ export default function AdminRoundDetailPage() {
                     <span className="font-medium text-gray-900">
                       {course.name}
                     </span>
-                    <span className="block text-[11px] text-gray-500">
+                    <span className="block text-xs text-gray-500">
                       GolfCourseAPI · {getCourseSearchLabel(course)}
                       {course.teeSets.length > 0
                         ? ` · ${course.teeSets.length} tee set${
@@ -1532,12 +1532,12 @@ export default function AdminRoundDetailPage() {
               </div>
             )}
             {apiCourseLoading && (
-              <p className="text-[11px] text-gray-400 mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 Searching GolfCourseAPI...
               </p>
             )}
             {apiCourseError && (
-              <p className="text-[11px] text-amber-600 mt-1">
+              <p className="text-xs text-amber-600 mt-1">
                 {apiCourseError}
               </p>
             )}
@@ -1574,7 +1574,7 @@ export default function AdminRoundDetailPage() {
                 ))}
               </select>
               {selectedTeeSet && (
-                <p className="text-[11px] text-gray-400 mt-1">
+                <p className="text-xs text-gray-400 mt-1">
                   NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
                 </p>
               )}
@@ -1584,7 +1584,7 @@ export default function AdminRoundDetailPage() {
                     <p className="text-xs font-semibold text-gray-700">
                       Player tee assignments
                     </p>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-xs text-gray-400">
                       {acceptedMembers.length} accepted ·{" "}
                       {Math.max(
                         acceptedMembers.length - teeOverrideCount,
@@ -1608,7 +1608,7 @@ export default function AdminRoundDetailPage() {
                 {showTeeAssignments && (
                   <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
                     {acceptedMembers.length === 0 ? (
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-xs text-gray-400">
                         Accepted players will appear here after they RSVP.
                       </p>
                     ) : (
@@ -1662,7 +1662,7 @@ export default function AdminRoundDetailPage() {
               </div>
               {selectedCourse && (
                 <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
-                  <p className="text-[11px] text-green-700">
+                  <p className="text-xs text-green-700">
                     Refresh pars, stroke indexes, distances, tee metadata, and
                     NTP holes from GolfCourseAPI. LD, T2, and T3 stay as
                     currently selected below.
@@ -1784,7 +1784,7 @@ export default function AdminRoundDetailPage() {
           <h3 className="text-xs font-semibold text-gray-700">
             Special holes
           </h3>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-xs text-gray-400">
             NTP holes are set from par 3s. Update LD, T2, and T3 if the course
             changes.
           </p>
@@ -1947,7 +1947,7 @@ export default function AdminRoundDetailPage() {
                       <div>
                         <span className="text-gray-700">{ranking.playerName}</span>
                         {ranking.countbackDetail && (
-                          <p className="text-[11px] text-gray-400">{ranking.countbackDetail}</p>
+                          <p className="text-xs text-gray-400">{ranking.countbackDetail}</p>
                         )}
                       </div>
                     </div>
@@ -1955,12 +1955,12 @@ export default function AdminRoundDetailPage() {
                       <p className="font-semibold text-gray-800">
                         {round.format === "stableford" ? `${ranking.stablefordTotal} pts` : `${ranking.grossTotal}`}
                       </p>
-                      <p className="text-[11px] text-gray-400">Hcp {ranking.handicap}</p>
+                      <p className="text-xs text-gray-400">Hcp {ranking.handicap}</p>
                       {!round.resultsPublished && card && card.status !== "in_progress" && (
                         <button
                           type="button"
                           onClick={() => handleReopenCard(card.id)}
-                          className="mt-0.5 text-[11px] text-green-700 underline"
+                          className="mt-0.5 text-xs text-green-700 underline"
                         >
                           Re-open card
                         </button>
@@ -1977,7 +1977,7 @@ export default function AdminRoundDetailPage() {
             <div className="space-y-3 border-t border-amber-100 pt-3">
               <div>
                 <p className="text-xs font-semibold text-gray-700">Live Par Override</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5">
                   Apply an on-the-fly change (GUR, temporary tee). Players are notified instantly.
                 </p>
               </div>
@@ -1996,7 +1996,7 @@ export default function AdminRoundDetailPage() {
             <div className="space-y-3 border-t border-gray-100 pt-3">
               <div>
                 <p className="text-xs font-semibold text-gray-700">Side Winners</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5">
                   Select before publishing. Leave blank if a prize wasn&apos;t run.
                 </p>
               </div>
@@ -2062,7 +2062,7 @@ export default function AdminRoundDetailPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-gray-700">Re-book This Course</p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-xs text-gray-400">
                     Create a new upcoming round from this course setup.
                   </p>
                 </div>
@@ -2119,7 +2119,7 @@ export default function AdminRoundDetailPage() {
                       />
                     </label>
                   </div>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-xs text-gray-400">
                     Suggested round number for Season {rebookSeason || suggestedRebookSeason}: {suggestedRoundNumberForSeason}. Course data, tee set, pars, distances, and prize holes will be copied.
                   </p>
                   {publishError && (
@@ -2152,7 +2152,7 @@ export default function AdminRoundDetailPage() {
           <div className="flex items-center gap-2">
             <h2 className="font-semibold text-gray-800">Course Corrections</h2>
             {round.holeOverrides.length > 0 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
                 {round.holeOverrides.length} active override{round.holeOverrides.length !== 1 ? "s" : ""}
               </span>
             )}
@@ -2296,7 +2296,7 @@ export default function AdminRoundDetailPage() {
               ) : (
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Course Rating</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Course Rating</label>
                     <input
                       type="number"
                       step="0.1"
@@ -2309,7 +2309,7 @@ export default function AdminRoundDetailPage() {
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[11px] font-medium text-gray-500 mb-1">Slope</label>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Slope</label>
                     <input
                       type="number"
                       min={55}

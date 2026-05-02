@@ -166,14 +166,14 @@ export default function LeaderboardPage() {
       <div className="mb-5">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-ink-title">Season Ladder</h1>
+            <h1 className="text-2xl font-bold text-ink-title">Ladder</h1>
             <p className="text-ink-muted text-sm">
               Season {selectedSeason ?? currentSeason}
               {selectedSeason === currentSeason ? " · active" : ""}
             </p>
           </div>
           <label className="block">
-            <span className="mb-1 block text-right text-[11px] font-medium uppercase tracking-wide text-ink-hint">
+            <span className="mb-1 block text-right text-xs font-medium uppercase tracking-wide text-ink-hint">
               Season
             </span>
             <select
@@ -262,7 +262,7 @@ function StandingCard({
           <p className="text-xl font-bold text-ink-title">
             {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
           </p>
-          <p className="text-[11px] text-ink-hint">
+          <p className="text-xs text-ink-hint">
             {entry.hasStanding ? getRankMovement(entry) : "Unranked"}
           </p>
         </div>
@@ -305,7 +305,7 @@ function StandingCard({
             <span className="text-sm font-semibold">pts</span>
           </p>
           {entry.grossSeasonPoints !== entry.totalPoints && (
-            <p className="text-[11px] text-ink-hint">{entry.grossSeasonPoints} raw</p>
+            <p className="text-xs text-ink-hint">{entry.grossSeasonPoints} raw</p>
           )}
         </div>
       </div>
@@ -335,7 +335,7 @@ function SidePrizeBoard({
 
   return (
     <div className="rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-hint">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-hint">
         {label}
       </p>
       {!leader ? (

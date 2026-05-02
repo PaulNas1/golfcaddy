@@ -187,7 +187,7 @@ export default function PostCard({
       {/* Pinned banner */}
       {isPinnedAnnouncement && (
         <div className="mb-3">
-          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-announce-label">
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-announce-label">
             Pinned announcement
           </span>
         </div>
@@ -385,7 +385,7 @@ export default function PostCard({
               className="flex w-full items-center justify-between text-left"
             >
               <p className="text-xs font-semibold text-ink-muted">Replies</p>
-              <span className="text-[11px] font-medium text-ink-hint">
+              <span className="text-xs font-medium text-ink-hint">
                 {repliesOpen ? "Hide" : `Show (${post.commentCount})`}
               </span>
             </button>
@@ -394,7 +394,7 @@ export default function PostCard({
               <>
                 <div className="mt-3 space-y-3">
                   {comments.length === 0 ? (
-                    <p className="text-[11px] text-ink-hint">No replies yet.</p>
+                    <p className="text-xs text-ink-hint">No replies yet.</p>
                   ) : (
                     comments.map((comment) => {
                       const canManageComment = comment.authorId === appUser?.uid || isAdmin;
@@ -406,7 +406,7 @@ export default function PostCard({
                               <Avatar src={comment.authorAvatarUrl} name={comment.authorName} size="xs" />
                               <div className="min-w-0">
                                 <p className="truncate text-xs font-semibold text-ink-body">{comment.authorName}</p>
-                                <p className="text-[11px] text-ink-hint">
+                                <p className="text-xs text-ink-hint">
                                   {formatDistanceToNow(comment.createdAt, { addSuffix: true })}
                                 </p>
                               </div>

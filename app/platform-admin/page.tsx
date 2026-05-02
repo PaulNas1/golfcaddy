@@ -353,7 +353,7 @@ export default function PlatformAdminPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-gray-800">{group.name}</span>
-                          <span className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-500">
+                          <span className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
                             {group.slug}
                           </span>
                           <StatusBadge status={subStatus} />
@@ -411,8 +411,8 @@ export default function PlatformAdminPage() {
                           return (
                             <div className="mt-2.5">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-[11px] text-gray-400">Trial period</span>
-                                <span className={`text-[11px] font-semibold ${urgent ? "text-red-500" : warning ? "text-amber-500" : "text-blue-500"}`}>
+                                <span className="text-xs text-gray-400">Trial period</span>
+                                <span className={`text-xs font-semibold ${urgent ? "text-red-500" : warning ? "text-amber-500" : "text-blue-500"}`}>
                                   {daysLeft === 0 ? "Expires today" : `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`}
                                 </span>
                               </div>

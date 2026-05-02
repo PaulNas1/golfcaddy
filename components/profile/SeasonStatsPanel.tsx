@@ -178,7 +178,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
       </div>
 
       <label className="mb-3 block">
-        <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-ink-hint">Season</span>
+        <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink-hint">Season</span>
         <select
           value={activeSeason}
           onChange={(e) => setSelectedSeason(Number(e.target.value))}
@@ -222,7 +222,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
                 { label: "T3",  value: standing?.t3WinsSeason  ?? fallback.t3Wins },
               ].map(({ label, value }) => (
                 <div key={label} className="rounded-xl bg-brand-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-700">{label}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{label}</p>
                   <p className="mt-1 text-lg font-bold text-brand-800">{value}</p>
                 </div>
               ))}
@@ -232,7 +232,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
           {/* Handicap trend */}
           <div>
             <h4 className="text-sm font-semibold text-ink-title mb-1">Handicap Trend</h4>
-            <p className="text-[11px] text-ink-hint mb-2">
+            <p className="text-xs text-ink-hint mb-2">
               {activeSeason === currentSeason ? "Rolling handicap for the active season" : `Archive history for Season ${activeSeason}`}
             </p>
             <HandicapTrendChart history={seasonHandicapHistory} />
@@ -246,7 +246,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
                           {h.newHandicap}
                           <span className="ml-2 text-xs font-medium text-ink-hint">from {h.previousHandicap}</span>
                         </p>
-                        <p className="text-[11px] text-ink-hint">
+                        <p className="text-xs text-ink-hint">
                           {h.roundDate ? format(h.roundDate, "d MMM yyyy") : "Manual update"}
                           {h.qualifyingRoundCount ? ` · ${h.qualifyingRoundCount} qualifying rounds` : ""}
                         </p>
@@ -257,7 +257,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
                         {isHistoryOfficial(h) ? "Official" : "Provisional"}
                       </span>
                     </div>
-                    <p className="mt-1 text-[11px] text-ink-hint">{h.reason}</p>
+                    <p className="mt-1 text-xs text-ink-hint">{h.reason}</p>
                   </div>
                 ))}
               </div>
@@ -278,7 +278,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <h4 className="text-sm font-semibold text-ink-title">Full Round History</h4>
-                <span className="text-[11px] text-ink-hint">
+                <span className="text-xs text-ink-hint">
                   {activeSeasonResults.length +
                     archiveSeasons.reduce((sum, s) => sum + (archiveStandingsBySeason[s]?.roundResults?.length ?? 0), 0)
                   } rounds
@@ -328,7 +328,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
                           >
                             <div>
                               <p className="text-sm font-semibold text-ink-title">{season}</p>
-                              <p className="text-[11px] text-ink-hint">
+                              <p className="text-xs text-ink-hint">
                                 {seasonLoading ? "Loading…" : seasonLoaded ? `${seasonResults.length} rounds` : "Tap to load"}
                               </p>
                             </div>
@@ -359,7 +359,7 @@ export default function SeasonStatsPanel({ appUser, member }: SeasonStatsPanelPr
                   <EmptyHistoryMessage text="No archived season results yet." />
                 )}
               </CollapsibleSection>
-              <p className="text-[11px] text-ink-hint">
+              <p className="text-xs text-ink-hint">
                 Each row links to the round. Imported summary-only results will not have an archived scorecard.
               </p>
             </div>
@@ -384,7 +384,7 @@ function StatCard({ label, value, trend }: { label: string; value: string; trend
     <div className="rounded-xl bg-surface-muted px-3 py-3">
       <p className="text-xs text-ink-muted">{label}</p>
       <p className="mt-1 text-xl font-bold text-ink-title">{value}</p>
-      {trend && <p className={`mt-1 text-[11px] font-medium ${trendClass}`}>{trend.label}</p>}
+      {trend && <p className={`mt-1 text-xs font-medium ${trendClass}`}>{trend.label}</p>}
     </div>
   );
 }
@@ -401,7 +401,7 @@ function CollapsibleSection({
       >
         <div>
           <p className="text-sm font-semibold text-ink-title">{title}</p>
-          <p className="text-[11px] text-ink-hint">{subtitle}</p>
+          <p className="text-xs text-ink-hint">{subtitle}</p>
         </div>
         <span className="text-ink-hint">
           {open ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
@@ -455,11 +455,11 @@ function RoundHistoryRow({
             {roundResult.stableford > 0 ? `${roundResult.stableford} stb` : `${roundResult.pointsAwarded} pts`}
           </p>
           {round && hasRoundScorecards(round) ? (
-            <Link href={`/rounds/${roundResult.roundId}/my-card`} prefetch={false} className="mt-1 inline-block text-[11px] font-semibold text-brand-700 underline-offset-2 hover:underline">
+            <Link href={`/rounds/${roundResult.roundId}/my-card`} prefetch={false} className="mt-1 inline-block text-xs font-semibold text-brand-700 underline-offset-2 hover:underline">
               My card
             </Link>
           ) : (
-            <p className="mt-1 text-[11px] font-semibold text-ink-hint">Results only</p>
+            <p className="mt-1 text-xs font-semibold text-ink-hint">Results only</p>
           )}
         </div>
       </div>
@@ -485,13 +485,13 @@ function HandicapTrendChart({ history }: { history: HandicapHistory[] }) {
               {entry.newHandicap}
               <span className="ml-2 text-xs font-medium text-ink-hint">from {entry.previousHandicap}</span>
             </p>
-            <p className="text-[11px] text-ink-hint">{entry.roundDate ? format(entry.roundDate, "d MMM yyyy") : "Manual update"}</p>
+            <p className="text-xs text-ink-hint">{entry.roundDate ? format(entry.roundDate, "d MMM yyyy") : "Manual update"}</p>
           </div>
           <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${isHistoryOfficial(entry) ? "bg-brand-100 text-brand-700" : "bg-amber-100 text-amber-700"}`}>
             {isHistoryOfficial(entry) ? "Official" : "Provisional"}
           </span>
         </div>
-        <p className="mt-2 text-[11px] text-ink-hint">We need more than one update before a trend line is useful.</p>
+        <p className="mt-2 text-xs text-ink-hint">We need more than one update before a trend line is useful.</p>
       </div>
     );
   }
@@ -520,7 +520,7 @@ function HandicapTrendChart({ history }: { history: HandicapHistory[] }) {
           return <circle key={e.id} cx={x} cy={yFor(e.newHandicap)} r="4" fill={e.officialAfterChange ? "#15803d" : "#f59e0b"} />;
         })}
       </svg>
-      <div className="mt-2 flex items-center justify-between text-[11px] text-ink-hint">
+      <div className="mt-2 flex items-center justify-between text-xs text-ink-hint">
         <span>{format(chronological[0].roundDate ?? chronological[0].createdAt, "d MMM")}</span>
         <span>Lower is better</span>
         <span>{format(chronological[chronological.length - 1].roundDate ?? chronological[chronological.length - 1].createdAt, "d MMM")}</span>

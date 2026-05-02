@@ -122,7 +122,7 @@ export default function TeeTimesEditor({
         Click a tee slot, then assign players from the list below. Players can
         only belong to one tee time at a time.
       </p>
-      <p className="text-[11px] text-gray-400">
+      <p className="text-xs text-gray-400">
         Press and hold a player chip in a tee slot to remove them without
         changing their RSVP.
       </p>
@@ -285,7 +285,7 @@ export default function TeeTimesEditor({
 
         <div className="mt-3 flex flex-wrap gap-2">
           {availableMembers.length === 0 && (
-            <p className="text-[11px] text-gray-400">{emptyPlayersMessage}</p>
+            <p className="text-xs text-gray-400">{emptyPlayersMessage}</p>
           )}
           {availableMembers.map((member) => {
             const assignedIndex = assignedPlayerIndexById.get(member.uid);

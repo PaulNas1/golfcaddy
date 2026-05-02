@@ -499,7 +499,7 @@ export default function AdminSettingsPage() {
                 }
                 className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
               />
-              <p className="mt-2 text-[11px] text-gray-400">
+              <p className="mt-2 text-xs text-gray-400">
                 Upload a square logo if possible. JPG, PNG, or WebP up to 5 MB.
               </p>
               <button

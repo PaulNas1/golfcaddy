@@ -231,7 +231,7 @@ export default function PhotosPage() {
               <div className="space-y-2 p-3">
                 <div className="flex min-h-[24px] items-center gap-1.5">
                   {photo.roundNumber ? (
-                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
                       {`Round ${photo.roundNumber}`}
                     </span>
                   ) : null}
@@ -251,7 +251,7 @@ export default function PhotosPage() {
                   <p className="truncate text-sm font-semibold text-gray-800">
                     {photo.uploaderName}
                   </p>
-                  <p className="mt-0.5 text-[11px] text-gray-400">
+                  <p className="mt-0.5 text-xs text-gray-400">
                     {formatDistanceToNow(photo.createdAt, { addSuffix: true })}
                   </p>
                 </div>
@@ -305,20 +305,20 @@ function PhotoViewer({
           {/* Tags */}
           <div className="flex flex-wrap gap-1.5">
             {photo.roundNumber ? (
-              <span className="rounded-full bg-green-500/30 px-2 py-0.5 text-[11px] font-medium text-green-200">
+              <span className="rounded-full bg-green-500/30 px-2 py-0.5 text-xs font-medium text-green-200">
                 Round {photo.roundNumber}
               </span>
             ) : null}
             {photo.courseName ? (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-medium text-white/80">
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-medium text-white/80">
                 {photo.courseName}
               </span>
             ) : (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/50">
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/50">
                 No round linked
               </span>
             )}
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/50">
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/50">
               {formatDistanceToNow(photo.createdAt, { addSuffix: true })}
             </span>
           </div>

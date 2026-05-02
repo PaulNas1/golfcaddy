@@ -61,7 +61,7 @@ export default function RoundsPage() {
           </p>
         </div>
         <label className="block">
-          <span className="mb-1 block text-right text-[11px] font-medium uppercase tracking-wide text-ink-hint">
+          <span className="mb-1 block text-right text-xs font-medium uppercase tracking-wide text-ink-hint">
             Season
           </span>
           <select

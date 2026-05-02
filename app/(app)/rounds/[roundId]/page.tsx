@@ -21,6 +21,7 @@ import {
   subscribeScorecardsForRound,
   subscribeSideClaimsForRound,
 } from "@/lib/firestore";
+import { ChevronRightIcon } from "@/components/ui/icons";
 import {
   getEffectiveSpecialHoles,
   getViewerHoles,
@@ -365,7 +366,7 @@ export default function RoundDetailPage() {
                     #{ranking.rank} {ranking.playerName}
                   </span>
                   {ranking.countbackDetail && (
-                    <p className="text-[11px] text-green-700">
+                    <p className="text-xs text-green-700">
                       {ranking.countbackDetail}
                     </p>
                   )}
@@ -381,7 +382,7 @@ export default function RoundDetailPage() {
                       ? `${ranking.stablefordTotal} pts`
                       : `${ranking.grossTotal} strokes`}
                   </p>
-                  <p className="text-[11px] text-green-700">
+                  <p className="text-xs text-green-700">
                     {ranking.pointsEligible === false
                       ? ranking.pointsIneligibleReason ?? "Provisional - no ladder points yet"
                       : `${ranking.pointsAwarded} ladder pts`}
@@ -411,12 +412,13 @@ export default function RoundDetailPage() {
           <p className="text-red-600 text-sm mb-3">
             Enter your scores hole by hole
           </p>
-          <a
+          <Link
             href={`/rounds/${round.id}/scorecard`}
+            prefetch={false}
             className="block text-center w-full bg-red-500 text-white font-semibold py-3 rounded-xl"
           >
             Enter Scores →
-          </a>
+          </Link>
         </div>
       )}
 
@@ -425,7 +427,7 @@ export default function RoundDetailPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold text-gray-800">Live Standings</h2>
-            <span className="text-[11px] font-medium text-gray-400 rounded-full bg-gray-50 px-2 py-0.5">
+            <span className="text-xs font-medium text-gray-400 rounded-full bg-gray-50 px-2 py-0.5">
               Unofficial
             </span>
           </div>
@@ -462,7 +464,7 @@ export default function RoundDetailPage() {
                 );
               })}
           </div>
-          <p className="text-[11px] text-gray-400">
+          <p className="text-xs text-gray-400">
             Scores update in real time. Final results are published by the admin after the round.
           </p>
         </div>
@@ -480,7 +482,7 @@ export default function RoundDetailPage() {
             </p>
           )}
           {round.courseSource && (
-            <p className="text-[11px] text-gray-400">
+            <p className="text-xs text-gray-400">
               Course data: {round.courseSource.provider}
             </p>
           )}
@@ -628,11 +630,11 @@ export default function RoundDetailPage() {
                     <p className="truncate text-sm font-semibold text-gray-800">
                       {post.authorName}
                     </p>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-xs text-gray-400">
                       {formatDistanceToNow(post.createdAt, { addSuffix: true })}
                     </p>
                   </div>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-600">
                     {post.commentCount} replies
                   </span>
                 </div>
@@ -672,7 +674,7 @@ export default function RoundDetailPage() {
             className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
           >
             <span>Open round in admin</span>
-            <span className="text-lg">↗</span>
+            <ChevronRightIcon className="w-4 h-4" />
           </Link>
         </div>
       )}
@@ -841,7 +843,7 @@ function SideClaimSelect({
   return (
     <label className="block rounded-xl bg-gray-50 px-3 py-2">
       <span className="block text-sm font-medium text-gray-800">{label}</span>
-      <span className="block text-[11px] text-gray-500 mb-1">
+      <span className="block text-xs text-gray-500 mb-1">
         Current holder: {claim?.winnerName ?? "Not set"}
       </span>
       <select

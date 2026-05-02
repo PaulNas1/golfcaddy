@@ -7,12 +7,19 @@ import { subscribeGroup, subscribeRoundsForGroup } from "@/lib/firestore";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
+import { ChevronRightIcon } from "@/components/ui/icons";
 import type { Round, RoundStatus } from "@/types";
 
 const STATUS_STYLES: Record<RoundStatus, string> = {
-  upcoming: "bg-blue-100 text-blue-700",
-  live: "bg-red-100 text-red-700",
-  completed: "bg-gray-100 text-gray-500",
+  upcoming: "bg-upcoming-bg text-upcoming-text",
+  live:     "bg-live-bg text-live-text",
+  completed:"bg-completed-bg text-completed-text",
+};
+
+const STATUS_LABEL: Record<RoundStatus, string> = {
+  upcoming:  "Upcoming",
+  live:      "● Live",
+  completed: "Completed",
 };
 
 export default function AdminRoundsPage() {
@@ -81,7 +88,7 @@ export default function AdminRoundsPage() {
         </div>
         <div className="flex items-end gap-2">
           <label className="block">
-            <span className="mb-1 block text-right text-[11px] font-medium uppercase tracking-wide text-gray-400">
+            <span className="mb-1 block text-right text-xs font-medium uppercase tracking-wide text-ink-hint">
               Season
             </span>
             <select
@@ -134,17 +141,17 @@ export default function AdminRoundsPage() {
         <div className="space-y-3">
           {visibleRounds.map((round) => (
             <Link key={round.id} href={`/admin/rounds/${round.id}`}>
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:bg-gray-50 transition-colors">
+              <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 hover:bg-surface-muted transition-colors">
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[round.status]}`}>
-                        {round.status === "live" ? "● Live" : round.status.charAt(0).toUpperCase() + round.status.slice(1)}
+                        {STATUS_LABEL[round.status]}
                       </span>
-                      <span className="text-xs text-gray-400">{getRoundLabel(round)}</span>
+                      <span className="text-xs text-ink-hint">{getRoundLabel(round)}</span>
                     </div>
-                    <h3 className="font-semibold text-gray-800">{round.courseName}</h3>
-                    <p className="text-gray-500 text-sm">
+                    <h3 className="font-semibold text-ink-title">{round.courseName}</h3>
+                    <p className="text-ink-muted text-sm">
                       {format(round.date, "EEE d MMM yyyy")}
                       {getFirstTeeTimeLabel(round)
                         ? ` · ${getFirstTeeTimeLabel(round)}`
@@ -152,7 +159,7 @@ export default function AdminRoundsPage() {
                       {selectedSeason === "all" ? ` · S${round.season}` : ""}
                     </p>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                  <ChevronRightIcon className="w-5 h-5 text-ink-hint shrink-0 mt-0.5" />
                 </div>
               </div>
             </Link>
@@ -163,10 +170,3 @@ export default function AdminRoundsPage() {
   );
 }
 
-function ChevronRight({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
-  );
-}

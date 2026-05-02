@@ -733,7 +733,7 @@ export default function ScorecardPage() {
             </div>
           )}
           {eligibleMembers.length > 0 && teeTimesWithPlayers && (
-            <p className="text-[11px] text-gray-400">
+            <p className="text-xs text-gray-400">
               Showing accepted members assigned to your tee-time group.
             </p>
           )}
@@ -769,7 +769,7 @@ export default function ScorecardPage() {
                   ? "Submitted"
                   : "Locked by admin"}
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 Player:{" "}
                 <span className="font-semibold text-gray-800">
                   {playerName ?? "—"}
@@ -789,7 +789,7 @@ export default function ScorecardPage() {
                   </>
                 )}
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 Playing HCP:{" "}
                 <span className="font-semibold text-gray-800">
                   {scorecard.handicapAtTime}
@@ -1186,7 +1186,7 @@ function SideClaimSelect({
   return (
     <label className="block rounded-xl bg-gray-50 px-3 py-2">
       <span className="block text-sm font-medium text-gray-800">{label}</span>
-      <span className="block text-[11px] text-gray-500 mb-1">
+      <span className="block text-xs text-gray-500 mb-1">
         Current holder: {claim?.winnerName ?? "Not set"}
       </span>
       <select

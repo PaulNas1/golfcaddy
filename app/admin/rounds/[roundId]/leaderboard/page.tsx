@@ -514,7 +514,7 @@ export default function AdminRoundLeaderboardPage() {
                       {ranking.playerName}
                     </span>
                     {ranking.countbackDetail && (
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-xs text-gray-400">
                         {ranking.countbackDetail}
                       </p>
                     )}
@@ -526,7 +526,7 @@ export default function AdminRoundLeaderboardPage() {
                       ? ranking.stablefordTotal
                       : ranking.grossTotal}
                   </p>
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-xs text-gray-400">
                     Hcp {ranking.handicap}
                   </p>
                   {!round.resultsPublished &&
@@ -535,7 +535,7 @@ export default function AdminRoundLeaderboardPage() {
                       <button
                         type="button"
                         onClick={() => handleReopenCard(card.id)}
-                        className="mt-1 text-[11px] text-green-700 underline"
+                        className="mt-1 text-xs text-green-700 underline"
                       >
                         Re-open card
                       </button>
@@ -617,12 +617,12 @@ export default function AdminRoundLeaderboardPage() {
                     #{ranking.rank} {ranking.playerName}
                   </span>
                   {ranking.countbackDetail && (
-                    <p className="text-[11px] text-green-700">
+                    <p className="text-xs text-green-700">
                       {ranking.countbackDetail}
                     </p>
                   )}
                   {ranking.pointsEligible === false && (
-                    <p className="text-[11px] text-amber-700">
+                    <p className="text-xs text-amber-700">
                       {ranking.pointsIneligibleReason ??
                         "Provisional - no ladder points yet"}
                     </p>

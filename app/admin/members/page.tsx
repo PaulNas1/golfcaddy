@@ -1111,7 +1111,7 @@ function MemberDetailFact({
 }) {
   return (
     <div className={`${wide ? "col-span-2" : ""} rounded-xl bg-gray-50 px-3 py-2`}>
-      <p className="text-[11px] text-gray-400">{label}</p>
+      <p className="text-xs text-gray-400">{label}</p>
       <p className="mt-0.5 break-words font-semibold text-gray-700">{value}</p>
     </div>
   );

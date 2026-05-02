@@ -198,14 +198,14 @@ export default function MyCardPage() {
                   ? "Submitted"
                   : "Locked by admin"}
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 Player:{" "}
                 <span className="font-semibold text-gray-800">
                   {appUser?.displayName}
                 </span>
                 {markerName && <> · Marker: {markerName}</>}
               </p>
-              <p className="text-[11px] text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1">
                 Playing HCP:{" "}
                 <span className="font-semibold text-gray-800">
                   {card.handicapAtTime}
@@ -215,7 +215,7 @@ export default function MyCardPage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/rounds/${round.id}/scorecard`)}
-                  className="mt-1 text-[11px] text-green-700 underline"
+                  className="mt-1 text-xs text-green-700 underline"
                 >
                   Card you&apos;re marking: {markedPlayerName}
                 </button>

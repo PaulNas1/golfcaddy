@@ -319,7 +319,7 @@ export default function FeedPage() {
               onChange={(e) => handlePostImagesChange(e.target.files)}
               className="block w-full text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
             />
-            <p className="mt-2 text-[11px] text-ink-hint">
+            <p className="mt-2 text-xs text-ink-hint">
               Attach up to {MAX_POST_IMAGES} images. JPG or PNG up to 5 MB each.
             </p>
             {postImagePreviews.length > 0 && (
@@ -331,7 +331,7 @@ export default function FeedPage() {
                     <button
                       type="button"
                       onClick={() => replacePostImages(postImages.filter((_, i) => i !== index))}
-                      className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-semibold text-white"
+                      className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-xs font-semibold text-white"
                     >
                       Remove
                     </button>
@@ -344,7 +344,7 @@ export default function FeedPage() {
           {/* Round link selector */}
           <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-card px-3 py-3">
             <label className="block text-xs font-semibold text-ink-muted">Link to round</label>
-            <p className="mt-1 text-[11px] text-ink-hint">
+            <p className="mt-1 text-xs text-ink-hint">
               Optional. Linked photos appear in the photo library under that round.
             </p>
             <select
@@ -366,7 +366,7 @@ export default function FeedPage() {
                 <button
                   type="button"
                   onClick={() => setLinkedRoundId("")}
-                  className="shrink-0 rounded-full border border-brand-200 bg-surface-card px-2.5 py-1 text-[11px] font-semibold text-brand-700"
+                  className="shrink-0 rounded-full border border-brand-200 bg-surface-card px-2.5 py-1 text-xs font-semibold text-brand-700"
                 >
                   Clear
                 </button>
