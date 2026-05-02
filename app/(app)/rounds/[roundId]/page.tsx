@@ -316,6 +316,7 @@ export default function RoundDetailPage() {
         groupId: appUser.groupId,
         author: appUser,
         content: postContent,
+        type: "round_linked",
         roundId: round?.id ?? null,
       });
       setPostContent("");
