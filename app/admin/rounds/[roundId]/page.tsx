@@ -4,11 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import Link from "next/link";
-import TeeTimesEditor, { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
-import {
-  getGolfCourseCatalogueCourse,
-  searchGolfCourseCatalogue,
-} from "@/lib/courseCatalogueClient";
+import { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
 import {
   createNotificationsForUsers,
   createRound,
@@ -37,24 +33,21 @@ import { buildPlayerRankings } from "@/lib/results";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   type SeededCourse,
-  getCourseSearchLabel,
-  getDriveHoleOptions,
   getEffectiveSpecialHoles,
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
-  getPreferredDefaultTeeSet,
   getRoundTeeSets,
 } from "@/lib/courseData";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import {
-  formatShortMemberName,
   getTeeTimeGroupLabel,
   normaliseTeeTimePlayerIds,
-  randomiseMemberGroups,
-  resolveMemberIdsFromText,
 } from "@/lib/teeTimes";
+import RoundDetailsForm, {
+  type RoundFormSavePayload,
+} from "@/components/admin/RoundDetailsForm";
 import type {
   AppUser,
   CourseTeeSet,
@@ -69,37 +62,8 @@ import type {
   SideClaim,
   SidePrizeType,
   SideResult,
-  ScoringFormat,
   TeeTime,
 } from "@/types";
-
-const DATE_INPUT_CLASSNAME =
-  "block h-[42px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-gray-200 bg-white px-3 text-left text-sm leading-[42px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
-
-function mergeTeeSets(...groups: Array<CourseTeeSet[] | null | undefined>) {
-  const merged = new Map<string, CourseTeeSet>();
-
-  groups.forEach((group) => {
-    group?.forEach((teeSet) => {
-      merged.set(teeSet.id, teeSet);
-    });
-  });
-
-  return Array.from(merged.values());
-}
-
-function extractGolfCourseApiId(
-  courseId: string | null | undefined,
-  teeSetId: string | null | undefined
-) {
-  const courseMatch = courseId?.match(/^golfcourseapi-(\d+)$/);
-  if (courseMatch) return Number(courseMatch[1]);
-
-  const teeSetMatch = teeSetId?.match(/^golfcourseapi-(\d+)-/);
-  if (teeSetMatch) return Number(teeSetMatch[1]);
-
-  return null;
-}
 
 function getRoundAlertRecipientIds(
   round: Round,
@@ -176,62 +140,15 @@ export default function AdminRoundDetailPage() {
   const [courseRatingDraft, setCourseRatingDraft] = useState("");
   const [slopeRatingDraft, setSlopeRatingDraft] = useState("");
   const [savingRatingSlope, setSavingRatingSlope] = useState(false);
-  const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
-  const [apiCourseLoading, setApiCourseLoading] = useState(false);
-  const [apiCourseError, setApiCourseError] = useState("");
-  const [courseSearchActive, setCourseSearchActive] = useState(false);
   const [members, setMembers] = useState<AppUser[]>([]);
   const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [rsvpsReady, setRsvpsReady] = useState(false);
-  const [courseId, setCourseId] = useState("");
-  const [teeSetId, setTeeSetId] = useState("");
-  const [courseName, setCourseName] = useState("");
-  const [roundNumber, setRoundNumber] = useState<string>("");
-  const [date, setDate] = useState("");
-  const [formatChoice, setFormatChoice] =
-    useState<ScoringFormat>("stableford");
-  const [notes, setNotes] = useState("");
-  const [ldHole, setLdHole] = useState("");
-  const [t2Hole, setT2Hole] = useState("");
-  const [t3Hole, setT3Hole] = useState("");
   const [playerTeeAssignments, setPlayerTeeAssignments] = useState<
     Record<string, string>
   >({});
-  const [showTeeAssignments, setShowTeeAssignments] = useState(false);
   const [teeTimes, setTeeTimes] = useState<TeeTimeDraftValue[]>([
     { time: "", notes: "", playerIds: [], guestNames: [] },
   ]);
-  const selectedCourse = useMemo(() => {
-    const apiCourseById = apiCourses.find((course) => course.id === courseId);
-    const apiCourseByName = apiCourses.find(
-      (course) => course.name === courseName
-    );
-
-    return apiCourseById ?? apiCourseByName ?? null;
-  }, [apiCourses, courseId, courseName]);
-  const courseTeeSets = useMemo(
-    () => mergeTeeSets(selectedCourse?.teeSets, round ? getRoundTeeSets(round) : []),
-    [round, selectedCourse?.teeSets]
-  );
-  const selectedTeeSet =
-    courseTeeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
-  const apiCourseSuggestions = useMemo(
-    () =>
-      apiCourses.filter(
-        (course) => course.id !== selectedCourse?.id
-      ),
-    [apiCourses, selectedCourse?.id]
-  );
-  const showCourseSuggestions =
-    courseSearchActive && apiCourseSuggestions.length > 0;
-  const holeOptions =
-    selectedTeeSet?.holes ??
-    (round?.courseHoles && round.courseHoles.length === 18
-      ? round.courseHoles
-      : getFallbackCourseHoles());
-  const driveHoleOptions = getDriveHoleOptions(holeOptions);
-  const refreshableTeeSet =
-    selectedTeeSet ?? getPreferredDefaultTeeSet(selectedCourse?.teeSets ?? []) ?? null;
   const acceptedMemberIds = useMemo(
     () =>
       rsvps
@@ -243,110 +160,6 @@ export default function AdminRoundDetailPage() {
     const acceptedIds = new Set(acceptedMemberIds);
     return members.filter((member) => acceptedIds.has(member.uid));
   }, [acceptedMemberIds, members]);
-  const assignmentTeeSets = useMemo(
-    () =>
-      mergeTeeSets(
-        courseTeeSets,
-        round?.availableTeeSets,
-        selectedCourse?.teeSets
-      ),
-    [courseTeeSets, round?.availableTeeSets, selectedCourse?.teeSets]
-  );
-  const teeReviewMembers = acceptedMembers.filter(
-    (member) =>
-      needsTeeReview(member) &&
-      !playerTeeAssignments[member.uid]
-  );
-  const teeOverrideCount = Object.values(playerTeeAssignments).filter(Boolean)
-    .length;
-
-  const applyCourse = (course: SeededCourse) => {
-    const defaultTeeSet = getPreferredDefaultTeeSet(course.teeSets);
-    setApiCourses([course]);
-    setCourseSearchActive(false);
-    setCourseId(course.id);
-    setTeeSetId(defaultTeeSet?.id ?? "");
-    setCourseName(course.name);
-    setLdHole("");
-    setT2Hole("");
-    setT3Hole("");
-  };
-
-  const applyApiCourse = async (course: SeededCourse) => {
-    let courseToApply = course;
-
-    if (course.apiId && course.teeSets.length === 0) {
-      setApiCourseLoading(true);
-      setApiCourseError("");
-      const result = await getGolfCourseCatalogueCourse(course.apiId);
-      setApiCourseLoading(false);
-
-      if (result.course) {
-        courseToApply = result.course;
-        setApiCourses((current) => [
-          result.course!,
-          ...current.filter((item) => item.id !== course.id),
-        ]);
-      } else {
-        setApiCourseError(
-          result.error ?? "Could not load tee data for that course."
-        );
-        return;
-      }
-    }
-
-    if (courseToApply.teeSets.length === 0) {
-      setApiCourseError("That course does not include 18-hole tee data.");
-      return;
-    }
-
-    applyCourse(courseToApply);
-  };
-
-  const handleCourseNameChange = (value: string) => {
-    setCourseSearchActive(true);
-    setCourseName(value);
-    setCourseId("");
-    setTeeSetId("");
-  };
-
-  useEffect(() => {
-    const query = courseName.trim();
-
-    if (!courseSearchActive) {
-      setApiCourseError("");
-      setApiCourseLoading(false);
-      return;
-    }
-
-    if (query.length < 3) {
-      setApiCourses([]);
-      setApiCourseError("");
-      setApiCourseLoading(false);
-      return;
-    }
-    if (selectedCourse?.name === query) {
-      setApiCourseError("");
-      setApiCourseLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setApiCourseLoading(true);
-    const timeout = window.setTimeout(async () => {
-      const result = await searchGolfCourseCatalogue(query);
-      if (cancelled) return;
-
-      setApiCourses(result.courses.slice(0, 6));
-      setApiCourseError(result.error ?? "");
-      setApiCourseLoading(false);
-    }, 600);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [courseName, courseSearchActive, selectedCourse?.name]);
 
   const loadScorecards = async (r: Round) => {
     const cards = await getScorecardsForRound(r.id);
@@ -373,16 +186,6 @@ export default function AdminRoundDetailPage() {
         if (r && r.holeOverrides.length > 0) setCourseCorrectionsOpen(true);
         setLoading(false);
         if (r) {
-          setCourseId(r.courseId);
-          setTeeSetId(r.teeSetId ?? "");
-          setCourseName(r.courseName);
-          setRoundNumber(String(r.roundNumber));
-          setDate(format(r.date, "yyyy-MM-dd"));
-          setFormatChoice(r.format);
-          setNotes(r.notes ?? "");
-          setLdHole(r.specialHoles.ld ? String(r.specialHoles.ld) : "");
-          setT2Hole(r.specialHoles.t2 ? String(r.specialHoles.t2) : "");
-          setT3Hole(r.specialHoles.t3 ? String(r.specialHoles.t3) : "");
           setPlayerTeeAssignments(r.playerTeeAssignments ?? {});
           if (r.courseHoles && r.courseHoles.length === 18) {
             const drafts: Record<number, string> = {};
@@ -509,46 +312,6 @@ export default function AdminRoundDetailPage() {
     });
   }, [acceptedMemberIds, members, rsvpsReady]);
 
-  useEffect(() => {
-    if (!round) return;
-
-    const existingTeeSets = getRoundTeeSets(round);
-    if (existingTeeSets.length > 1) return;
-
-    const apiId = extractGolfCourseApiId(round.courseId, round.teeSetId);
-    if (!apiId) return;
-
-    let cancelled = false;
-    setApiCourseLoading(true);
-
-    getGolfCourseCatalogueCourse(apiId)
-      .then((result) => {
-        if (cancelled) return;
-
-        if (result.course && result.course.teeSets.length > 0) {
-          setApiCourses((current) => [
-            result.course!,
-            ...current.filter((course) => course.id !== result.course!.id),
-          ]);
-          setApiCourseError("");
-        } else if (result.error) {
-          setApiCourseError(result.error);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setApiCourseError("Could not load tee data for that course.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setApiCourseLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [round]);
-
   const rankings = useMemo(
     () =>
       round
@@ -562,6 +325,12 @@ export default function AdminRoundDetailPage() {
         : [],
     [round, scorecards, holeScoresByCardId, members, group?.settings]
   );
+
+  // Hole options for Course Corrections panel — uses round's own holes
+  const roundHoleOptions =
+    round?.courseHoles && round.courseHoles.length === 18
+      ? round.courseHoles
+      : getFallbackCourseHoles();
 
   const suggestedRebookSeason = useMemo(() => {
     if (!round) return String(group?.currentSeason ?? new Date().getFullYear());
@@ -753,193 +522,86 @@ export default function AdminRoundDetailPage() {
     }
   };
 
-  const handleSaveDetails = async (notifyPlayers = false) => {
+  const handleSaveDetails = async (payload: RoundFormSavePayload, notifyPlayers: boolean) => {
     if (!round) return;
-    if (!courseName.trim() || !date) return;
-
     setSaving(true);
     setDetailsError("");
-    const parsedRoundNumber =
-      parseInt(roundNumber, 10) || round.roundNumber;
-    const newDate = new Date(date);
-    const appliedTeeSet = selectedTeeSet;
-    const preserveExistingCourseData =
-      !appliedTeeSet &&
-      courseName.trim() === round.courseName &&
-      round.courseHoles.length === 18;
-    const courseDetails = appliedTeeSet
-      ? {
-          teeSetId: appliedTeeSet.id,
-          teeSetName: appliedTeeSet.name,
-          coursePar: appliedTeeSet.par,
-          courseRating: appliedTeeSet.courseRating,
-          slopeRating: appliedTeeSet.slopeRating,
-          courseHoles: appliedTeeSet.holes,
-          courseSource: appliedTeeSet.source,
-        }
-      : preserveExistingCourseData
-      ? {
-          teeSetId: round.teeSetId,
-          teeSetName: round.teeSetName,
-          coursePar: round.coursePar,
-          courseRating: round.courseRating,
-          slopeRating: round.slopeRating,
-          courseHoles: round.courseHoles,
-          courseSource: round.courseSource,
-        }
-      : {
-          teeSetId: null,
-          teeSetName: null,
-          coursePar: null,
-          courseRating: null,
-          slopeRating: null,
-          courseHoles: [],
-          courseSource: null,
-        };
-    const specialHoles = {
-      ...round.specialHoles,
-      ntp: appliedTeeSet
-        ? getParThreeHoles(appliedTeeSet)
-        : round.specialHoles.ntp,
-      ld: ldHole ? parseInt(ldHole, 10) : null,
-      t2: t2Hole ? parseInt(t2Hole, 10) : null,
-      t3: t3Hole ? parseInt(t3Hole, 10) : null,
-    };
-    const savedTeeTimes: TeeTime[] = teeTimes
-      .filter(
-        (t) =>
-          t.time ||
-          t.notes?.trim() ||
-          t.playerIds.length > 0 ||
-          t.guestNames.length > 0
-      )
-      .map((t, index) => ({
-        id: `tee-${index + 1}`,
-        time: t.time,
-        playerIds:
-          t.playerIds.length > 0
-            ? t.playerIds
-            : resolveMemberIdsFromText(t.notes, members),
-        guestNames: t.guestNames,
-        notes:
-          getTeeTimeGroupLabel(t.playerIds, t.guestNames, members) ||
-          t.notes?.trim() ||
-          null,
-      }));
-    const isEditingExistingCourse =
-      !selectedCourse && courseName.trim() === round.courseName;
-    const savedCourseId =
-      selectedCourse?.id ??
-      (isEditingExistingCourse || preserveExistingCourseData ? round.courseId : "");
-    const savedAvailableTeeSets =
-      selectedCourse?.teeSets ??
-      (isEditingExistingCourse || preserveExistingCourseData ? courseTeeSets : []);
-    const validTeeSetIds = new Set(
-      savedAvailableTeeSets.map((teeSet) => teeSet.id)
-    );
-    const savedDefaultTeeSetId =
-      courseDetails.teeSetId ??
-      (isEditingExistingCourse || preserveExistingCourseData ? round.teeSetId : null);
-    const savedPlayerTeeAssignments = Object.fromEntries(
-      Object.entries(playerTeeAssignments).filter(
-        ([, teeId]) =>
-          teeId &&
-          teeId !== savedDefaultTeeSetId &&
-          validTeeSetIds.has(teeId)
-      )
-    );
-    const alertRecipientIds = getRoundAlertRecipientIds(
-      round,
-      rsvps,
-      savedTeeTimes
-    );
-    const teeTimesChanged =
-      getTeeTimeSignature(round.teeTimes) !==
-      getTeeTimeSignature(savedTeeTimes);
-    const courseChanged =
-      round.courseName !== courseName.trim() ||
-      round.courseId !== savedCourseId ||
-      round.teeSetId !== savedDefaultTeeSetId ||
-      round.date.getTime() !== newDate.getTime();
+    try {
+      const validTeeSetIds = new Set(payload.availableTeeSets.map((ts) => ts.id));
+      const savedPlayerTeeAssignments = Object.fromEntries(
+        Object.entries(playerTeeAssignments).filter(
+          ([, teeId]) => teeId && teeId !== payload.teeSetId && validTeeSetIds.has(teeId)
+        )
+      );
 
-    const updatedRound: Round = {
-      ...round,
-      courseId: savedCourseId,
-      courseName: courseName.trim(),
-      ...courseDetails,
-      availableTeeSets: savedAvailableTeeSets,
-      playerTeeAssignments: savedPlayerTeeAssignments,
-      roundNumber: parsedRoundNumber,
-      date: newDate,
-      format: formatChoice,
-      notes: notes.trim() || null,
-      teeTimes: savedTeeTimes,
-      rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
-      rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
-      specialHoles,
-    };
+      const updatedRound: Round = {
+        ...round,
+        ...payload,
+        playerTeeAssignments: savedPlayerTeeAssignments,
+        rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
+        rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
+      };
 
-    await updateRound(round.id, {
-      courseId: savedCourseId,
-      courseName: courseName.trim(),
-      ...courseDetails,
-      availableTeeSets: savedAvailableTeeSets,
-      playerTeeAssignments: savedPlayerTeeAssignments,
-      roundNumber: parsedRoundNumber,
-      date: newDate,
-      format: formatChoice,
-      notes: notes.trim() || null,
-      teeTimes: savedTeeTimes,
-      rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
-      rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
-      specialHoles,
-    });
+      const teeTimesChanged =
+        getTeeTimeSignature(round.teeTimes) !== getTeeTimeSignature(payload.teeTimes);
+      const courseChanged =
+        round.courseName !== payload.courseName ||
+        round.courseId !== payload.courseId ||
+        round.teeSetId !== payload.teeSetId ||
+        round.date.getTime() !== payload.date.getTime();
+      const alertRecipientIds = getRoundAlertRecipientIds(round, rsvps, payload.teeTimes);
 
-    if (notifyPlayers) {
-      await notifyRoundPlayers({
-        round: updatedRound,
-        activeUsers: members,
-        mode: round.rsvpOpen ? "updated" : "created",
+      await updateRound(round.id, {
+        ...payload,
+        playerTeeAssignments: savedPlayerTeeAssignments,
+        rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
+        rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
       });
+
+      if (notifyPlayers) {
+        await notifyRoundPlayers({
+          round: updatedRound,
+          activeUsers: members,
+          mode: round.rsvpOpen ? "updated" : "created",
+        });
+      }
+
+      if (alertRecipientIds.length > 0 && teeTimesChanged) {
+        await createNotificationsForUsers({
+          recipientUserIds: alertRecipientIds,
+          groupId: round.groupId,
+          type: "change_alert",
+          title: "Tee times updated",
+          body: `Round ${payload.roundNumber} tee times or groups have changed. Check your latest slot in GolfCaddy.`,
+          deepLink: `/rounds/${round.id}`,
+          roundId: round.id,
+        });
+      }
+
+      if (alertRecipientIds.length > 0 && courseChanged) {
+        await createNotificationsForUsers({
+          recipientUserIds: alertRecipientIds,
+          groupId: round.groupId,
+          type: "change_alert",
+          title: "Round details changed",
+          body: `Round ${payload.roundNumber} is now set for ${payload.courseName} on ${format(
+            payload.date,
+            "EEE d MMM yyyy"
+          )}.`,
+          deepLink: `/rounds/${round.id}`,
+          roundId: round.id,
+        });
+      }
+
+      setRound(updatedRound);
+      setPlayerTeeAssignments(savedPlayerTeeAssignments);
+      setSuccess(notifyPlayers ? "Round details saved and players notified" : "Round details updated");
+      setSaving(false);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch {
+      setDetailsError("Failed to save round details. Please try again.");
+      setSaving(false);
     }
-
-    if (alertRecipientIds.length > 0 && teeTimesChanged) {
-      await createNotificationsForUsers({
-        recipientUserIds: alertRecipientIds,
-        groupId: round.groupId,
-        type: "change_alert",
-        title: "Tee times updated",
-        body: `Round ${parsedRoundNumber} tee times or groups have changed. Check your latest slot in GolfCaddy.`,
-        deepLink: `/rounds/${round.id}`,
-        roundId: round.id,
-      });
-    }
-
-    if (alertRecipientIds.length > 0 && courseChanged) {
-      await createNotificationsForUsers({
-        recipientUserIds: alertRecipientIds,
-        groupId: round.groupId,
-        type: "change_alert",
-        title: "Round details changed",
-        body: `Round ${parsedRoundNumber} is now set for ${courseName.trim()} on ${format(
-          newDate,
-          "EEE d MMM yyyy"
-        )}.`,
-        deepLink: `/rounds/${round.id}`,
-        roundId: round.id,
-      });
-    }
-
-    setRound(updatedRound);
-    setPlayerTeeAssignments(savedPlayerTeeAssignments);
-
-    setSuccess(
-      notifyPlayers
-        ? "Round details saved and players notified"
-        : "Round details updated"
-    );
-    setSaving(false);
-    setTimeout(() => setSuccess(""), 3000);
   };
 
   const handleSendScoreReminder = async () => {
@@ -980,16 +642,12 @@ export default function AdminRoundDetailPage() {
     }
   };
 
-  const handleRefreshCourseData = async () => {
-    if (!round || !selectedCourse || !refreshableTeeSet) return;
-
+  const handleRefreshCourseData = async (selectedCourse: SeededCourse, refreshableTeeSet: CourseTeeSet) => {
+    if (!round) return;
     setSaving(true);
     const refreshedSpecialHoles = {
       ...round.specialHoles,
       ntp: getParThreeHoles(refreshableTeeSet),
-      ld: ldHole ? parseInt(ldHole, 10) : null,
-      t2: t2Hole ? parseInt(t2Hole, 10) : null,
-      t3: t3Hole ? parseInt(t3Hole, 10) : null,
     };
     const refreshedCourseDetails = {
       courseId: selectedCourse.id,
@@ -1007,14 +665,8 @@ export default function AdminRoundDetailPage() {
     };
 
     await updateRound(round.id, refreshedCourseDetails);
-    setCourseId(selectedCourse.id);
-    setCourseName(selectedCourse.name);
-    setTeeSetId(refreshableTeeSet.id);
+    setRound({ ...round, ...refreshedCourseDetails });
     setPlayerTeeAssignments({});
-    setRound({
-      ...round,
-      ...refreshedCourseDetails,
-    });
     setSuccess("Course data refreshed from GolfCourseAPI");
     setSaving(false);
     setTimeout(() => setSuccess(""), 3000);
@@ -1040,147 +692,6 @@ export default function AdminRoundDetailPage() {
           : "Please try again.";
       setDeleteError(`Failed to delete round. ${message}`);
       setDeleting(false);
-    }
-  };
-
-  const addTeeTime = () =>
-    setTeeTimes([
-      ...teeTimes,
-      { time: "", notes: "", playerIds: [], guestNames: [] },
-    ]);
-
-  const removeTeeTime = (index: number) =>
-    setTeeTimes(teeTimes.filter((_, i) => i !== index));
-
-  const updateTeeTimeTime = (index: number, value: string) =>
-    setTeeTimes(
-      teeTimes.map((teeTime, i) => {
-        if (i !== index) return teeTime;
-        return { ...teeTime, time: value };
-      })
-    );
-
-  const assignPlayerToTeeTime = (teeTimeIndex: number, member: AppUser) => {
-    setTeeTimes((current) =>
-      current.map((teeTime, index) => {
-        const existingPlayerIds = teeTime.playerIds.filter(
-          (playerId) => playerId !== member.uid
-        );
-        const shouldAssignToThisTeeTime =
-          index === teeTimeIndex &&
-          !current[teeTimeIndex]?.playerIds.includes(member.uid);
-        const playerIds = shouldAssignToThisTeeTime
-          ? [...existingPlayerIds, member.uid]
-          : existingPlayerIds;
-        const notes = getTeeTimeGroupLabel(
-          playerIds,
-          teeTime.guestNames,
-          members
-        );
-
-        return {
-          ...teeTime,
-          playerIds,
-          notes,
-        };
-      })
-    );
-  };
-
-  const removePlayerFromTeeTime = (teeTimeIndex: number, member: AppUser) => {
-    setTeeTimes((current) =>
-      current.map((teeTime, index) => {
-        if (index !== teeTimeIndex) return teeTime;
-        const playerIds = teeTime.playerIds.filter(
-          (playerId) => playerId !== member.uid
-        );
-        return {
-          ...teeTime,
-          playerIds,
-          notes: getTeeTimeGroupLabel(playerIds, teeTime.guestNames, members),
-        };
-      })
-    );
-    setSuccess(
-      `${formatShortMemberName(member, members)} removed from the tee slot. Save to keep this lineup.`
-    );
-    setTimeout(() => setSuccess(""), 3000);
-  };
-
-  const addGuestToTeeTime = (teeTimeIndex: number, guestName: string) => {
-    const trimmed = guestName.trim();
-    if (!trimmed) return;
-
-    setTeeTimes((current) =>
-      current.map((teeTime, index) => {
-        if (index !== teeTimeIndex) return teeTime;
-        const guestNames = Array.from(
-          new Set([...teeTime.guestNames, trimmed])
-        );
-        return {
-          ...teeTime,
-          guestNames,
-          notes: getTeeTimeGroupLabel(teeTime.playerIds, guestNames, members),
-        };
-      })
-    );
-  };
-
-  const removeGuestFromTeeTime = (
-    teeTimeIndex: number,
-    guestName: string
-  ) => {
-    setTeeTimes((current) =>
-      current.map((teeTime, index) => {
-        if (index !== teeTimeIndex) return teeTime;
-        const guestNames = teeTime.guestNames.filter(
-          (name) => name !== guestName
-        );
-        return {
-          ...teeTime,
-          guestNames,
-          notes: getTeeTimeGroupLabel(teeTime.playerIds, guestNames, members),
-        };
-      })
-    );
-  };
-
-  const randomiseGroups = () => {
-    if (acceptedMembers.length === 0) {
-      setDetailsError(
-        round?.rsvpOpen
-          ? "No accepted players yet. Ask members to RSVP before randomising."
-          : "No active players are available to randomise."
-      );
-      setTimeout(() => setDetailsError(""), 3000);
-      return;
-    }
-
-    try {
-      const groups = randomiseMemberGroups(acceptedMembers, teeTimes.length);
-      setTeeTimes((current) =>
-        current.map((teeTime, index) => {
-          const group = groups[index] ?? [];
-          const playerIds = group.map((member) => member.uid);
-          return {
-            ...teeTime,
-            playerIds,
-            guestNames: teeTime.guestNames,
-            notes: getTeeTimeGroupLabel(
-              playerIds,
-              teeTime.guestNames,
-              members
-            ),
-          };
-        })
-      );
-      setSuccess("Groups randomised. Save to keep these tee-time groups.");
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setDetailsError(
-        err instanceof Error ? err.message : "Could not randomise groups."
-      );
-      setTimeout(() => setDetailsError(""), 3000);
     }
   };
 
@@ -1487,365 +998,26 @@ export default function AdminRoundDetailPage() {
       )}
 
       {/* Edit round details */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <h2 className="font-semibold text-gray-800">Round Details</h2>
-
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Course search
-            </label>
-            <input
-              type="text"
-              value={courseName}
-              onChange={(e) => handleCourseNameChange(e.target.value)}
-              placeholder="Start typing a course name..."
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-            {showCourseSuggestions && (
-              <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 p-1">
-                {apiCourseSuggestions.map((course) => (
-                  <button
-                    key={course.id}
-                    type="button"
-                    onClick={() => applyApiCourse(course)}
-                    disabled={apiCourseLoading}
-                    className="block w-full rounded-lg px-3 py-2 text-left text-xs text-gray-700 hover:bg-white disabled:text-gray-400"
-                  >
-                    <span className="font-medium text-gray-900">
-                      {course.name}
-                    </span>
-                    <span className="block text-xs text-gray-500">
-                      GolfCourseAPI · {getCourseSearchLabel(course)}
-                      {course.teeSets.length > 0
-                        ? ` · ${course.teeSets.length} tee set${
-                            course.teeSets.length === 1 ? "" : "s"
-                          }`
-                        : " · tap to load tee data"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {apiCourseLoading && (
-              <p className="text-xs text-gray-400 mt-1">
-                Searching GolfCourseAPI...
-              </p>
-            )}
-            {apiCourseError && (
-              <p className="text-xs text-amber-600 mt-1">
-                {apiCourseError}
-              </p>
-            )}
-          </div>
-
-          {assignmentTeeSets.length > 0 && (
-            <div>
-              <div className="mb-1 flex items-center justify-between gap-2">
-                <label className="block text-xs font-medium text-gray-700">
-                  Tee set
-                </label>
-                {teeReviewMembers.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowTeeAssignments(true)}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700"
-                    aria-label={`${teeReviewMembers.length} accepted player tee assignment needs review`}
-                    title={`${teeReviewMembers.length} accepted player tee assignment needs review`}
-                  >
-                    !
-                  </button>
-                )}
-              </div>
-              <select
-                value={teeSetId}
-                onChange={(e) => setTeeSetId(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                {assignmentTeeSets.map((teeSet) => (
-                  <option key={teeSet.id} value={teeSet.id}>
-                    {teeSet.name} - Par {teeSet.par}
-                    {teeSet.slopeRating ? ` / Slope ${teeSet.slopeRating}` : ""}
-                  </option>
-                ))}
-              </select>
-              {selectedTeeSet && (
-                <p className="text-xs text-gray-400 mt-1">
-                  NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
-                </p>
-              )}
-              <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-gray-700">
-                      Player tee assignments
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      {acceptedMembers.length} accepted ·{" "}
-                      {Math.max(
-                        acceptedMembers.length - teeOverrideCount,
-                        0
-                      )}{" "}
-                      default ·{" "}
-                      {teeOverrideCount} override
-                      {teeReviewMembers.length > 0
-                        ? ` · ${teeReviewMembers.length} review`
-                        : ""}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowTeeAssignments((value) => !value)}
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-700"
-                  >
-                    {showTeeAssignments ? "Hide" : "Manage"}
-                  </button>
-                </div>
-                {showTeeAssignments && (
-                  <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                    {acceptedMembers.length === 0 ? (
-                      <p className="text-xs text-gray-400">
-                        Accepted players will appear here after they RSVP.
-                      </p>
-                    ) : (
-                      acceptedMembers.map((member) => {
-                        const suggestedReview = needsTeeReview(member);
-                        return (
-                          <div
-                            key={member.uid}
-                            className="grid grid-cols-[5.5rem_1fr] items-center gap-2"
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-gray-700">
-                                {formatShortMemberName(member, members)}
-                              </p>
-                              {suggestedReview &&
-                                !playerTeeAssignments[member.uid] && (
-                                  <p className="text-xs font-medium text-amber-600">
-                                    Review
-                                  </p>
-                                )}
-                            </div>
-                            <select
-                              value={playerTeeAssignments[member.uid] ?? ""}
-                              onChange={(event) =>
-                                setPlayerTeeAssignments((current) => ({
-                                  ...current,
-                                  [member.uid]: event.target.value,
-                                }))
-                              }
-                              className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                              aria-label={`Tee set for ${member.displayName}`}
-                            >
-                              <option value="">
-                                Default
-                                {selectedTeeSet
-                                  ? ` (${selectedTeeSet.name})`
-                                  : ""}
-                              </option>
-                              {assignmentTeeSets.map((teeSet) => (
-                                <option key={teeSet.id} value={teeSet.id}>
-                                  {teeSet.name} - Par {teeSet.par}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-              {selectedCourse && (
-                <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
-                  <p className="text-xs text-green-700">
-                    Refresh pars, stroke indexes, distances, tee metadata, and
-                    NTP holes from GolfCourseAPI. LD, T2, and T3 stay as
-                    currently selected below.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleRefreshCourseData}
-                    disabled={saving || !refreshableTeeSet}
-                    className="w-full rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-300"
-                  >
-                    {saving ? "Refreshing..." : "Refresh API course data"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Live course card preview — updates as tee set changes */}
-          {holeOptions.length === 18 && (
-            <CourseCardPreview
-              holes={(() => {
-                // Apply any in-progress stroke index drafts so the preview
-                // stays in sync while the admin is editing indexes.
-                if (!editingStrokeIndexes) return holeOptions;
-                return holeOptions.map((h) => {
-                  const draft = parseInt(strokeIndexDrafts[h.number] ?? "", 10);
-                  return Number.isFinite(draft) ? { ...h, strokeIndex: draft } : h;
-                });
-              })()}
-              distanceUnit={appUser?.distanceUnit ?? "meters"}
-              specialHoles={round ? getEffectiveSpecialHoles(round) : undefined}
-              teeSetName={selectedTeeSet?.name ?? round?.teeSetName ?? undefined}
-            />
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Date
-            </label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className={DATE_INPUT_CLASSNAME}
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Round number
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={roundNumber}
-              onChange={(e) => setRoundNumber(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Scoring format
-            </label>
-            <div className="flex gap-2">
-              {(["stableford", "stroke"] as ScoringFormat[]).map((f) => (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setFormatChoice(f)}
-                  className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                    formatChoice === f
-                      ? "bg-green-600 text-white border-green-600"
-                      : "border-gray-200 text-gray-600 hover:bg-gray-50"
-                  }`}
-                >
-                  {f === "stableford" ? "Stableford" : "Stroke"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Notes
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </div>
-
-        <TeeTimesEditor
-          teeTimes={teeTimes}
-          members={members}
-          assignableMembers={acceptedMembers}
-          playersSummary={
-              `Showing accepted players only: ${acceptedMembers.length}`
-            }
-            emptyPlayersMessage={
-              round.rsvpOpen
-                ? "No accepted players yet. Tee-time groups can be filled after players RSVP."
-                : "No RSVP'd players yet. Use Save & Notify Players first, then assign tee times after members respond."
-            }
-            onRandomise={randomiseGroups}
-            onAddTeeTime={addTeeTime}
-          onRemoveTeeTime={removeTeeTime}
-          onUpdateTeeTimeTime={updateTeeTimeTime}
-          onAssignPlayer={assignPlayerToTeeTime}
-          onRemovePlayer={removePlayerFromTeeTime}
-          onAddGuest={addGuestToTeeTime}
-          onRemoveGuest={removeGuestFromTeeTime}
-        />
-        </div>
-
-        <div className="border-t border-gray-100 pt-3 mt-2 space-y-3">
-          <h3 className="text-xs font-semibold text-gray-700">
-            Special holes
-          </h3>
-          <p className="text-xs text-gray-400">
-            NTP holes are set from par 3s. Update LD, T2, and T3 if the course
-            changes.
-          </p>
-          <div className="space-y-2">
-            <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                💪 Longest Drive (LD)
-              </label>
-              <select
-                value={ldHole}
-                onChange={(e) => setLdHole(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-              >
-                <option value="">Not set</option>
-                {driveHoleOptions.map((hole) => (
-                  <option key={hole.number} value={hole.number}>
-                    {getHoleOptionLabel(hole)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {[
-              { label: "⭐ T2", value: t2Hole, setter: setT2Hole },
-              { label: "⭐ T3", value: t3Hole, setter: setT3Hole },
-            ].map(({ label, value, setter }) => (
-              <div key={label}>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  {label}
-                </label>
-                <select
-                  value={value}
-                  onChange={(e) => setter(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  <option value="">Not set</option>
-                  {holeOptions.map((hole) => (
-                    <option key={hole.number} value={hole.number}>
-                      {getHoleOptionLabel(hole)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => handleSaveDetails(false)}
-            disabled={saving}
-            className="w-full rounded-xl border border-green-200 bg-white py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-50 disabled:text-green-300"
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSaveDetails(true)}
-            disabled={saving}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
-          >
-            {saving ? "Saving..." : "Save & Notify Players"}
-          </button>
-        </div>
-      </div>
+      <RoundDetailsForm
+        existingRound={round}
+        members={members}
+        assignableMembers={acceptedMembers}
+        playersSummary={`Showing accepted players only: ${acceptedMembers.length}`}
+        emptyPlayersMessage={
+          round.rsvpOpen
+            ? "No accepted players yet. Tee-time groups can be filled after players RSVP."
+            : "No RSVP'd players yet. Use Save & Notify Players first, then assign tee times after members respond."
+        }
+        teeTimes={teeTimes}
+        onTeeTimes={setTeeTimes}
+        playerTeeAssignments={playerTeeAssignments}
+        onPlayerTeeAssignmentsChange={setPlayerTeeAssignments}
+        onRefreshCourseData={handleRefreshCourseData}
+        refreshing={saving}
+        onSave={handleSaveDetails}
+        saving={saving}
+        error={detailsError}
+      />
 
       {/* Round status controls */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
@@ -1978,7 +1150,7 @@ export default function AdminRoundDetailPage() {
                 </p>
               </div>
               <HoleOverrideForm
-                holes={holeOptions}
+                holes={roundHoleOptions}
                 onSubmit={addHoleOverride}
                 disabled={saving}
                 editingOverride={editingOverride}
@@ -2169,7 +1341,7 @@ export default function AdminRoundDetailPage() {
                 </p>
               </div>
               <CourseParCorrectionForm
-                holes={holeOptions}
+                holes={roundHoleOptions}
                 onSubmit={correctCoursePar}
                 disabled={saving}
               />
@@ -2535,14 +1707,6 @@ function TrashIcon() {
         d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166M19.228 5.79 18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .563c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916A2.25 2.25 0 0 0 13.5 2.25h-3A2.25 2.25 0 0 0 8.25 4.5v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
       />
     </svg>
-  );
-}
-
-function needsTeeReview(member: AppUser) {
-  return (
-    member.gender === "female" ||
-    member.usesSeniorTees === true ||
-    member.usesProBackTees === true
   );
 }
 
