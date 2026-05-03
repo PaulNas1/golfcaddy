@@ -37,9 +37,7 @@ import {
   getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
-  getRoundTeeSets,
 } from "@/lib/courseData";
-import { CourseCardPreview } from "@/components/CourseCardPreview";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import {
   getTeeTimeGroupLabel,
