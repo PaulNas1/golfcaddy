@@ -88,7 +88,7 @@ type Props = {
   members: AppUser[];
   /** Sync shared state after publish */
   onRoundChange: (updated: Round) => void;
-  onResultsChange: (results: Results) => void;
+  onResultsChange?: (results: Results) => void;
   onScorecardsChange: (scorecards: Scorecard[]) => void;
   /** Persist a side-winner selection */
   onUpdateSideWinner: (
@@ -110,7 +110,7 @@ export default function CloseOutSection({
   appUser,
   members,
   onRoundChange,
-  onResultsChange,
+  onResultsChange = undefined,
   onScorecardsChange,
   onUpdateSideWinner,
 }: Props) {
@@ -251,7 +251,7 @@ export default function CloseOutSection({
         resultsPublished: true,
         resultsPublishedAt: publishedAt,
       });
-      onResultsChange(published.officialResults);
+      onResultsChange?.(published.officialResults);
       onScorecardsChange(
         scorecards.map((c) => ({
           ...c,

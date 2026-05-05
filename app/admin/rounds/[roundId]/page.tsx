@@ -8,7 +8,6 @@ import {
   createNotificationsForUsers,
   getActiveMembers,
   getGroup,
-  getResultsForRound,
   getRound,
   getRoundRsvps,
   getScorecardsForRound,
@@ -16,7 +15,6 @@ import {
   notifyRoundPlayers,
   setSideClaim,
   subscribeHoleScores,
-  subscribeResultsForRound,
   subscribeRoundRsvps,
   subscribeRoundsForGroup,
   subscribeScorecardsForRound,
@@ -27,7 +25,6 @@ import { buildPlayerRankings } from "@/lib/results";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   type SeededCourse,
-  getEffectiveSpecialHoles,
   getParThreeHoles,
 } from "@/lib/courseData";
 import { getRoundLabel } from "@/lib/roundDisplay";
@@ -48,7 +45,6 @@ import type {
   CourseTeeSet,
   Group,
   HoleScore,
-  Results,
   Round,
   RoundRsvp,
   RoundStatus,
@@ -122,8 +118,7 @@ export default function AdminRoundDetailPage() {
     Record<string, HoleScore[]>
   >({});
 
-  // Results & side winners
-  const [results, setResults] = useState<Results | null>(null);
+  // Side winners
   const [sideWinnerIds, setSideWinnerIds] = useState<Record<string, string>>(
     {}
   );
@@ -207,15 +202,13 @@ export default function AdminRoundDetailPage() {
       getActiveMembers(appUser?.groupId ?? "fourplay"),
       getRoundRsvps(roundId),
       getGroup(appUser?.groupId),
-      getResultsForRound(roundId),
       getSideClaimsForRound(roundId),
     ]).then(
-      ([r, activeMembers, roundRsvps, groupRecord, existingResults, claims]) => {
+      ([r, activeMembers, roundRsvps, groupRecord, claims]) => {
         setMembers(activeMembers);
         setRsvps(roundRsvps);
         setRsvpsReady(true);
         setGroup(groupRecord);
-        setResults(existingResults);
         setSideWinnerIds(buildSideWinnerMap(claims));
         setRound(r);
         setLoading(false);
@@ -285,15 +278,6 @@ export default function AdminRoundDetailPage() {
     );
     return () => unsubs.forEach((u) => u());
   }, [scorecards]);
-
-  useEffect(() => {
-    if (!roundId) return;
-    return subscribeResultsForRound(
-      roundId,
-      setResults,
-      (err) => console.warn("Unable to subscribe to results", err)
-    );
-  }, [roundId]);
 
   useEffect(() => {
     if (!roundId) return;
@@ -641,7 +625,6 @@ export default function AdminRoundDetailPage() {
           appUser={appUser}
           members={members}
           onRoundChange={setRound}
-          onResultsChange={setResults}
           onScorecardsChange={setScorecards}
           onUpdateSideWinner={updateSideWinner}
         />
