@@ -54,7 +54,16 @@ export default function ScorecardPage() {
   const [members, setMembers] = useState<AppUser[]>([]);
   const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
   const [playerToMarkId, setPlayerToMarkId] = useState("");
-  const [loading, setLoading] = useState(true);
+
+  // Two-phase loading:
+  //   roundLoading  — true while the initial getRound fetch is in-flight.
+  //                   Blocks the whole page (brief — just one read).
+  //   scorecardLoading — true while the second phase (scorecard + members +
+  //                   rsvps) is in-flight. The hole grid is already visible;
+  //                   only the scorecard card slot shows a spinner.
+  const [roundLoading, setRoundLoading] = useState(true);
+  const [scorecardLoading, setScorecardLoading] = useState(true);
+
   const [savingHole, setSavingHole] = useState<number | null>(null);
   const [signing, setSigning] = useState(false);
   const [reopening, setReopening] = useState(false);
@@ -104,6 +113,7 @@ export default function ScorecardPage() {
     setLastSyncedAt(scorecard.updatedAt);
   }, [hasPendingSync, scorecard?.updatedAt]);
 
+  // Real-time round subscription (keeps the round fresh during play)
   useEffect(() => {
     if (!roundId || !appUser || !isActive) return;
 
@@ -118,69 +128,99 @@ export default function ScorecardPage() {
     );
   }, [appUser, isActive, roundId]);
 
+  // ── Phase 1: load the round ───────────────────────────────────────────────
+  // Fires first and alone so the hole grid can render as soon as possible.
+  // Once it resolves the page frame is visible; phase 2 takes over the
+  // scorecard card slot only.
   useEffect(() => {
     if (!roundId || !appUser || !isActive) return;
 
-    const load = async () => {
-      setLoading(true);
+    const loadRound = async () => {
+      setRoundLoading(true);
       try {
-        const [r, existing, activeMembers, roundRsvps] = await Promise.all([
-          getRound(roundId),
-          getScorecardForMarker(roundId, appUser.uid, appUser.groupId),
-          getActiveMembers(appUser.groupId),
-          getRoundRsvps(roundId),
-        ]);
+        const r = await getRound(roundId);
 
         if (!r) {
+          // Try to redirect to the active live round for this group
           const live = await getLiveRound(appUser.groupId).catch(() => null);
           if (live && live.id !== roundId) {
             router.replace(`/rounds/${live.id}/scorecard`);
             return;
           }
           setError(`Round not found. Tried round ID: ${roundId}`);
-          setLoading(false);
           return;
         }
+
         setRound(r);
+      } catch {
+        setError("Failed to load round.");
+      } finally {
+        setRoundLoading(false);
+      }
+    };
+
+    loadRound();
+  }, [roundId, appUser, isActive, router]);
+
+  // ── Phase 2: load scorecard, members & RSVPs in parallel ─────────────────
+  // Runs after the round is available so it doesn't block the initial render.
+  // getMember and getHoleScores (phase 3) are also parallelised here — they
+  // were serial in the original implementation.
+  useEffect(() => {
+    if (!roundId || !appUser || !isActive || roundLoading || !round) return;
+
+    const loadScorecardData = async () => {
+      setScorecardLoading(true);
+      try {
+        const [existing, activeMembers, roundRsvps] = await Promise.all([
+          getScorecardForMarker(roundId, appUser.uid, appUser.groupId),
+          getActiveMembers(appUser.groupId),
+          getRoundRsvps(roundId),
+        ]);
+
         setMembers(
-          activeMembers.some((member) => member.uid === appUser.uid)
+          activeMembers.some((m) => m.uid === appUser.uid)
             ? activeMembers
             : [appUser, ...activeMembers]
         );
         setRsvps(roundRsvps);
 
         if (!existing) {
-          // No card yet — wait for user to pick who they are marking
+          // No card yet — wait for the user to pick who they are marking
           setScorecard(null);
           setHoles([]);
-          setLoading(false);
           return;
         }
 
         setScorecard(existing);
 
-        const playerMember = await getMember(existing.playerId);
+        // Phase 3: getMember and getHoleScores are independent — run in parallel
+        const [playerMember, existingHoles] = await Promise.all([
+          getMember(existing.playerId),
+          getHoleScores(existing.id),
+        ]);
 
-        const existingHoles = await getHoleScores(existing.id);
         setHoles(
           existingHoles.length > 0
             ? existingHoles
             : buildInitialHoles(
-                r,
+                round,
                 playerMember?.currentHandicap ?? 0,
                 existing.playerId
               )
         );
       } catch {
         setError("Failed to load scorecard.");
-        setRound(null);
       } finally {
-        setLoading(false);
+        setScorecardLoading(false);
       }
     };
 
-    load();
-  }, [roundId, appUser, isActive, router]);
+    loadScorecardData();
+    // round.id is the stable key — re-run only if the round itself changes
+    // (not on every reactive re-render of the round object).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundId, appUser, isActive, roundLoading, round?.id]);
 
   useEffect(() => {
     if (!roundId || !appUser || !isActive) return;
@@ -602,6 +642,8 @@ export default function ScorecardPage() {
     }
   };
 
+  // ── Guards ───────────────────────────────────────────────────────────────
+
   if (!isActive) {
     return (
       <div className="px-4 py-6 text-sm text-gray-500">
@@ -610,7 +652,10 @@ export default function ScorecardPage() {
     );
   }
 
-  if (loading) {
+  // Phase 1 loading: only while the round itself is in-flight.
+  // Kept as a full-screen skeleton because without the round we have no
+  // course name or hole data to show anything useful.
+  if (roundLoading) {
     return (
       <div className="px-4 py-6 animate-pulse space-y-4">
         <div className="h-8 bg-gray-200 rounded w-2/3" />
@@ -627,6 +672,8 @@ export default function ScorecardPage() {
       </div>
     );
   }
+
+  // ── Derived values (round is guaranteed from here down) ──────────────────
 
   const courseLayout = buildCourseLayout(round, scorecard);
 
@@ -703,151 +750,175 @@ export default function ScorecardPage() {
         </div>
       )}
 
-      {!scorecard && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
-          <h2 className="font-semibold text-gray-800">Who are you marking?</h2>
-          <p className="text-xs text-gray-500">
-            Select an accepted player from your tee-time group. Guests are
-            tee-group only and are not scored in GolfCaddy.
-          </p>
-          {eligibleMembers.length > 0 ? (
-            <select
-              value={playerToMarkId}
-              onChange={(e) => setPlayerToMarkId(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value="">Select player</option>
-              {eligibleMembers.map((m) => (
-                <option key={m.uid} value={m.uid}>
-                  {m.uid === appUser?.uid
-                    ? `${m.displayName} (my own card)`
-                    : m.displayName}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              {teeTimesWithPlayers
-                ? "You are not assigned to a tee-time group with accepted players. Ask admin to update the groups."
-                : "No accepted players are available for scorecards yet."}
+      {/* ── Scorecard card slot ─────────────────────────────────────────────
+          Phase 2 loading: show a compact inline spinner while scorecard,
+          members, and RSVPs are still being fetched. The hole grid below is
+          already rendered and visible during this wait.
+      ─────────────────────────────────────────────────────────────────────── */}
+      {scorecardLoading ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 text-sm text-gray-500">
+          <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin shrink-0" />
+          <span>Loading scorecard…</span>
+        </div>
+      ) : (
+        <>
+          {!scorecard && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
+              <h2 className="font-semibold text-gray-800">Who are you marking?</h2>
+              <p className="text-xs text-gray-500">
+                Select an accepted player from your tee-time group. Guests are
+                tee-group only and are not scored in GolfCaddy.
+              </p>
+              {eligibleMembers.length > 0 ? (
+                <select
+                  value={playerToMarkId}
+                  onChange={(e) => setPlayerToMarkId(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="">Select player</option>
+                  {eligibleMembers.map((m) => (
+                    <option key={m.uid} value={m.uid}>
+                      {m.uid === appUser?.uid
+                        ? `${m.displayName} (my own card)`
+                        : m.displayName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  {teeTimesWithPlayers
+                    ? "You are not assigned to a tee-time group with accepted players. Ask admin to update the groups."
+                    : "No accepted players are available for scorecards yet."}
+                </div>
+              )}
+              {eligibleMembers.length > 0 && teeTimesWithPlayers && (
+                <p className="text-xs text-gray-400">
+                  Showing accepted members assigned to your tee-time group.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={handleStartCard}
+                disabled={starting || !playerToMarkId}
+                className="w-full bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
+              >
+                {starting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Starting...
+                  </span>
+                ) : (
+                  "Start scorecard"
+                )}
+              </button>
             </div>
           )}
-          {eligibleMembers.length > 0 && teeTimesWithPlayers && (
-            <p className="text-xs text-gray-400">
-              Showing accepted members assigned to your tee-time group.
-            </p>
+
+          {scorecard && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-gray-500 mb-0.5">
+                  Status
+                </p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {scorecard.status === "in_progress"
+                    ? "In progress"
+                    : scorecard.status === "submitted"
+                    ? "Submitted"
+                    : "Locked by admin"}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Player:{" "}
+                  <span className="font-semibold text-gray-800">
+                    {playerName ?? "—"}
+                  </span>
+                  {markerName && round && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          router.push(`/rounds/${round.id}/my-card`)
+                        }
+                        className="underline text-green-700"
+                      >
+                        Marker: {markerName}
+                      </button>
+                    </>
+                  )}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Playing HCP:{" "}
+                  <span className="font-semibold text-gray-800">
+                    {scorecard.handicapAtTime}
+                  </span>
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-gray-500 mb-0.5">Totals</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {round.format === "stableford"
+                    ? scorecard.totalStableford ?? "—"
+                    : scorecard.totalGross ?? "—"}
+                </p>
+              </div>
+            </div>
           )}
-          <button
-            type="button"
-            onClick={handleStartCard}
-            disabled={starting || !playerToMarkId}
-            className="w-full bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
-          >
-            {starting ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                Starting...
-              </span>
-            ) : (
-              "Start scorecard"
-            )}
-          </button>
-        </div>
+        </>
       )}
 
-      {scorecard && (
+      {/* ── Hole grid ──────────────────────────────────────────────────────────
+          Rendered as soon as the round is available (phase 1).
+          Inputs are disabled while scorecardLoading or while canEdit is false;
+          par, stroke index, and distance are visible immediately from the
+          round's course data, giving players something useful to look at
+          while the scorecard data loads in the background.
+      ─────────────────────────────────────────────────────────────────────── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+        <h2 className="font-semibold text-gray-800 mb-2">Front 9</h2>
+        <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
+          <span>Hole</span>
+          <span>Index</span>
+          <span>Par</span>
+          <span>Strokes</span>
+          <span>Stableford</span>
+        </div>
+        {holesForNine(holes, courseLayout, 1, 9, round).map((h) => (
+          <HoleRow
+            key={h.holeNumber}
+            hole={h}
+            disabled={!canEdit || scorecardLoading}
+            saving={savingHole === h.holeNumber}
+            onStrokeChange={handleHoleChange}
+            onStablefordOverride={handleStablefordOverride}
+          />
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+        <h2 className="font-semibold text-gray-800 mb-2">Back 9</h2>
+        <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
+          <span>Hole</span>
+          <span>Index</span>
+          <span>Par</span>
+          <span>Strokes</span>
+          <span>Stableford</span>
+        </div>
+        {holesForNine(holes, courseLayout, 10, 18, round).map((h) => (
+          <HoleRow
+            key={h.holeNumber}
+            hole={h}
+            disabled={!canEdit || scorecardLoading}
+            saving={savingHole === h.holeNumber}
+            onStrokeChange={handleHoleChange}
+            onStablefordOverride={handleStablefordOverride}
+          />
+        ))}
+      </div>
+
+      {/* Submit / reopen — only shown once scorecard is loaded */}
+      {!scorecardLoading && scorecard && (
         <>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-500 mb-0.5">
-                Status
-              </p>
-              <p className="text-sm font-semibold text-gray-800">
-                {scorecard.status === "in_progress"
-                  ? "In progress"
-                  : scorecard.status === "submitted"
-                  ? "Submitted"
-                  : "Locked by admin"}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Player:{" "}
-                <span className="font-semibold text-gray-800">
-                  {playerName ?? "—"}
-                </span>
-                {markerName && round && (
-                  <>
-                    {" · "}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        router.push(`/rounds/${round.id}/my-card`)
-                      }
-                      className="underline text-green-700"
-                    >
-                      Marker: {markerName}
-                    </button>
-                  </>
-                )}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Playing HCP:{" "}
-                <span className="font-semibold text-gray-800">
-                  {scorecard.handicapAtTime}
-                </span>
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500 mb-0.5">Totals</p>
-              <p className="text-sm font-semibold text-gray-800">
-                {round.format === "stableford"
-                  ? scorecard.totalStableford ?? "—"
-                  : scorecard.totalGross ?? "—"}
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-            <h2 className="font-semibold text-gray-800 mb-2">Front 9</h2>
-            <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
-              <span>Hole</span>
-              <span>Index</span>
-              <span>Par</span>
-              <span>Strokes</span>
-              <span>Stableford</span>
-            </div>
-            {holesForNine(holes, courseLayout, 1, 9, round).map((h) => (
-              <HoleRow
-                key={h.holeNumber}
-                hole={h}
-                disabled={!canEdit}
-                saving={savingHole === h.holeNumber}
-                onStrokeChange={handleHoleChange}
-                onStablefordOverride={handleStablefordOverride}
-              />
-            ))}
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-            <h2 className="font-semibold text-gray-800 mb-2">Back 9</h2>
-            <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
-              <span>Hole</span>
-              <span>Index</span>
-              <span>Par</span>
-              <span>Strokes</span>
-              <span>Stableford</span>
-            </div>
-            {holesForNine(holes, courseLayout, 10, 18, round).map((h) => (
-              <HoleRow
-                key={h.holeNumber}
-                hole={h}
-                disabled={!canEdit}
-                saving={savingHole === h.holeNumber}
-                onStrokeChange={handleHoleChange}
-                onStablefordOverride={handleStablefordOverride}
-              />
-            ))}
-          </div>
-
           {scorecard.status === "in_progress" && round.status === "live" && (
             <button
               type="button"
@@ -882,71 +953,73 @@ export default function ScorecardPage() {
               )}
             </div>
           )}
-
-          {/* ── Side prizes ── */}
-          {(() => {
-            const specialHoles = getEffectiveSpecialHoles(round);
-            const hasAny =
-              specialHoles.ntp.length > 0 ||
-              specialHoles.ld ||
-              specialHoles.t2 ||
-              specialHoles.t3;
-            if (!hasAny) return null;
-            return (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-                <h2 className="font-semibold text-gray-800">Side Prizes</h2>
-                <p className="text-xs text-gray-500">
-                  Claim the winner for each side prize on this round.
-                </p>
-                {specialHoles.ntp.map((holeNumber) => (
-                  <SideClaimSelect
-                    key={`ntp-${holeNumber}`}
-                    label={`Nearest the Pin - Hole ${holeNumber}`}
-                    claim={getClaim("ntp", holeNumber)}
-                    members={members}
-                    disabled={round.status !== "live"}
-                    saving={savingClaim === `ntp-${holeNumber}`}
-                    onChange={(winnerId) => handleClaim("ntp", holeNumber, winnerId)}
-                  />
-                ))}
-                {specialHoles.ld && (
-                  <SideClaimSelect
-                    label={`Longest Drive - Hole ${specialHoles.ld}`}
-                    claim={getClaim("ld", specialHoles.ld)}
-                    members={members}
-                    disabled={round.status !== "live"}
-                    saving={savingClaim === "ld"}
-                    onChange={(winnerId) => handleClaim("ld", specialHoles.ld!, winnerId)}
-                  />
-                )}
-                {specialHoles.t2 && (
-                  <SideClaimSelect
-                    label={`T2 - Hole ${specialHoles.t2}`}
-                    claim={getClaim("t2", specialHoles.t2)}
-                    members={members}
-                    disabled={round.status !== "live"}
-                    saving={savingClaim === "t2"}
-                    onChange={(winnerId) => handleClaim("t2", specialHoles.t2!, winnerId)}
-                  />
-                )}
-                {specialHoles.t3 && (
-                  <SideClaimSelect
-                    label={`T3 - Hole ${specialHoles.t3}`}
-                    claim={getClaim("t3", specialHoles.t3)}
-                    members={members}
-                    disabled={round.status !== "live"}
-                    saving={savingClaim === "t3"}
-                    onChange={(winnerId) => handleClaim("t3", specialHoles.t3!, winnerId)}
-                  />
-                )}
-              </div>
-            );
-          })()}
         </>
       )}
+
+      {/* Side prizes — only shown once scorecard is loaded */}
+      {!scorecardLoading && (() => {
+        const specialHoles = getEffectiveSpecialHoles(round);
+        const hasAny =
+          specialHoles.ntp.length > 0 ||
+          specialHoles.ld ||
+          specialHoles.t2 ||
+          specialHoles.t3;
+        if (!hasAny) return null;
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+            <h2 className="font-semibold text-gray-800">Side Prizes</h2>
+            <p className="text-xs text-gray-500">
+              Claim the winner for each side prize on this round.
+            </p>
+            {specialHoles.ntp.map((holeNumber) => (
+              <SideClaimSelect
+                key={`ntp-${holeNumber}`}
+                label={`Nearest the Pin - Hole ${holeNumber}`}
+                claim={getClaim("ntp", holeNumber)}
+                members={members}
+                disabled={round.status !== "live"}
+                saving={savingClaim === `ntp-${holeNumber}`}
+                onChange={(winnerId) => handleClaim("ntp", holeNumber, winnerId)}
+              />
+            ))}
+            {specialHoles.ld && (
+              <SideClaimSelect
+                label={`Longest Drive - Hole ${specialHoles.ld}`}
+                claim={getClaim("ld", specialHoles.ld)}
+                members={members}
+                disabled={round.status !== "live"}
+                saving={savingClaim === "ld"}
+                onChange={(winnerId) => handleClaim("ld", specialHoles.ld!, winnerId)}
+              />
+            )}
+            {specialHoles.t2 && (
+              <SideClaimSelect
+                label={`T2 - Hole ${specialHoles.t2}`}
+                claim={getClaim("t2", specialHoles.t2)}
+                members={members}
+                disabled={round.status !== "live"}
+                saving={savingClaim === "t2"}
+                onChange={(winnerId) => handleClaim("t2", specialHoles.t2!, winnerId)}
+              />
+            )}
+            {specialHoles.t3 && (
+              <SideClaimSelect
+                label={`T3 - Hole ${specialHoles.t3}`}
+                claim={getClaim("t3", specialHoles.t3)}
+                members={members}
+                disabled={round.status !== "live"}
+                saving={savingClaim === "t3"}
+                onChange={(winnerId) => handleClaim("t3", specialHoles.t3!, winnerId)}
+              />
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildCourseLayout(
   round?: Round | null,
@@ -1049,6 +1122,8 @@ function holesForNine(
   }
   return result;
 }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function HoleRow({
   hole,
