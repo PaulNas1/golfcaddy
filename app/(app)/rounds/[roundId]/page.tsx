@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
@@ -42,10 +42,76 @@ import type {
   Results,
   Round,
   RoundRsvp,
+  RoundStatus,
   Scorecard,
   SideClaim,
   SidePrizeType,
 } from "@/types";
+
+// ─── Section config ───────────────────────────────────────────────────────────
+//
+// To change what appears (and in what order) for a given round status, edit
+// SECTIONS_BY_STATUS — no hunting through JSX needed.
+// Each key maps to a renderer defined inside RoundDetailPage via a closure,
+// so every renderer has natural access to all state and handlers.
+// A renderer can still return null if its own data condition isn't met
+// (e.g. tee times returns null when the round has no tee times).
+
+type SectionKey =
+  | "rsvp"
+  | "liveScoring"
+  | "liveStandings"
+  | "results"
+  | "historicalImport"
+  | "courseInfo"
+  | "courseCard"
+  | "teeTimes"
+  | "specialHoles"
+  | "holeOverrides"
+  | "notes"
+  | "activity"
+  | "adminLink";
+
+const SECTIONS_BY_STATUS: Record<RoundStatus, SectionKey[]> = {
+  // ── Upcoming ── RSVP first (action needed), then course context
+  upcoming: [
+    "rsvp",
+    "courseInfo",
+    "courseCard",
+    "teeTimes",
+    "specialHoles",
+    "holeOverrides",
+    "notes",
+    "activity",
+    "adminLink",
+  ],
+  // ── Live ── Primary scoring CTA first, then standings, then course context
+  live: [
+    "liveScoring",
+    "rsvp",
+    "liveStandings",
+    "courseInfo",
+    "courseCard",
+    "teeTimes",
+    "specialHoles",
+    "holeOverrides",
+    "notes",
+    "activity",
+    "adminLink",
+  ],
+  // ── Completed ── Results lead; tee times / side-claim selectors are omitted
+  // because results already surface side winners via SideResultsList.
+  completed: [
+    "results",
+    "historicalImport",
+    "courseInfo",
+    "courseCard",
+    "holeOverrides",
+    "notes",
+    "activity",
+    "adminLink",
+  ],
+};
 
 export default function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
@@ -328,36 +394,18 @@ export default function RoundDetailPage() {
     }
   };
 
-  return (
-    <div className="px-4 py-6 space-y-4 pb-8">
-      {/* Header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor}`}>
-            {statusLabel}
-          </span>
-          <span className="text-xs text-ink-hint">{getRoundLabel(round)} · {round.season}</span>
-        </div>
-        <h1 className="text-2xl font-bold text-ink-title leading-tight">{round.courseName}</h1>
-        <p className="text-ink-muted mt-1">
-          {format(round.date, "EEEE d MMMM yyyy")}
-          {getFirstTeeTimeLabel(round)
-            ? ` · ${getFirstTeeTimeLabel(round)}`
-            : ""}
-        </p>
-      </div>
+  // ─── Section renderers ─────────────────────────────────────────────────────
+  //
+  // Each renderer closes over all state/handlers in this component.
+  // Returning null from a renderer skips the section silently.
+  // The ORDER of sections is controlled by SECTIONS_BY_STATUS above —
+  // not by the order of these definitions.
 
-      {/* Scoring format */}
-      <div className="flex gap-2">
-        <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-          round.format === "stableford" ? "bg-brand-100 text-brand-700" : "bg-blue-100 text-blue-700"
-        }`}>
-          {round.format === "stableford" ? "🏌️ Stableford" : "📊 Stroke Play"}
-        </span>
-      </div>
+  const sections: Record<SectionKey, () => React.ReactNode> = {
 
-
-      {round.rsvpOpen && round.status !== "completed" && (
+    rsvp: () => {
+      if (!round.rsvpOpen) return null;
+      return (
         <RsvpCard
           myRsvp={myRsvp}
           rsvps={rsvps}
@@ -367,87 +415,26 @@ export default function RoundDetailPage() {
           onRespond={handleRsvp}
           onChangeResponse={() => setChangingRsvp(true)}
         />
-      )}
+      );
+    },
 
-      {round.resultsPublished && results && (
-        <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 space-y-4">
-          <div>
-            <h2 className="font-semibold text-brand-900">Final Results</h2>
-            <p className="text-xs text-brand-800 mt-1">
-              Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
-            </p>
-          </div>
-          <div className="space-y-1 text-sm text-ink-title">
-            {results.rankings.map((ranking) => (
-              <div
-                key={ranking.playerId}
-                className={`flex items-center justify-between rounded-xl px-2 py-1 ${
-                  ranking.playerId === appUser?.uid ? "bg-white/70" : ""
-                }`}
-              >
-                <div>
-                  <span>
-                    #{ranking.rank} {ranking.playerName}
-                  </span>
-                  {ranking.countbackDetail && (
-                    <p className="text-xs text-brand-700">
-                      {ranking.countbackDetail}
-                    </p>
-                  )}
-                  {ranking.playerId === appUser?.uid && (
-                    <span className="ml-2 text-xs font-semibold text-brand-700">
-                      You
-                    </span>
-                  )}
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">
-                    {round.format === "stableford"
-                      ? `${ranking.stablefordTotal} pts`
-                      : `${ranking.grossTotal} strokes`}
-                  </p>
-                  <p className="text-xs text-brand-700">
-                    {ranking.pointsEligible === false
-                      ? ranking.pointsIneligibleReason ?? "Provisional - no ladder points yet"
-                      : `${ranking.pointsAwarded} ladder pts`}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-          <SideResultsList results={results} />
-        </div>
-      )}
+    liveScoring: () => (
+      <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+        <p className="font-semibold text-red-700 mb-1">Scoring is open</p>
+        <p className="text-red-600 text-sm mb-3">Enter your scores hole by hole</p>
+        <Link
+          href={`/rounds/${round.id}/scorecard`}
+          prefetch={false}
+          className="block text-center w-full bg-red-500 text-white font-semibold py-3 rounded-xl"
+        >
+          Enter Scores →
+        </Link>
+      </div>
+    ),
 
-      {!hasRoundScorecards(round) && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="font-semibold text-amber-900">Historical import</p>
-          <p className="mt-1 text-sm text-amber-800">
-            This round was imported as published results only. Hole-by-hole
-            scorecards are not available.
-          </p>
-        </div>
-      )}
-
-      {/* Live scoring button */}
-      {round.status === "live" && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
-          <p className="font-semibold text-red-700 mb-1">Scoring is open</p>
-          <p className="text-red-600 text-sm mb-3">
-            Enter your scores hole by hole
-          </p>
-          <Link
-            href={`/rounds/${round.id}/scorecard`}
-            prefetch={false}
-            className="block text-center w-full bg-red-500 text-white font-semibold py-3 rounded-xl"
-          >
-            Enter Scores →
-          </Link>
-        </div>
-      )}
-
-      {/* Live standings */}
-      {round.status === "live" && liveCards.length > 0 && (
+    liveStandings: () => {
+      if (liveCards.length === 0) return null;
+      return (
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-semibold text-ink-title">Live Standings</h2>
@@ -492,9 +479,70 @@ export default function RoundDetailPage() {
             Scores update in real time. Final results are published by the admin after the round.
           </p>
         </div>
-      )}
+      );
+    },
 
-      {/* Course info */}
+    results: () => {
+      if (!round.resultsPublished || !results) return null;
+      return (
+        <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 space-y-4">
+          <div>
+            <h2 className="font-semibold text-brand-900">Final Results</h2>
+            <p className="text-xs text-brand-800 mt-1">
+              Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
+            </p>
+          </div>
+          <div className="space-y-1 text-sm text-ink-title">
+            {results.rankings.map((ranking) => (
+              <div
+                key={ranking.playerId}
+                className={`flex items-center justify-between rounded-xl px-2 py-1 ${
+                  ranking.playerId === appUser?.uid ? "bg-white/70" : ""
+                }`}
+              >
+                <div>
+                  <span>#{ranking.rank} {ranking.playerName}</span>
+                  {ranking.countbackDetail && (
+                    <p className="text-xs text-brand-700">{ranking.countbackDetail}</p>
+                  )}
+                  {ranking.playerId === appUser?.uid && (
+                    <span className="ml-2 text-xs font-semibold text-brand-700">You</span>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold">
+                    {round.format === "stableford"
+                      ? `${ranking.stablefordTotal} pts`
+                      : `${ranking.grossTotal} strokes`}
+                  </p>
+                  <p className="text-xs text-brand-700">
+                    {ranking.pointsEligible === false
+                      ? ranking.pointsIneligibleReason ?? "Provisional - no ladder points yet"
+                      : `${ranking.pointsAwarded} ladder pts`}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <SideResultsList results={results} />
+        </div>
+      );
+    },
+
+    historicalImport: () => {
+      if (hasRoundScorecards(round)) return null;
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="font-semibold text-amber-900">Historical import</p>
+          <p className="mt-1 text-sm text-amber-800">
+            This round was imported as published results only. Hole-by-hole
+            scorecards are not available.
+          </p>
+        </div>
+      );
+    },
+
+    courseInfo: () => (
       <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
         <h2 className="font-semibold text-ink-title">Course Info</h2>
         <div className="text-sm text-ink-body space-y-2">
@@ -520,8 +568,11 @@ export default function RoundDetailPage() {
           </a>
         </div>
       </div>
+    ),
 
-      {viewerHoles.length === 18 && (
+    courseCard: () => {
+      if (viewerHoles.length !== 18) return null;
+      return (
         <CourseCardPreview
           holes={viewerHoles}
           distanceUnit={appUser?.distanceUnit ?? "meters"}
@@ -529,9 +580,12 @@ export default function RoundDetailPage() {
           teeSetName={round.teeSetName ?? undefined}
           note={viewerNote ?? undefined}
         />
-      )}
+      );
+    },
 
-      {round.teeTimes.length > 0 && (
+    teeTimes: () => {
+      if (round.teeTimes.length === 0) return null;
+      return (
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
           <h2 className="font-semibold text-ink-title mb-3">Tee Times</h2>
           <div className="divide-y divide-surface-overlay">
@@ -550,13 +604,17 @@ export default function RoundDetailPage() {
             ))}
           </div>
         </div>
-      )}
+      );
+    },
 
-      {/* Special holes */}
-      {(specialHoles.ntp.length > 0 ||
+    specialHoles: () => {
+      const hasSpecial =
+        specialHoles.ntp.length > 0 ||
         specialHoles.ld ||
         specialHoles.t2 ||
-        specialHoles.t3) && (
+        specialHoles.t3;
+      if (!hasSpecial) return null;
+      return (
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
           <h2 className="font-semibold text-ink-title mb-3">Special Holes</h2>
           <div className="space-y-3">
@@ -603,10 +661,12 @@ export default function RoundDetailPage() {
             )}
           </div>
         </div>
-      )}
+      );
+    },
 
-      {/* Hole par overrides */}
-      {round.holeOverrides.length > 0 && (
+    holeOverrides: () => {
+      if (round.holeOverrides.length === 0) return null;
+      return (
         <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
           <h2 className="font-semibold text-amber-800 mb-2">⚠️ Course Updates</h2>
           {round.holeOverrides.map((o) => (
@@ -616,16 +676,20 @@ export default function RoundDetailPage() {
             </div>
           ))}
         </div>
-      )}
+      );
+    },
 
-      {/* Notes */}
-      {round.notes && (
+    notes: () => {
+      if (!round.notes) return null;
+      return (
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
           <h2 className="font-semibold text-ink-title mb-2">Notes</h2>
           <p className="text-ink-body text-sm whitespace-pre-wrap">{round.notes}</p>
         </div>
-      )}
+      );
+    },
 
+    activity: () => (
       <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
@@ -686,8 +750,63 @@ export default function RoundDetailPage() {
           </div>
         )}
       </div>
+    ),
 
-      {/* Inline post sheet */}
+    adminLink: () => {
+      if (!canAccessAdmin) return null;
+      return (
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
+          <h2 className="font-semibold text-ink-title mb-2">Admin</h2>
+          <p className="text-xs text-ink-muted mb-2">
+            Edit course details, tee times, and round status.
+          </p>
+          <Link
+            href={`/admin/rounds/${round.id}`}
+            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
+          >
+            <span>Open round in admin</span>
+            <ChevronRightIcon className="w-4 h-4" />
+          </Link>
+        </div>
+      );
+    },
+  };
+
+  return (
+    <div className="px-4 py-6 space-y-4 pb-8">
+
+      {/* ── Fixed header — always shown ─────────────────────────────────── */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColor}`}>
+            {statusLabel}
+          </span>
+          <span className="text-xs text-ink-hint">{getRoundLabel(round)} · {round.season}</span>
+        </div>
+        <h1 className="text-2xl font-bold text-ink-title leading-tight">{round.courseName}</h1>
+        <p className="text-ink-muted mt-1">
+          {format(round.date, "EEEE d MMMM yyyy")}
+          {getFirstTeeTimeLabel(round) ? ` · ${getFirstTeeTimeLabel(round)}` : ""}
+        </p>
+      </div>
+
+      {/* ── Scoring format badge — always shown ─────────────────────────── */}
+      <div className="flex gap-2">
+        <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
+          round.format === "stableford" ? "bg-brand-100 text-brand-700" : "bg-blue-100 text-blue-700"
+        }`}>
+          {round.format === "stableford" ? "🏌️ Stableford" : "📊 Stroke Play"}
+        </span>
+      </div>
+
+      {/* ── Status-driven sections (order defined in SECTIONS_BY_STATUS) ── */}
+      {SECTIONS_BY_STATUS[round.status].map((key) => {
+        const node = sections[key]();
+        if (!node) return null;
+        return <Fragment key={key}>{node}</Fragment>;
+      })}
+
+      {/* ── Post sheet — fixed overlay, outside the section flow ────────── */}
       {showPostSheet && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
           <div
@@ -745,23 +864,6 @@ export default function RoundDetailPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Admin quick link */}
-      {canAccessAdmin && (
-        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
-          <h2 className="font-semibold text-ink-title mb-2">Admin</h2>
-          <p className="text-xs text-ink-muted mb-2">
-            Edit course details, tee times, and round status.
-          </p>
-          <Link
-            href={`/admin/rounds/${round.id}`}
-            className="inline-flex items-center gap-2 text-sm font-medium text-blue-700 hover:underline"
-          >
-            <span>Open round in admin</span>
-            <ChevronRightIcon className="w-4 h-4" />
-          </Link>
         </div>
       )}
     </div>
