@@ -56,6 +56,7 @@ export default function FeedPage() {
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [myReactionsByPostId, setMyReactionsByPostId] = useState<Record<string, PostReaction | null>>({});
   const [feedLoading, setFeedLoading] = useState(true);
+  const [feedError, setFeedError] = useState("");
 
   // ── Composer state ────────────────────────────────────────────────────
   const [composerOpen, setComposerOpen] = useState(false);
@@ -70,10 +71,18 @@ export default function FeedPage() {
   // ── Subscriptions ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!appUser?.groupId) return;
+    setFeedError("");
     return subscribeFeedPosts(
       appUser.groupId,
-      (feedPosts) => { setPosts(feedPosts); setFeedLoading(false); },
-      { limitCount: 30, onError: (err) => { console.warn("Feed subscription error", err); setFeedLoading(false); } }
+      (feedPosts) => { setPosts(feedPosts); setFeedLoading(false); setFeedError(""); },
+      {
+        limitCount: 30,
+        onError: (err) => {
+          console.error("Feed subscription error", err);
+          setFeedLoading(false);
+          setFeedError("Feed failed to load. Please refresh the page.");
+        },
+      }
     );
   }, [appUser?.groupId]);
 
@@ -396,7 +405,11 @@ export default function FeedPage() {
       )}
 
       {/* ── Post list ─────────────────────────────────────────────── */}
-      {feedLoading ? (
+      {feedError ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-5 text-center">
+          <p className="text-sm font-medium text-red-700">{feedError}</p>
+        </div>
+      ) : feedLoading ? (
         <div className="space-y-3 animate-pulse">
           {[1, 2, 3].map((i) => (
             <div key={i} className="h-28 rounded-2xl bg-surface-card p-4" />

@@ -132,6 +132,7 @@ export default function RoundDetailPage() {
   const [showPostSheet, setShowPostSheet] = useState(false);
   const [postContent, setPostContent] = useState("");
   const [postingUpdate, setPostingUpdate] = useState(false);
+  const [postUpdateError, setPostUpdateError] = useState("");
   const { appUser, canAccessAdmin } = useAuth();
 
   useEffect(() => {
@@ -377,6 +378,7 @@ export default function RoundDetailPage() {
   const handlePostUpdate = async () => {
     if (!appUser?.groupId || !postContent.trim()) return;
     setPostingUpdate(true);
+    setPostUpdateError("");
     try {
       await createFeedPost({
         groupId: appUser.groupId,
@@ -386,9 +388,15 @@ export default function RoundDetailPage() {
         roundId: round?.id ?? null,
       });
       setPostContent("");
+      setPostUpdateError("");
       setShowPostSheet(false);
     } catch (err) {
       console.error("Failed to post round update", err);
+      setPostUpdateError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to post update. Please try again."
+      );
     } finally {
       setPostingUpdate(false);
     }
@@ -700,7 +708,7 @@ export default function RoundDetailPage() {
           </div>
           <button
             type="button"
-            onClick={() => setShowPostSheet(true)}
+            onClick={() => { setShowPostSheet(true); setPostUpdateError(""); }}
             className="shrink-0 rounded-xl bg-brand-600 px-3 py-2 text-sm font-semibold text-white"
           >
             Post update
@@ -836,6 +844,9 @@ export default function RoundDetailPage() {
               rows={4}
               className="w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body placeholder:text-ink-hint focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
             />
+            {postUpdateError && (
+              <p className="text-xs font-medium text-red-600">{postUpdateError}</p>
+            )}
             <div className="flex items-center justify-between gap-2">
               <Link
                 href={`/feed?roundId=${round.id}`}

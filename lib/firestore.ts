@@ -2838,7 +2838,12 @@ export const createFeedPost = async ({
     throw new Error("Write something or attach at least one image.");
   }
 
-  const linkedRound = roundId ? await getRound(roundId) : null;
+  // Only fetch round data when photos are being attached — the round document
+  // is needed to populate photo metadata (roundNumber, courseId, courseName).
+  // For text-only posts the caller already supplies the roundId directly, so
+  // the extra server read is unnecessary and adds a failure point.
+  const linkedRound =
+    roundId && photoUrls.length > 0 ? await getRound(roundId) : null;
 
   const nextPost = {
     groupId,
@@ -2847,7 +2852,7 @@ export const createFeedPost = async ({
     authorAvatarUrl: author.avatarUrl ?? null,
     type,
     content: trimmed,
-    roundId: linkedRound?.id ?? null,
+    roundId: roundId ?? null,
     pinned: type === "announcement",
     photoUrls,
     photoPaths,
