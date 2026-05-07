@@ -45,7 +45,7 @@ export default function ToggleSwitch({
       >
         <span
           className={`
-            inline-block h-4 w-4 transform rounded-full bg-white shadow-sm
+            inline-block h-4 w-4 transform rounded-full bg-surface-card shadow-sm
             transition-transform duration-200 ease-in-out
             ${checked ? "translate-x-6" : "translate-x-1"}
           `}

@@ -3,8 +3,8 @@ import type { Group, Round } from "@/types";
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between text-sm">
-      <span className="text-gray-500">{label}</span>
-      <span className="font-medium text-gray-800">{value}</span>
+      <span className="text-ink-muted">{label}</span>
+      <span className="font-medium text-ink-title">{value}</span>
     </div>
   );
 }
@@ -16,8 +16,8 @@ type Props = {
 
 export default function RoundInfoSection({ round, group }: Props) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
-      <h2 className="font-semibold text-gray-800 mb-2">Round Info</h2>
+    <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-2">
+      <h2 className="font-semibold text-ink-title mb-2">Round Info</h2>
       <InfoRow
         label="Format"
         value={round.format === "stableford" ? "Stableford" : "Stroke Play"}

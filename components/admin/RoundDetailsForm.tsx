@@ -70,7 +70,7 @@ function extractApiId(
 }
 
 const DATE_INPUT_CLASSNAME =
-  "block h-[42px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-gray-200 bg-white px-3 text-left text-sm leading-[42px] text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
+  "block h-[42px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-surface-overlay bg-surface-card px-3 text-left text-sm leading-[42px] text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -698,12 +698,12 @@ export default function RoundDetailsForm({
 
   // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-      <h2 className="font-semibold text-gray-800">Round Details</h2>
+    <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+      <h2 className="font-semibold text-ink-title">Round Details</h2>
 
       {/* Course search */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">
+        <label className="block text-xs font-medium text-ink-body mb-1">
           Course search
         </label>
         <input
@@ -712,20 +712,20 @@ export default function RoundDetailsForm({
           onChange={(e) => handleCourseNameChange(e.target.value)}
           required
           placeholder="Start typing a course name..."
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         {showCourseSuggestions && (
-          <div className="mt-2 rounded-xl border border-gray-100 bg-gray-50 p-1">
+          <div className="mt-2 rounded-xl border border-surface-overlay bg-surface-muted p-1">
             {apiCourseSuggestions.map((course) => (
               <button
                 key={course.id}
                 type="button"
                 onClick={() => applyApiCourse(course)}
                 disabled={apiCourseLoading}
-                className="block w-full rounded-lg px-3 py-2 text-left text-xs text-gray-700 hover:bg-white disabled:text-gray-400"
+                className="block w-full rounded-lg px-3 py-2 text-left text-xs text-ink-body hover:bg-surface-card disabled:text-ink-hint"
               >
-                <span className="font-medium text-gray-900">{course.name}</span>
-                <span className="block text-xs text-gray-500">
+                <span className="font-medium text-ink-title">{course.name}</span>
+                <span className="block text-xs text-ink-muted">
                   GolfCourseAPI · {getCourseSearchLabel(course)}
                   {course.teeSets.length > 0
                     ? ` · ${course.teeSets.length} tee set${course.teeSets.length === 1 ? "" : "s"}`
@@ -736,12 +736,12 @@ export default function RoundDetailsForm({
           </div>
         )}
         {apiCourseLoading && (
-          <p className="text-xs text-gray-400 mt-1">Searching GolfCourseAPI...</p>
+          <p className="text-xs text-ink-hint mt-1">Searching GolfCourseAPI...</p>
         )}
         {apiCourseError && (
           <p className="text-xs text-amber-600 mt-1">{apiCourseError}</p>
         )}
-        <p className="text-xs text-gray-400 mt-1">
+        <p className="text-xs text-ink-hint mt-1">
           Select a GolfCourseAPI result to auto-fill tee data, pars, distances, and NTP holes.
           If the course is not available, keep your typed name and save it as a custom course.
         </p>
@@ -751,7 +751,7 @@ export default function RoundDetailsForm({
       {courseTeeSets.length > 0 && (
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="block text-xs font-medium text-gray-700">Tee set</label>
+            <label className="block text-xs font-medium text-ink-body">Tee set</label>
             {existingRound && teeReviewMembers.length > 0 && (
               <button
                 type="button"
@@ -767,7 +767,7 @@ export default function RoundDetailsForm({
           <select
             value={teeSetId}
             onChange={(e) => setTeeSetId(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             {(existingRound ? assignmentTeeSets : courseTeeSets).map((teeSet) => (
               <option key={teeSet.id} value={teeSet.id}>
@@ -777,18 +777,18 @@ export default function RoundDetailsForm({
             ))}
           </select>
           {selectedTeeSet && (
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-ink-hint mt-1">
               NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
             </p>
           )}
 
           {/* Edit mode: player tee assignments panel */}
           {existingRound && assignmentTeeSets.length > 0 && playerTeeAssignments && (
-            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+            <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-gray-700">Player tee assignments</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs font-semibold text-ink-body">Player tee assignments</p>
+                  <p className="text-xs text-ink-hint">
                     {acceptedMembers.length} accepted ·{" "}
                     {Math.max(acceptedMembers.length - teeOverrideCount, 0)} default ·{" "}
                     {teeOverrideCount} override
@@ -798,15 +798,15 @@ export default function RoundDetailsForm({
                 <button
                   type="button"
                   onClick={() => setShowTeeAssignments((v) => !v)}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-700"
+                  className="rounded-lg border border-surface-overlay bg-surface-card px-3 py-1.5 text-xs font-semibold text-brand-700"
                 >
                   {showTeeAssignments ? "Hide" : "Manage"}
                 </button>
               </div>
               {showTeeAssignments && (
-                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                <div className="mt-3 space-y-2 border-t border-surface-overlay pt-3">
                   {acceptedMembers.length === 0 ? (
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-ink-hint">
                       Accepted players will appear here after they RSVP.
                     </p>
                   ) : (
@@ -818,7 +818,7 @@ export default function RoundDetailsForm({
                           className="grid grid-cols-[5.5rem_1fr] items-center gap-2"
                         >
                           <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-gray-700">
+                            <p className="truncate text-xs font-semibold text-ink-body">
                               {formatShortMemberName(member, members)}
                             </p>
                             {suggestedReview && !playerTeeAssignments[member.uid] && (
@@ -833,7 +833,7 @@ export default function RoundDetailsForm({
                                 [member.uid]: event.target.value,
                               })
                             }
-                            className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-xs text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
                             aria-label={`Tee set for ${member.displayName}`}
                           >
                             <option value="">
@@ -857,7 +857,7 @@ export default function RoundDetailsForm({
           {/* Edit mode: refresh API course data */}
           {existingRound && selectedCourse && refreshableTeeSet && (
             <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
-              <p className="text-xs text-green-700">
+              <p className="text-xs text-brand-700">
                 Refresh pars, stroke indexes, distances, tee metadata, and NTP holes from
                 GolfCourseAPI. LD, T2, and T3 stay as currently selected below.
               </p>
@@ -865,7 +865,7 @@ export default function RoundDetailsForm({
                 type="button"
                 onClick={() => onRefreshCourseData?.(selectedCourse, refreshableTeeSet)}
                 disabled={refreshing}
-                className="w-full rounded-xl border border-green-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-300"
+                className="w-full rounded-xl border border-brand-200 bg-surface-card px-3 py-2 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:text-brand-300"
               >
                 {refreshing ? "Refreshing..." : "Refresh API course data"}
               </button>
@@ -912,7 +912,7 @@ export default function RoundDetailsForm({
                 setDismissedCorrectionId(pendingCorrection.teeSetId);
                 setPendingCorrection(null);
               }}
-              className="flex-1 rounded-lg border border-amber-200 bg-white py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50"
+              className="flex-1 rounded-lg border border-amber-200 bg-surface-card py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50"
             >
               Use API data as-is
             </button>
@@ -922,12 +922,12 @@ export default function RoundDetailsForm({
 
       {/* Create mode: custom course setup */}
       {!existingRound && !selectedCourse && (
-        <div className="border-t border-gray-100 pt-3">
-          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+        <div className="border-t border-surface-overlay pt-3">
+          <div className="rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-gray-800">Custom course setup</h3>
-                <p className="mt-1 text-xs text-gray-500">
+                <h3 className="text-sm font-semibold text-ink-title">Custom course setup</h3>
+                <p className="mt-1 text-xs text-ink-muted">
                   Use this when GolfCourseAPI does not return 18-hole round data. The hole data
                   is saved to this round only.
                 </p>
@@ -935,20 +935,20 @@ export default function RoundDetailsForm({
               <button
                 type="button"
                 onClick={() => setShowCustomCourseSetup((current) => !current)}
-                className="shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50"
+                className="shrink-0 rounded-lg border border-surface-overlay bg-surface-card px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
                 aria-expanded={showCustomCourseSetup}
               >
                 {showCustomCourseSetup ? "Hide holes" : "Set up holes"}
               </button>
             </div>
-            <p className="mt-2 text-xs font-medium text-gray-600">
+            <p className="mt-2 text-xs font-medium text-ink-body">
               Custom par total: {customCoursePar} · {customHoles.length} holes ·{" "}
               {customCourseDistanceCount} distances entered
             </p>
           </div>
           {showCustomCourseSetup && (
             <div className="mt-3">
-              <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs font-semibold text-gray-500">
+              <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs font-semibold text-ink-muted">
                 <span>Hole</span>
                 <span>Par</span>
                 <span>Index</span>
@@ -960,11 +960,11 @@ export default function RoundDetailsForm({
                     key={hole.number}
                     className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs"
                   >
-                    <span className="font-semibold text-gray-700">H{hole.number}</span>
+                    <span className="font-semibold text-ink-body">H{hole.number}</span>
                     <select
                       value={hole.par}
                       onChange={(e) => updateCustomHole(hole.number, "par", e.target.value)}
-                      className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
                       aria-label={`Hole ${hole.number} par`}
                     >
                       {[3, 4, 5].map((par) => (
@@ -980,7 +980,7 @@ export default function RoundDetailsForm({
                       value={customStrokeIndexInputs[hole.number] ?? ""}
                       onChange={(e) => updateCustomHole(hole.number, "strokeIndex", e.target.value)}
                       placeholder={String(hole.number)}
-                      className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-center text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
                       aria-label={`Hole ${hole.number} stroke index`}
                     />
                     <input
@@ -989,7 +989,7 @@ export default function RoundDetailsForm({
                       value={hole.distanceMeters ?? ""}
                       onChange={(e) => updateCustomHole(hole.number, "distanceMeters", e.target.value)}
                       placeholder="m"
-                      className="min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-2 text-center text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-center text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
                       aria-label={`Hole ${hole.number} distance metres`}
                     />
                   </div>
@@ -1002,12 +1002,12 @@ export default function RoundDetailsForm({
 
       {/* Create mode: active season banner */}
       {!existingRound && activeSeason != null && (
-        <div className="rounded-xl border border-green-100 bg-green-50 px-3 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+        <div className="rounded-xl border border-green-100 bg-brand-50 px-3 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
             Active season
           </p>
-          <p className="mt-1 text-base font-semibold text-gray-800">{activeSeason}</p>
-          <p className="mt-1 text-xs text-gray-600">
+          <p className="mt-1 text-base font-semibold text-ink-title">{activeSeason}</p>
+          <p className="mt-1 text-xs text-ink-body">
             This round will count toward Season {activeSeason}. If you are creating a new-year
             round for a new ladder, change the active season in Admin Settings first.
           </p>
@@ -1016,7 +1016,7 @@ export default function RoundDetailsForm({
 
       {/* Date */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Date</label>
+        <label className="block text-xs font-medium text-ink-body mb-1">Date</label>
         <input
           type="date"
           value={date}
@@ -1028,17 +1028,17 @@ export default function RoundDetailsForm({
 
       {/* Round number */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Round number</label>
+        <label className="block text-xs font-medium text-ink-body mb-1">Round number</label>
         <input
           type="number"
           min={1}
           value={roundNumber}
           onChange={(e) => setRoundNumber(e.target.value)}
           required
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
         {!existingRound && (
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-ink-hint mt-1">
             Auto-set to the next round in the current season. Adjust if needed.
           </p>
         )}
@@ -1046,7 +1046,7 @@ export default function RoundDetailsForm({
 
       {/* Scoring format */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Scoring format</label>
+        <label className="block text-xs font-medium text-ink-body mb-1">Scoring format</label>
         <div className="flex gap-2">
           {(["stableford", "stroke"] as ScoringFormat[]).map((f) => (
             <button
@@ -1055,8 +1055,8 @@ export default function RoundDetailsForm({
               onClick={() => setScoringFormat(f)}
               className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
                 scoringFormat === f
-                  ? "bg-green-600 text-white border-green-600"
-                  : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                  ? "bg-brand-600 text-white border-green-600"
+                  : "border-surface-overlay text-ink-body hover:bg-surface-muted"
               }`}
             >
               {f === "stableford" ? "Stableford" : "Stroke"}
@@ -1067,13 +1067,13 @@ export default function RoundDetailsForm({
 
       {/* Notes */}
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+        <label className="block text-xs font-medium text-ink-body mb-1">Notes</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="Any notes for players..."
-          className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
       </div>
 
@@ -1095,20 +1095,20 @@ export default function RoundDetailsForm({
       />
 
       {/* Special holes */}
-      <div className="border-t border-gray-100 pt-3 mt-2 space-y-3">
-        <h3 className="text-xs font-semibold text-gray-700">Special holes</h3>
-        <p className="text-xs text-gray-400">
+      <div className="border-t border-surface-overlay pt-3 mt-2 space-y-3">
+        <h3 className="text-xs font-semibold text-ink-body">Special holes</h3>
+        <p className="text-xs text-ink-hint">
           NTP holes are set from par 3s. Update LD, T2, and T3 if the course changes.
         </p>
         <div className="space-y-2">
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium text-ink-body mb-1">
               💪 Longest Drive (LD)
             </label>
             <select
               value={ldHole}
               onChange={(e) => setLdHole(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">Not set</option>
               {driveHoleOptions.map((hole) => (
@@ -1123,11 +1123,11 @@ export default function RoundDetailsForm({
             { label: "⭐ T3", value: t3Hole, setter: setT3Hole },
           ] as const).map(({ label, value, setter }) => (
             <div key={label}>
-              <label className="block text-xs font-medium text-gray-700 mb-1">{label}</label>
+              <label className="block text-xs font-medium text-ink-body mb-1">{label}</label>
               <select
                 value={value}
                 onChange={(e) => setter(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
               >
                 <option value="">Not set</option>
                 {holeOptions.map((hole) => (
@@ -1154,7 +1154,7 @@ export default function RoundDetailsForm({
           type="button"
           onClick={() => handleSave(false)}
           disabled={saving}
-          className="w-full rounded-xl border border-green-200 bg-white py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-50 disabled:text-green-300"
+          className="w-full rounded-xl border border-brand-200 bg-surface-card py-2.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 disabled:text-brand-300"
         >
           {saving ? "Saving..." : "Save"}
         </button>
@@ -1162,7 +1162,7 @@ export default function RoundDetailsForm({
           type="button"
           onClick={() => handleSave(true)}
           disabled={saving}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
         >
           {saving ? "Saving..." : "Save & Notify Players"}
         </button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, isToday } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
 import {
@@ -10,10 +10,11 @@ import {
   subscribePinnedAnnouncement,
   setRoundRsvp,
 } from "@/lib/firestore";
-import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
+import { getVisibleSeasonStandings, type VisibleSeasonStanding } from "@/lib/standingsDisplay";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { getEffectiveSpecialHoles, getViewerHoles } from "@/lib/courseData";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
+import InstallPrompt from "@/components/InstallPrompt";
 import { ChevronRightIcon, PencilIcon, EyeIcon } from "@/components/ui/icons";
 import type { Post, Round, RoundRsvp } from "@/types";
 
@@ -23,6 +24,7 @@ export default function HomePage() {
     group,
     rounds,
     activeMembers,
+    groupMembers,
     currentSeason,
     currentSeasonStandings,
     loading,
@@ -31,6 +33,7 @@ export default function HomePage() {
   const [nextRoundRsvp, setNextRoundRsvp] = useState<RoundRsvp | null>(null);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [rsvpBusy, setRsvpBusy] = useState(false);
+  const [courseCardOpen, setCourseCardOpen] = useState(false);
 
   const liveRound = useMemo(
     () => rounds.find((r) => r.status === "live") ?? null,
@@ -90,7 +93,24 @@ export default function HomePage() {
     [visibleStandings, appUser?.uid]
   );
 
+  // Current user's member record — for handicap
+  const myMember = useMemo(
+    () => groupMembers.find((m) => m.userId === appUser?.uid) ?? null,
+    [groupMembers, appUser?.uid]
+  );
+
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
+  const isRoundDay =
+    liveRound != null || (nextRound != null && isToday(nextRound.date));
+  const greeting = isRoundDay
+    ? `Good luck today, ${firstName}! ⛳`
+    : `Hey ${firstName} 👋`;
+  const greetingSub = isRoundDay
+    ? liveRound
+      ? `Round ${liveRound.roundNumber} is live`
+      : `Round ${nextRound!.roundNumber} tees off today`
+    : (group?.name ?? "Golf group");
+
   const pinnedAnnouncementSummary =
     pinnedAnnouncement?.content.trim() ||
     (pinnedAnnouncement?.photoUrls.length
@@ -114,14 +134,15 @@ export default function HomePage() {
 
   return (
     <div className="px-4 py-6 space-y-5">
+      {/* ── PWA install prompt ─────────────────────────────────────── */}
+      <div className="-mx-4">
+        <InstallPrompt />
+      </div>
+
       {/* ── Greeting ─────────────────────────────────────────────── */}
       <div>
-        <h1 className="text-2xl font-bold text-ink-title">
-          Hey {firstName} 👋
-        </h1>
-        <p className="text-ink-muted text-sm mt-0.5">
-          {group?.name ?? "Golf group"}
-        </p>
+        <h1 className="text-2xl font-bold text-ink-title">{greeting}</h1>
+        <p className="text-ink-muted text-sm mt-0.5">{greetingSub}</p>
       </div>
 
       {/* ── Personal stats strip ──────────────────────────────────── */}
@@ -131,7 +152,7 @@ export default function HomePage() {
         provides a reason to check the home screen beyond navigation.
       */}
       {myStanding && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <StatPill
             label="Rank"
             value={myStanding.displayCurrentRank != null ? `#${myStanding.displayCurrentRank}` : "—"}
@@ -144,7 +165,24 @@ export default function HomePage() {
             label="Rounds"
             value={String(myStanding.roundsPlayed)}
           />
+          <StatPill
+            label="HCP"
+            value={myMember?.currentHandicap != null
+              ? (Number.isInteger(myMember.currentHandicap)
+                  ? String(myMember.currentHandicap)
+                  : myMember.currentHandicap.toFixed(1))
+              : "—"}
+          />
         </div>
+      )}
+
+      {/* ── Off-season recap card ────────────────────────────────── */}
+      {!liveRound && !nextRound && !loading && visibleStandings.length > 0 && (
+        <SeasonRecapCard
+          standings={visibleStandings}
+          season={currentSeason}
+          myMemberId={appUser?.uid ?? null}
+        />
       )}
 
       {/* ── Live round banner ─────────────────────────────────────── */}
@@ -249,25 +287,25 @@ export default function HomePage() {
                       type="button"
                       disabled={rsvpBusy}
                       onClick={() => handleRsvp("accepted")}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                      className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors ${
                         nextRoundRsvp?.status === "accepted"
                           ? "bg-brand-600 border-brand-600 text-white"
                           : "bg-surface-muted border-surface-overlay text-ink-body hover:border-brand-400"
                       }`}
                     >
-                      ✓ Going
+                      ✓ I&apos;m in
                     </button>
                     <button
                       type="button"
                       disabled={rsvpBusy}
                       onClick={() => handleRsvp("declined")}
-                      className={`flex-1 py-2 rounded-xl text-xs font-semibold border transition-colors ${
+                      className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors ${
                         nextRoundRsvp?.status === "declined"
                           ? "bg-ink-muted border-ink-muted text-white"
                           : "bg-surface-muted border-surface-overlay text-ink-body hover:border-ink-muted"
                       }`}
                     >
-                      ✕ Not going
+                      ✗ Can&apos;t make it
                     </button>
                   </div>
                 </div>
@@ -279,24 +317,36 @@ export default function HomePage() {
                       ? "bg-brand-100 text-brand-700"
                       : "bg-surface-muted text-ink-muted"
                   }`}>
-                    {nextRoundRsvp.status === "accepted" ? "✓ You're going" : "✕ Not going"}
+                    {nextRoundRsvp.status === "accepted" ? "✓ I'm in" : "✗ Can't make it"}
                   </span>
                 </div>
               )}
 
-              {/* Course card preview */}
+              {/* Course card preview — collapsed by default */}
               {(() => {
                 const { holes: nextHoles, note: nextNote } = getViewerHoles(nextRound, appUser ?? null);
                 if (nextHoles.length !== 18) return null;
                 return (
-                  <div className="mt-3">
-                    <CourseCardPreview
-                      holes={nextHoles}
-                      distanceUnit={appUser?.distanceUnit ?? "meters"}
-                      specialHoles={getEffectiveSpecialHoles(nextRound)}
-                      teeSetName={nextRound.teeSetName ?? undefined}
-                      note={nextNote ?? undefined}
-                    />
+                  <div className="mt-3 rounded-xl border border-surface-overlay overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setCourseCardOpen((o) => !o)}
+                      className="w-full flex items-center justify-between px-3 py-2 text-left bg-surface-muted"
+                    >
+                      <span className="text-xs font-semibold text-ink-body">Course Card</span>
+                      <span className="text-ink-hint text-xs">{courseCardOpen ? "Hide ▲" : "Show ▼"}</span>
+                    </button>
+                    {courseCardOpen && (
+                      <div className="p-3">
+                        <CourseCardPreview
+                          holes={nextHoles}
+                          distanceUnit={appUser?.distanceUnit ?? "meters"}
+                          specialHoles={getEffectiveSpecialHoles(nextRound)}
+                          teeSetName={nextRound.teeSetName ?? undefined}
+                          note={nextNote ?? undefined}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -401,7 +451,78 @@ function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-card rounded-xl border border-surface-overlay px-3 py-2.5 text-center shadow-sm">
       <p className="text-xs text-ink-hint">{label}</p>
-      <p className="mt-0.5 text-base font-bold text-ink-title">{value}</p>
+      <p className="mt-0.5 text-xl font-bold text-ink-title">{value}</p>
+    </div>
+  );
+}
+
+function SeasonRecapCard({
+  standings,
+  season,
+  myMemberId,
+}: {
+  standings: VisibleSeasonStanding[];
+  season: number;
+  myMemberId: string | null;
+}) {
+  const sorted = [...standings]
+    .filter((s) => s.displayCurrentRank != null)
+    .sort((a, b) => (a.displayCurrentRank ?? 99) - (b.displayCurrentRank ?? 99));
+
+  const podiumMedals = ["🥇", "🥈", "🥉"];
+  const top3 = sorted.slice(0, 3);
+  const myStanding = myMemberId ? standings.find((s) => s.memberId === myMemberId) : null;
+  const myRank = myStanding?.displayCurrentRank;
+  const totalRounds = standings.reduce((max, s) => Math.max(max, s.roundsPlayed ?? 0), 0);
+  const winner = top3[0];
+
+  return (
+    <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Season {season}</p>
+          <h3 className="font-bold text-ink-title text-lg">Season Wrapped 🏆</h3>
+        </div>
+        <span className="text-3xl">⛳</span>
+      </div>
+
+      {winner && (
+        <p className="text-sm text-brand-800 mb-3">
+          <span className="font-semibold">{winner.memberName}</span> won Season {season} with{" "}
+          <span className="font-semibold">{winner.totalPoints} points</span>
+          {totalRounds > 0 ? ` across ${totalRounds} rounds.` : "."}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {top3.map((s, i) => {
+          const isMe = s.memberId === myMemberId;
+          return (
+            <div
+              key={s.memberId}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
+                isMe ? "bg-brand-100" : "bg-surface-card"
+              }`}
+            >
+              <span className="text-lg w-7 text-center">{podiumMedals[i]}</span>
+              <span className={`flex-1 font-medium text-sm truncate ${isMe ? "text-brand-800" : "text-ink-title"}`}>
+                {s.memberName}{isMe ? " (you)" : ""}
+              </span>
+              <span className="shrink-0 text-sm font-bold text-brand-700">{s.totalPoints} pts</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {myRank != null && myRank > 3 && myStanding && (
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-surface-card px-3 py-2">
+          <span className="text-sm font-semibold text-ink-hint w-7 text-center">#{myRank}</span>
+          <span className="flex-1 font-medium text-sm text-ink-title truncate">
+            {myStanding.memberName} (you)
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-700">{myStanding.totalPoints} pts</span>
+        </div>
+      )}
     </div>
   );
 }

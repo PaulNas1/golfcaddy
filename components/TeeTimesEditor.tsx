@@ -107,36 +107,36 @@ export default function TeeTimesEditor({
     activeTeeTimeIndex == null ? null : teeTimes[activeTeeTimeIndex] ?? null;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+    <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-800">Tee Times</h2>
+        <h2 className="font-semibold text-ink-title">Tee Times</h2>
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={onRandomise}
-            className="text-green-700 text-sm font-medium hover:underline"
+            className="text-brand-700 text-sm font-medium hover:underline"
           >
             Randomise groups
           </button>
           <button
             type="button"
             onClick={onAddTeeTime}
-            className="text-green-600 text-sm font-medium hover:underline"
+            className="text-brand-600 text-sm font-medium hover:underline"
           >
             + Add tee time
           </button>
         </div>
       </div>
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-ink-hint">
         Click a tee slot, then assign players from the list below. Players can
         only belong to one tee time at a time.
       </p>
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-ink-hint">
         Press and hold a player chip in a tee slot to remove them without
         changing their RSVP.
       </p>
       {playersSummary && (
-        <p className="text-xs text-green-700">{playersSummary}</p>
+        <p className="text-xs text-brand-700">{playersSummary}</p>
       )}
 
       <div className="space-y-3">
@@ -160,8 +160,8 @@ export default function TeeTimesEditor({
               }
               className={`w-full rounded-xl border p-3 text-left transition-colors ${
                 isActive
-                  ? "border-green-300 bg-green-50"
-                  : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                  ? "border-green-300 bg-brand-50"
+                  : "border-surface-overlay bg-surface-muted hover:border-surface-overlay"
               }`}
             >
               <div className="space-y-2">
@@ -173,20 +173,20 @@ export default function TeeTimesEditor({
                       onUpdateTeeTimeTime(index, event.target.value)
                     }
                     onClick={(event) => event.stopPropagation()}
-                    className="w-32 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-32 px-3 py-2.5 rounded-xl border border-surface-overlay bg-surface-card text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <div
                     className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-sm ${
                       isActive
-                        ? "border-green-300 bg-white text-gray-800"
-                        : "border-gray-200 bg-white text-gray-800"
+                        ? "border-green-300 bg-surface-card text-ink-title"
+                        : "border-surface-overlay bg-surface-card text-ink-title"
                     }`}
                   >
                     {groupLabel || "Tap this tee time, then choose players below"}
                   </div>
                 </div>
                 <div className="flex items-center justify-end gap-3">
-                  <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-500">
+                  <span className="rounded-full bg-surface-card px-3 py-1 text-xs font-medium text-ink-muted">
                     {groupCount} player{groupCount === 1 ? "" : "s"}
                   </span>
                   <button
@@ -196,7 +196,7 @@ export default function TeeTimesEditor({
                       setGuestInputIndex(index);
                       setGuestInputValue("");
                     }}
-                    className="text-green-700 text-xs font-medium hover:underline"
+                    className="text-brand-700 text-xs font-medium hover:underline"
                   >
                     Add guest
                   </button>
@@ -243,7 +243,7 @@ export default function TeeTimesEditor({
                           event.stopPropagation();
                           openRemovalPrompt(index, member);
                         }}
-                        className="rounded-lg border border-green-200 bg-white px-2.5 py-1 text-xs font-medium text-green-700"
+                        className="rounded-lg border border-brand-200 bg-surface-card px-2.5 py-1 text-xs font-medium text-brand-700"
                       >
                         {formatShortMemberName(member, members)}
                       </button>
@@ -286,12 +286,12 @@ export default function TeeTimesEditor({
                       }
                     }}
                     placeholder="Guest name"
-                    className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="flex-1 rounded-lg border border-surface-overlay bg-surface-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                   <button
                     type="button"
                     onClick={() => confirmGuest(index)}
-                    className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white"
+                    className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white"
                   >
                     Add
                   </button>
@@ -302,7 +302,7 @@ export default function TeeTimesEditor({
                       setGuestInputIndex(null);
                       setGuestInputValue("");
                     }}
-                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-500"
+                    className="rounded-lg border border-surface-overlay px-3 py-1.5 text-xs font-medium text-ink-muted"
                   >
                     Cancel
                   </button>
@@ -313,15 +313,15 @@ export default function TeeTimesEditor({
         })}
       </div>
 
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+      <div className="rounded-xl border border-surface-overlay bg-surface-muted p-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-gray-800">
+            <p className="text-sm font-semibold text-ink-title">
               {activeTeeTime && activeTeeTimeIndex != null
                 ? `Assign players to tee time ${activeTeeTimeIndex + 1}`
                 : "Assigned players"}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-muted">
               {activeTeeTime?.time
                 ? `Active slot: ${activeTeeTime.time}`
                 : activeTeeTimeIndex != null
@@ -330,7 +330,7 @@ export default function TeeTimesEditor({
             </p>
           </div>
           {activeTeeTime && (
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-gray-500">
+            <span className="rounded-full bg-surface-card px-3 py-1 text-xs font-medium text-ink-muted">
               {activeTeeTime.playerIds.length} player
               {activeTeeTime.playerIds.length === 1 ? "" : "s"}
             </span>
@@ -339,7 +339,7 @@ export default function TeeTimesEditor({
 
         <div className="mt-3 flex flex-wrap gap-2">
           {availableMembers.length === 0 && (
-            <p className="text-xs text-gray-400">{emptyPlayersMessage}</p>
+            <p className="text-xs text-ink-hint">{emptyPlayersMessage}</p>
           )}
           {availableMembers.map((member) => {
             const assignedIndex = assignedPlayerIndexById.get(member.uid);
@@ -361,12 +361,12 @@ export default function TeeTimesEditor({
                 disabled={activeTeeTimeIndex == null}
                 className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
                   activeTeeTimeIndex != null && isAssignedToActive
-                    ? "border-green-600 bg-green-600 text-white"
+                    ? "border-green-600 bg-brand-600 text-white"
                     : isAssigned
-                    ? "border-green-300 bg-green-50 text-green-700"
+                    ? "border-green-300 bg-brand-50 text-brand-700"
                     : activeTeeTimeIndex != null
-                    ? "border-gray-200 bg-white text-gray-600 hover:border-green-300 hover:text-green-700"
-                    : "border-gray-200 bg-white text-gray-400"
+                    ? "border-surface-overlay bg-surface-card text-ink-body hover:border-green-300 hover:text-brand-700"
+                    : "border-surface-overlay bg-surface-card text-ink-hint"
                 }`}
               >
                 {formatShortMemberName(member, members)}
@@ -379,11 +379,11 @@ export default function TeeTimesEditor({
 
       {pendingRemoval && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-            <h3 className="text-base font-semibold text-gray-900">
+          <div className="w-full max-w-sm rounded-2xl bg-surface-card p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-ink-title">
               Remove player from tee slot?
             </h3>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-ink-body">
               {formatShortMemberName(pendingRemoval.member, members)} will be
               removed from this tee time only. Their RSVP will stay as Going.
             </p>
@@ -391,7 +391,7 @@ export default function TeeTimesEditor({
               <button
                 type="button"
                 onClick={() => setPendingRemoval(null)}
-                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600"
+                className="rounded-xl border border-surface-overlay px-4 py-2 text-sm font-medium text-ink-body"
               >
                 Cancel
               </button>

@@ -130,21 +130,21 @@ export default function PhotosPage() {
   return (
     <div className="px-4 py-6 pb-8">
       <div className="mb-5">
-        <h1 className="text-2xl font-bold text-gray-800">Photo Library</h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-ink-title">Photo Library</h1>
+        <p className="mt-1 text-sm text-ink-muted">
           Browse group photos by round, course, or uploader.
         </p>
       </div>
 
-      <div className="mb-5 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="mb-5 rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setScope("all")}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
               scope === "all"
-                ? "bg-green-600 text-white"
-                : "bg-gray-100 text-gray-600"
+                ? "bg-brand-600 text-white"
+                : "bg-surface-muted text-ink-muted"
             }`}
           >
             All photos
@@ -154,8 +154,8 @@ export default function PhotosPage() {
             onClick={() => setScope("mine")}
             className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
               scope === "mine"
-                ? "bg-green-600 text-white"
-                : "bg-gray-100 text-gray-600"
+                ? "bg-brand-600 text-white"
+                : "bg-surface-muted text-ink-muted"
             }`}
           >
             My uploads
@@ -164,11 +164,11 @@ export default function PhotosPage() {
 
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <label className="block">
-            <span className="text-xs font-semibold text-gray-700">Round</span>
+            <span className="text-xs font-semibold text-ink-body">Round</span>
             <select
               value={selectedRoundId}
               onChange={(event) => setSelectedRoundId(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="mt-1 w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">All rounds</option>
               {roundOptions.map(([roundId, label]) => (
@@ -180,11 +180,11 @@ export default function PhotosPage() {
           </label>
 
           <label className="block">
-            <span className="text-xs font-semibold text-gray-700">Course</span>
+            <span className="text-xs font-semibold text-ink-body">Course</span>
             <select
               value={selectedCourseId}
               onChange={(event) => setSelectedCourseId(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="mt-1 w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <option value="">All courses</option>
               {courseOptions.map(([courseId, courseName]) => (
@@ -200,14 +200,14 @@ export default function PhotosPage() {
       {loading ? (
         <div className="grid grid-cols-2 gap-3">
           {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="aspect-square animate-pulse rounded-2xl bg-white" />
+            <div key={item} className="aspect-square animate-pulse rounded-2xl bg-surface-card" />
           ))}
         </div>
       ) : visiblePhotos.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 bg-white px-6 py-12 text-center shadow-sm">
+        <div className="rounded-2xl border border-dashed border-surface-overlay bg-surface-card px-6 py-12 text-center shadow-sm">
           <div className="text-4xl">📷</div>
-          <p className="mt-3 font-semibold text-gray-700">No photos match these filters</p>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="mt-3 font-semibold text-ink-body">No photos match these filters</p>
+          <p className="mt-1 text-sm text-ink-hint">
             Upload images in the feed and optionally link them to a round to organise them here.
           </p>
         </div>
@@ -218,7 +218,7 @@ export default function PhotosPage() {
               key={photo.id}
               type="button"
               onClick={() => setSelectedPhoto(photo)}
-              className="overflow-hidden rounded-2xl border border-gray-100 bg-white text-left shadow-sm"
+              className="overflow-hidden rounded-2xl border border-surface-overlay bg-surface-card text-left shadow-sm"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -231,27 +231,27 @@ export default function PhotosPage() {
               <div className="space-y-2 p-3">
                 <div className="flex min-h-[24px] items-center gap-1.5">
                   {photo.roundNumber ? (
-                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                    <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
                       {`Round ${photo.roundNumber}`}
                     </span>
                   ) : null}
                 </div>
                 <div className="min-h-[18px]">
                   {getCourseLabel(photo, roundsById) ? (
-                    <p className="truncate text-sm font-medium text-gray-500">
+                    <p className="truncate text-sm font-medium text-ink-muted">
                       {getCourseLabel(photo, roundsById)}
                     </p>
                   ) : (
-                    <p className="text-sm font-medium text-gray-400">
+                    <p className="text-sm font-medium text-ink-hint">
                       Unlinked
                     </p>
                   )}
                 </div>
                 <div className="min-h-[38px]">
-                  <p className="truncate text-sm font-semibold text-gray-800">
+                  <p className="truncate text-sm font-semibold text-ink-title">
                     {photo.uploaderName}
                   </p>
-                  <p className="mt-0.5 text-xs text-gray-400">
+                  <p className="mt-0.5 text-xs text-ink-hint">
                     {formatDistanceToNow(photo.createdAt, { addSuffix: true })}
                   </p>
                 </div>
@@ -267,7 +267,7 @@ export default function PhotosPage() {
           <button
             type="button"
             onClick={() => setLimitCount((n) => n + PAGE_SIZE)}
-            className="rounded-full border border-gray-200 bg-white px-5 py-2 text-sm font-semibold text-gray-600 shadow-sm active:bg-gray-50"
+            className="rounded-full border border-surface-overlay bg-surface-card px-5 py-2 text-sm font-semibold text-ink-muted shadow-sm active:bg-surface-muted"
           >
             Load more
           </button>
@@ -305,7 +305,7 @@ function PhotoViewer({
           {/* Tags */}
           <div className="flex flex-wrap gap-1.5">
             {photo.roundNumber ? (
-              <span className="rounded-full bg-green-500/30 px-2 py-0.5 text-xs font-medium text-green-200">
+              <span className="rounded-full bg-brand-500/30 px-2 py-0.5 text-xs font-medium text-brand-200">
                 Round {photo.roundNumber}
               </span>
             ) : null}

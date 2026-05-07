@@ -42,23 +42,38 @@ export default function ProfilePage() {
 
   if (!appUser) return null;
 
+  const hcp = member?.currentHandicap ?? null;
+  const formatHcp = (h: number | null | undefined) => {
+    if (h == null) return "—";
+    return Number.isInteger(h) ? String(h) : h.toFixed(1);
+  };
+
   return (
     <div className="px-4 py-6 pb-8 space-y-4">
-      <h1 className="text-2xl font-bold text-ink-title">Profile</h1>
-
-      {/* ── Identity card ─────────────────────────────────────────────── */}
-      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-5">
-        <div className="flex items-center gap-4">
-          <Avatar src={appUser.avatarUrl ?? ""} name={appUser.displayName} size="lg" />
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold text-ink-title truncate">
-              {appUser.displayName}
-            </h2>
-            <p className="text-ink-muted text-sm truncate">{appUser.email}</p>
-            <span className="mt-1 inline-block text-xs font-medium px-2 py-0.5 bg-brand-100 text-brand-700 rounded-full capitalize">
+      {/* ── Hero banner ─────────────────────────────────────────────────── */}
+      <div className="bg-brand-700 rounded-2xl p-5 text-white">
+        <div className="flex items-center gap-4 mb-4">
+          <Avatar src={appUser.avatarUrl ?? ""} name={appUser.displayName} size="lg" className="ring-2 ring-brand-400" />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold truncate">{appUser.displayName}</h1>
+            <p className="text-brand-200 text-sm truncate">{appUser.email}</p>
+            <span className="mt-1 inline-block text-xs font-medium px-2 py-0.5 bg-brand-600 text-brand-100 rounded-full capitalize">
               {appUser.role}
             </span>
           </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "Rank", value: member?.seasonRank != null ? `#${member.seasonRank}` : "—" },
+            { label: "HCP", value: formatHcp(hcp) },
+            { label: "Points", value: String(member?.seasonPoints ?? 0) },
+            { label: "Rounds", value: String(member?.roundsPlayed ?? 0) },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-xl bg-brand-800/60 p-2 text-center">
+              <p className="text-brand-300 text-xs">{label}</p>
+              <p className="text-white font-bold text-lg leading-tight">{value}</p>
+            </div>
+          ))}
         </div>
       </div>
 

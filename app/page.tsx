@@ -18,39 +18,39 @@ export default function RootPage() {
 
   if (loading || firebaseUser) {
     return (
-      <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-brand-700 flex flex-col items-center justify-center">
         <div className="text-6xl mb-4">⛳</div>
         <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
-        <p className="text-green-300 mt-2 text-sm">Social golf groups</p>
+        <p className="text-brand-200 mt-2 text-sm">Social golf groups</p>
         <div className="mt-8 flex gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce" />
+          <span className="w-2 h-2 rounded-full bg-brand-300 animate-bounce [animation-delay:-0.3s]" />
+          <span className="w-2 h-2 rounded-full bg-brand-300 animate-bounce [animation-delay:-0.15s]" />
+          <span className="w-2 h-2 rounded-full bg-brand-300 animate-bounce" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-green-700 flex flex-col">
+    <div className="min-h-screen bg-brand-700 flex flex-col">
       {/* Hero */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 pt-20 pb-12">
         <div className="text-center mb-12">
           <div className="text-7xl mb-4">⛳</div>
           <h1 className="text-4xl font-bold text-white tracking-tight">GolfCaddy</h1>
-          <p className="text-green-200 mt-2 text-base">Social golf, simplified.</p>
+          <p className="text-brand-200 mt-2 text-base">Social golf, simplified.</p>
         </div>
 
         <div className="w-full max-w-xs space-y-3">
           <Link
             href="/signin"
-            className="block w-full bg-white text-green-700 font-semibold text-base py-3.5 rounded-2xl text-center shadow-lg hover:bg-green-50 transition-colors"
+            className="block w-full bg-white text-brand-700 font-semibold text-base py-3.5 rounded-2xl text-center shadow-lg hover:bg-brand-50 transition-colors"
           >
             Sign in to your group
           </Link>
           <Link
             href="/create-group"
-            className="block w-full bg-green-600 border border-green-400 text-white font-semibold text-base py-3.5 rounded-2xl text-center hover:bg-green-500 transition-colors"
+            className="block w-full bg-brand-600 border border-brand-400 text-white font-semibold text-base py-3.5 rounded-2xl text-center hover:bg-brand-500 transition-colors"
           >
             Create Social Group Account
           </Link>
@@ -59,15 +59,15 @@ export default function RootPage() {
 
       {/* Footer */}
       <div className="text-center pb-10 px-6 space-y-3">
-        <p className="text-green-300 text-xs">
+        <p className="text-brand-300 text-xs">
           Running your own social golf group?{" "}
-          <span className="text-green-100 font-medium">
+          <span className="text-brand-100 font-medium">
             Ask your organiser to set up GolfCaddy.
           </span>
         </p>
-        <div className="flex justify-center gap-4 text-xs text-green-400">
-          <Link href="/terms" className="hover:text-green-200 transition-colors">Terms of Use</Link>
-          <Link href="/privacy" className="hover:text-green-200 transition-colors">Privacy Policy</Link>
+        <div className="flex justify-center gap-4 text-xs text-brand-400">
+          <Link href="/terms" className="hover:text-brand-200 transition-colors">Terms of Use</Link>
+          <Link href="/privacy" className="hover:text-brand-200 transition-colors">Privacy Policy</Link>
         </div>
       </div>
     </div>

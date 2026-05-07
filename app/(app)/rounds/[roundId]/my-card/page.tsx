@@ -110,7 +110,7 @@ export default function MyCardPage() {
 
   if (!isActive) {
     return (
-      <div className="px-4 py-6 text-sm text-gray-500">
+      <div className="px-4 py-6 text-sm text-ink-muted">
         You need an active membership to view your card.
       </div>
     );
@@ -119,16 +119,16 @@ export default function MyCardPage() {
   if (loading) {
     return (
       <div className="px-4 py-6 animate-pulse space-y-4">
-        <div className="h-8 bg-gray-200 rounded w-2/3" />
-        <div className="h-4 bg-gray-100 rounded w-1/2" />
-        <div className="bg-white rounded-2xl p-4 h-32 bg-gray-100" />
+        <div className="h-8 bg-surface-overlay rounded w-2/3" />
+        <div className="h-4 bg-surface-muted rounded w-1/2" />
+        <div className="bg-surface-card rounded-2xl p-4 h-32 bg-surface-muted" />
       </div>
     );
   }
 
   if (!round) {
     return (
-      <div className="px-4 py-6 text-sm text-gray-500">
+      <div className="px-4 py-6 text-sm text-ink-muted">
         Round not found. Tried round ID: {roundId}
       </div>
     );
@@ -139,7 +139,7 @@ export default function MyCardPage() {
       <div className="px-4 py-6 space-y-4">
         <button
           onClick={() => router.back()}
-          className="text-xs text-gray-500"
+          className="text-xs text-ink-muted"
         >
           ← Back
         </button>
@@ -167,20 +167,20 @@ export default function MyCardPage() {
     <div className="px-4 py-6 space-y-4 pb-20">
       <button
         onClick={() => router.back()}
-        className="text-xs text-gray-500 mb-1"
+        className="text-xs text-ink-muted mb-1"
       >
         ← Back
       </button>
 
-      <h1 className="text-2xl font-bold text-gray-800">
+      <h1 className="text-2xl font-bold text-ink-title">
         My card · {round.courseName}
       </h1>
-      <p className="text-gray-500 text-sm">
+      <p className="text-ink-muted text-sm">
         {format(round.date, "EEEE d MMMM yyyy")}
       </p>
 
       {!card && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-sm text-gray-500">
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 text-sm text-ink-muted">
           Your marker hasn&apos;t started your card yet. Once they do, you&apos;ll
           see it here.
         </div>
@@ -188,26 +188,26 @@ export default function MyCardPage() {
 
       {card && (
         <>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+          <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 flex items-center justify-between">
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">Status</p>
-              <p className="text-sm font-semibold text-gray-800">
+              <p className="text-xs text-ink-muted mb-0.5">Status</p>
+              <p className="text-sm font-semibold text-ink-title">
                 {card.status === "in_progress"
                   ? "In progress"
                   : card.status === "submitted"
                   ? "Submitted"
                   : "Locked by admin"}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-ink-muted mt-1">
                 Player:{" "}
-                <span className="font-semibold text-gray-800">
+                <span className="font-semibold text-ink-title">
                   {appUser?.displayName}
                 </span>
                 {markerName && <> · Marker: {markerName}</>}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-ink-muted mt-1">
                 Playing HCP:{" "}
-                <span className="font-semibold text-gray-800">
+                <span className="font-semibold text-ink-title">
                   {card.handicapAtTime}
                 </span>
               </p>
@@ -215,15 +215,15 @@ export default function MyCardPage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/rounds/${round.id}/scorecard`)}
-                  className="mt-1 text-xs text-green-700 underline"
+                  className="mt-1 text-xs text-brand-700 underline"
                 >
                   Card you&apos;re marking: {markedPlayerName}
                 </button>
               )}
             </div>
             <div className="text-right">
-              <p className="text-xs text-gray-500 mb-0.5">Totals</p>
-              <p className="text-sm font-semibold text-gray-800">
+              <p className="text-xs text-ink-muted mb-0.5">Totals</p>
+              <p className="text-sm font-semibold text-ink-title">
                 {round.format === "stableford"
                   ? card.totalStableford ?? "—"
                   : card.totalGross ?? "—"}
@@ -231,9 +231,9 @@ export default function MyCardPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-            <h2 className="font-semibold text-gray-800 mb-2">Front 9</h2>
-            <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
+          <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+            <h2 className="font-semibold text-ink-title mb-2">Front 9</h2>
+            <div className="grid grid-cols-5 gap-2 text-xs text-ink-muted mb-1">
               <span>Hole</span>
               <span>Index</span>
               <span>Par</span>
@@ -245,9 +245,9 @@ export default function MyCardPage() {
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-            <h2 className="font-semibold text-gray-800 mb-2">Back 9</h2>
-            <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
+          <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+            <h2 className="font-semibold text-ink-title mb-2">Back 9</h2>
+            <div className="grid grid-cols-5 gap-2 text-xs text-ink-muted mb-1">
               <span>Hole</span>
               <span>Index</span>
               <span>Par</span>
@@ -337,11 +337,11 @@ function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
 
   return (
     <div
-      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-gray-50 last:border-0 rounded-lg px-1 -mx-1 ${
-        isScored ? "bg-green-50" : ""
+      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-surface-overlay last:border-0 rounded-lg px-1 -mx-1 ${
+        isScored ? "bg-brand-50" : ""
       }`}
     >
-      <div className="text-sm font-medium text-gray-700">
+      <div className="text-sm font-medium text-ink-body">
         {hole.holeNumber}
         {hole.isNTP && (
           <span className="ml-1 text-xs text-yellow-600">NTP</span>
@@ -356,27 +356,27 @@ function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
           <span className="ml-1 text-xs text-fuchsia-600">T3</span>
         )}
         {hole.distanceMeters && (
-          <div className="text-xs font-normal text-gray-400">
+          <div className="text-xs font-normal text-ink-hint">
             {hole.distanceMeters}m
           </div>
         )}
       </div>
-      <div className="text-xs text-gray-500 flex items-center gap-1">
+      <div className="text-xs text-ink-muted flex items-center gap-1">
         <span>{hole.strokeIndex}</span>
         {hole.strokesReceived > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-100 text-[9px] text-green-700">
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-100 text-[9px] text-brand-700">
             {hole.strokesReceived}
           </span>
         )}
       </div>
-      <div className="text-sm text-gray-600">{hole.par}</div>
-      <div className="text-sm text-gray-800">
+      <div className="text-sm text-ink-body">{hole.par}</div>
+      <div className="text-sm text-ink-title">
         {hole.grossScore != null ? hole.grossScore : "—"}
       </div>
-      <div className="text-sm text-gray-800">
+      <div className="text-sm text-ink-title">
         <span
           className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs px-2 ${
-            hasPoints ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
+            hasPoints ? "bg-brand-100 text-brand-700" : "bg-surface-muted text-ink-hint"
           }`}
         >
           {hasPoints ? hole.stablefordPoints : "—"}

@@ -46,18 +46,18 @@ function HoleRow({
 }) {
   const label = specialLabel(hole.number, special);
   return (
-    <tr className={shaded ? "bg-gray-50" : "bg-white"}>
-      <td className="px-3 py-2 font-semibold text-gray-700 text-xs">
+    <tr className={shaded ? "bg-surface-muted" : "bg-surface-card"}>
+      <td className="px-3 py-2 font-semibold text-ink-body text-xs">
         {hole.number}
         {label && (
-          <span className="ml-1.5 text-[10px] font-bold text-green-600">
+          <span className="ml-1.5 text-[10px] font-bold text-brand-600">
             {label}
           </span>
         )}
       </td>
-      <td className="px-2 py-2 text-center text-xs text-gray-700">{hole.par}</td>
-      <td className="px-2 py-2 text-center text-xs text-gray-500">{hole.strokeIndex}</td>
-      <td className="px-3 py-2 text-right text-xs text-gray-500">
+      <td className="px-2 py-2 text-center text-xs text-ink-body">{hole.par}</td>
+      <td className="px-2 py-2 text-center text-xs text-ink-muted">{hole.strokeIndex}</td>
+      <td className="px-3 py-2 text-right text-xs text-ink-muted">
         {fmtDist(hole.distanceMeters, unit)}
       </td>
     </tr>
@@ -75,7 +75,7 @@ function SubtotalRow({
 }) {
   const par = holes.reduce((s, h) => s + h.par, 0);
   return (
-    <tr className="bg-green-700 text-white">
+    <tr className="bg-brand-700 text-white">
       <td className="px-3 py-1.5 text-[11px] font-bold">{label}</td>
       <td className="px-2 py-1.5 text-center text-[11px] font-bold">{par}</td>
       <td className="px-2 py-1.5" />
@@ -124,19 +124,19 @@ export function CourseCardPreview({
   const totalPar = holes.reduce((s, h) => s + h.par, 0);
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-surface-overlay bg-surface-card shadow-sm overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="shrink-0 font-semibold text-gray-800 text-sm">Course Card</span>
+          <span className="shrink-0 font-semibold text-ink-title text-sm">Course Card</span>
           {teeSetName && (
-            <span className="truncate text-xs text-gray-400">{teeSetName}</span>
+            <span className="truncate text-xs text-ink-hint">{teeSetName}</span>
           )}
         </div>
-        <span className="shrink-0 text-gray-400 text-xs flex items-center gap-1">
+        <span className="shrink-0 text-ink-hint text-xs flex items-center gap-1">
           {open ? "Hide" : `Par ${totalPar} · tap to view`}
           <svg
             className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`}
@@ -151,7 +151,7 @@ export function CourseCardPreview({
       </button>
 
       {open && (
-        <div className="border-t border-gray-100">
+        <div className="border-t border-surface-overlay">
           {note && (
             <p className="px-4 py-2 text-[11px] text-amber-700 bg-amber-50 border-b border-amber-100">
               ℹ️ {note}
@@ -160,7 +160,7 @@ export function CourseCardPreview({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-gray-100 text-gray-500">
+                <tr className="bg-surface-muted text-ink-muted">
                   <th className="px-3 py-2 text-left text-[11px] font-semibold w-20">Hole</th>
                   <th className="px-2 py-2 text-center text-[11px] font-semibold w-12">Par</th>
                   <th className="px-2 py-2 text-center text-[11px] font-semibold w-12">SI</th>

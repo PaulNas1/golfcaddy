@@ -36,6 +36,7 @@ import {
   getTeeTimeGroupLabel,
 } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
+import { uploadFeedPostImages, validateImageFile } from "@/lib/storageUploads";
 import type {
   AppUser,
   Post,
@@ -73,13 +74,13 @@ type SectionKey =
   | "adminLink";
 
 const SECTIONS_BY_STATUS: Record<RoundStatus, SectionKey[]> = {
-  // ── Upcoming ── RSVP first (action needed), then course context
+  // ── Upcoming ── RSVP first (action needed), tee times second (when am I playing), then course context
   upcoming: [
     "rsvp",
-    "courseInfo",
-    "courseCard",
     "teeTimes",
+    "courseInfo",
     "specialHoles",
+    "courseCard",
     "holeOverrides",
     "notes",
     "activity",
@@ -133,6 +134,9 @@ export default function RoundDetailPage() {
   const [postContent, setPostContent] = useState("");
   const [postingUpdate, setPostingUpdate] = useState(false);
   const [postUpdateError, setPostUpdateError] = useState("");
+  const [courseCardOpen, setCourseCardOpen] = useState(false);
+  const [postPhoto, setPostPhoto] = useState<File | null>(null);
+  const [postPhotoPreview, setPostPhotoPreview] = useState<string | null>(null);
   const { appUser, canAccessAdmin } = useAuth();
 
   useEffect(() => {
@@ -376,18 +380,26 @@ export default function RoundDetailPage() {
   };
 
   const handlePostUpdate = async () => {
-    if (!appUser?.groupId || !postContent.trim()) return;
+    if (!appUser?.groupId || (!postContent.trim() && !postPhoto)) return;
     setPostingUpdate(true);
     setPostUpdateError("");
     try {
+      let photoUrls: string[] = [];
+      if (postPhoto) {
+        const uploads = await uploadFeedPostImages(appUser.groupId, appUser.uid, [postPhoto]);
+        photoUrls = uploads.map((u) => u.url);
+      }
       await createFeedPost({
         groupId: appUser.groupId,
         author: appUser,
         content: postContent,
         type: "round_linked",
         roundId: round?.id ?? null,
+        photoUrls,
       });
       setPostContent("");
+      setPostPhoto(null);
+      setPostPhotoPreview(null);
       setPostUpdateError("");
       setShowPostSheet(false);
     } catch (err) {
@@ -469,7 +481,7 @@ export default function RoundDetailPage() {
                     className={`flex items-center justify-between py-2 text-sm ${isMe ? "font-semibold" : ""}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="w-6 text-xs text-ink-hint">#{idx + 1}</span>
+                      <span className="w-6 text-xs text-ink-muted">#{idx + 1}</span>
                       <span className={isMe ? "text-brand-700" : "text-ink-body"}>
                         {name}{isMe ? " (you)" : ""}
                       </span>
@@ -483,7 +495,7 @@ export default function RoundDetailPage() {
                 );
               })}
           </div>
-          <p className="text-xs text-ink-hint">
+          <p className="text-xs text-ink-muted">
             Scores update in real time. Final results are published by the admin after the round.
           </p>
         </div>
@@ -581,13 +593,27 @@ export default function RoundDetailPage() {
     courseCard: () => {
       if (viewerHoles.length !== 18) return null;
       return (
-        <CourseCardPreview
-          holes={viewerHoles}
-          distanceUnit={appUser?.distanceUnit ?? "meters"}
-          specialHoles={specialHoles}
-          teeSetName={round.teeSetName ?? undefined}
-          note={viewerNote ?? undefined}
-        />
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setCourseCardOpen((o) => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-left"
+          >
+            <span className="font-semibold text-ink-title text-sm">Course Card</span>
+            <span className="text-ink-hint text-xs">{courseCardOpen ? "Hide ▲" : "Show ▼"}</span>
+          </button>
+          {courseCardOpen && (
+            <div className="px-4 pb-4">
+              <CourseCardPreview
+                holes={viewerHoles}
+                distanceUnit={appUser?.distanceUnit ?? "meters"}
+                specialHoles={specialHoles}
+                teeSetName={round.teeSetName ?? undefined}
+                note={viewerNote ?? undefined}
+              />
+            </div>
+          )}
+        </div>
       );
     },
 
@@ -597,19 +623,31 @@ export default function RoundDetailPage() {
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
           <h2 className="font-semibold text-ink-title mb-3">Tee Times</h2>
           <div className="divide-y divide-surface-overlay">
-            {round.teeTimes.map((teeTime) => (
-              <div
-                key={teeTime.id}
-                className="flex items-center justify-between py-2 text-sm"
-              >
-                <span className="font-semibold text-ink-title">
-                  {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
-                </span>
-                <span className="text-ink-muted text-right">
-                  {getTeeTimeLabel(teeTime.playerIds, teeTime.guestNames ?? [])}
-                </span>
-              </div>
-            ))}
+            {round.teeTimes.map((teeTime) => {
+              const isMyGroup = appUser?.uid != null && teeTime.playerIds?.includes(appUser.uid);
+              return (
+                <div
+                  key={teeTime.id}
+                  className={`flex items-center justify-between py-2 px-2 -mx-2 rounded-lg text-sm ${
+                    isMyGroup ? "bg-brand-50" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`font-semibold ${isMyGroup ? "text-brand-700" : "text-ink-title"}`}>
+                      {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
+                    </span>
+                    {isMyGroup && (
+                      <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
+                        you
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-right ${isMyGroup ? "text-brand-700" : "text-ink-muted"}`}>
+                    {getTeeTimeLabel(teeTime.playerIds, teeTime.guestNames ?? [])}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </div>
       );
@@ -781,7 +819,7 @@ export default function RoundDetailPage() {
   };
 
   return (
-    <div className="px-4 py-6 space-y-4 pb-8">
+    <div className="px-4 py-6 space-y-4 pb-8 relative">
 
       {/* ── Fixed header — always shown ─────────────────────────────────── */}
       <div>
@@ -814,6 +852,20 @@ export default function RoundDetailPage() {
         return <Fragment key={key}>{node}</Fragment>;
       })}
 
+      {/* ── Live scoring FAB ── only visible during live rounds ────────── */}
+      {round.status === "live" && (
+        <div className="fixed bottom-24 right-4 z-30">
+          <Link
+            href={`/rounds/${round.id}/scorecard`}
+            prefetch={false}
+            className="flex items-center gap-2 rounded-full bg-red-500 px-5 py-3 text-sm font-bold text-white shadow-lg active:bg-red-600"
+          >
+            <span className="inline-block w-2 h-2 rounded-full bg-white animate-pulse" />
+            Enter Scores
+          </Link>
+        </div>
+      )}
+
       {/* ── Post sheet — fixed overlay, outside the section flow ────────── */}
       {showPostSheet && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end">
@@ -826,7 +878,7 @@ export default function RoundDetailPage() {
               <h3 className="font-semibold text-ink-title">Post round update</h3>
               <button
                 type="button"
-                onClick={() => setShowPostSheet(false)}
+                onClick={() => { setShowPostSheet(false); setPostPhoto(null); setPostPhotoPreview(null); }}
                 className="text-ink-hint hover:text-ink-body transition-colors"
                 aria-label="Close"
               >
@@ -841,38 +893,69 @@ export default function RoundDetailPage() {
               value={postContent}
               onChange={(event) => setPostContent(event.target.value)}
               placeholder="Share a moment from the round…"
-              rows={4}
+              rows={3}
               className="w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body placeholder:text-ink-hint focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
             />
+            {/* Photo picker */}
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 cursor-pointer rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2 text-xs font-semibold text-ink-body hover:bg-surface-overlay transition-colors">
+                <svg className="w-4 h-4 text-ink-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {postPhoto ? "Change photo" : "Add photo"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    const err = validateImageFile(file);
+                    if (err) { setPostUpdateError(err); return; }
+                    setPostUpdateError("");
+                    setPostPhoto(file);
+                    if (file) {
+                      const url = URL.createObjectURL(file);
+                      setPostPhotoPreview(url);
+                    }
+                  }}
+                />
+              </label>
+              {postPhotoPreview && (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={postPhotoPreview} alt="Selected" className="h-12 w-12 rounded-lg object-cover border border-surface-overlay" />
+                  <button
+                    type="button"
+                    onClick={() => { setPostPhoto(null); setPostPhotoPreview(null); }}
+                    className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-ink-body text-white flex items-center justify-center text-xs leading-none"
+                    aria-label="Remove photo"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </div>
             {postUpdateError && (
               <p className="text-xs font-medium text-red-600">{postUpdateError}</p>
             )}
-            <div className="flex items-center justify-between gap-2">
-              <Link
-                href={`/feed?roundId=${round.id}`}
-                prefetch={false}
-                className="text-xs text-ink-hint hover:text-ink-muted transition-colors"
-                onClick={() => setShowPostSheet(false)}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setShowPostSheet(false); setPostPhoto(null); setPostPhotoPreview(null); }}
+                className="rounded-xl border border-surface-overlay px-4 py-2 text-sm font-semibold text-ink-muted"
               >
-                Add photos in Feed →
-              </Link>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowPostSheet(false)}
-                  className="rounded-xl border border-surface-overlay px-4 py-2 text-sm font-semibold text-ink-muted"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!postContent.trim() || postingUpdate}
-                  onClick={handlePostUpdate}
-                  className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  {postingUpdate ? "Posting…" : "Post"}
-                </button>
-              </div>
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={(!postContent.trim() && !postPhoto) || postingUpdate}
+                onClick={handlePostUpdate}
+                className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {postingUpdate ? "Posting…" : "Post"}
+              </button>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { useGroupData } from "@/contexts/GroupDataContext";
@@ -47,6 +47,12 @@ export default function RoundsPage() {
   // Switch to "all" automatically when there are no upcoming rounds for the
   // chosen season — avoids a confusing empty state when the season is done.
   const hasUpcoming = seasonRounds.some((r) => r.status !== "completed");
+
+  useEffect(() => {
+    if (!loading && !hasUpcoming && statusFilter === "upcoming") {
+      setStatusFilter("all");
+    }
+  }, [hasUpcoming, loading, statusFilter]);
 
   return (
     <div className="px-4 py-6">

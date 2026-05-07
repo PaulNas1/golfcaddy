@@ -12,7 +12,6 @@ import {
   FlagIcon,
   TrophyIcon,
   ChatIcon,
-  PhotoIcon,
   UserIcon,
   BellIcon,
 } from "@/components/ui/icons";
@@ -24,15 +23,13 @@ import HomePage from "@/app/(app)/home/page";
 import RoundsPage from "@/app/(app)/rounds/page";
 import LeaderboardPage from "@/app/(app)/leaderboard/page";
 import FeedPage from "@/app/(app)/feed/page";
-import PhotosPage from "@/app/(app)/photos/page";
 import ProfilePage from "@/app/(app)/profile/page";
 
 const NAV_ITEMS = [
   { href: "/home",        label: "Home",   icon: HomeIcon },
   { href: "/rounds",      label: "Rounds", icon: FlagIcon },
   { href: "/leaderboard", label: "Ladder", icon: TrophyIcon },
-  { href: "/feed",        label: "Feed",   icon: ChatIcon },
-  { href: "/photos",      label: "Photos", icon: PhotoIcon },
+  { href: "/feed",        label: "Social", icon: ChatIcon },
   { href: "/profile",     label: "Profile",icon: UserIcon },
 ];
 
@@ -186,7 +183,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         <Suspense fallback={null}>
           <div style={{ display: activeTab === "/feed"      && !isOnSubRoute ? "block" : "none" }}><FeedPage /></div>
         </Suspense>
-        <div style={{ display: activeTab === "/photos"      && !isOnSubRoute ? "block" : "none" }}><PhotosPage /></div>
         <div style={{ display: activeTab === "/profile"     && !isOnSubRoute ? "block" : "none" }}><ProfilePage /></div>
 
         {/* Sub-routes (round detail, notifications, admin, etc.) */}
@@ -201,7 +197,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         The `pb-safe` utility adds env(safe-area-inset-bottom) so the
         nav bar content sits above the iPhone home indicator.
       */}
-      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-white border-t border-surface-overlay z-20 pb-safe">
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-lg bg-surface-card border-t border-surface-overlay z-20 pb-safe">
         <div className="flex">
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const active = activeTab === href;

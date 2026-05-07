@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
 import Avatar from "@/components/ui/Avatar";
 import PostCard from "@/components/feed/PostCard";
+import PhotosPage from "@/app/(app)/photos/page";
 import {
   createFeedPost,
   createPostComment,
@@ -57,6 +58,9 @@ export default function FeedPage() {
   const [myReactionsByPostId, setMyReactionsByPostId] = useState<Record<string, PostReaction | null>>({});
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState("");
+
+  // ── Sub-tab (posts / photos) ──────────────────────────────────────────
+  const [subTab, setSubTab] = useState<"posts" | "photos">("posts");
 
   // ── Composer state ────────────────────────────────────────────────────
   const [composerOpen, setComposerOpen] = useState(false);
@@ -250,7 +254,32 @@ export default function FeedPage() {
 
   return (
     <div className="px-4 py-6 pb-8">
-      <h1 className="mb-5 text-2xl font-bold text-ink-title">Social Feed</h1>
+      {/* ── Header + sub-tab ──────────────────────────────────────── */}
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold text-ink-title">Social</h1>
+        <div className="inline-flex rounded-xl border border-surface-overlay bg-surface-muted p-1">
+          {(["posts", "photos"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setSubTab(tab)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
+                subTab === tab
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-ink-muted"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Photos sub-tab ────────────────────────────────────────── */}
+      {subTab === "photos" && <div className="-mx-4"><PhotosPage /></div>}
+
+      {/* ── Posts sub-tab ─────────────────────────────────────────── */}
+      {subTab === "posts" && <>
 
       {/* ── Post composer ─────────────────────────────────────────── */}
       {!composerOpen ? (
@@ -445,6 +474,8 @@ export default function FeedPage() {
           ))}
         </div>
       )}
+
+      </>}
     </div>
   );
 }

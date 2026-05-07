@@ -730,12 +730,12 @@ export default function ScorecardPage() {
     <div className="px-4 py-6 space-y-4 pb-20">
       <button
         onClick={() => router.back()}
-        className="text-xs text-gray-500 mb-1"
+        className="text-sm text-ink-muted mb-1"
       >
         ← Back to round
       </button>
 
-      <h1 className="text-2xl font-bold text-gray-800">
+      <h1 className="text-2xl font-bold text-ink-title">
         Scorecard · {round.courseName}
       </h1>
 
@@ -756,16 +756,16 @@ export default function ScorecardPage() {
           already rendered and visible during this wait.
       ─────────────────────────────────────────────────────────────────────── */}
       {scorecardLoading ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 text-sm text-gray-500">
-          <span className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin shrink-0" />
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 flex items-center gap-3 text-sm text-ink-muted">
+          <span className="h-4 w-4 rounded-full border-2 border-surface-overlay border-t-ink-muted animate-spin shrink-0" />
           <span>Loading scorecard…</span>
         </div>
       ) : (
         <>
           {!scorecard && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
-              <h2 className="font-semibold text-gray-800">Who are you marking?</h2>
-              <p className="text-xs text-gray-500">
+            <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-4">
+              <h2 className="font-semibold text-ink-title">Who are you marking?</h2>
+              <p className="text-sm text-ink-muted">
                 Select an accepted player from your tee-time group. Guests are
                 tee-group only and are not scored in GolfCaddy.
               </p>
@@ -773,7 +773,7 @@ export default function ScorecardPage() {
                 <select
                   value={playerToMarkId}
                   onChange={(e) => setPlayerToMarkId(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                 >
                   <option value="">Select player</option>
                   {eligibleMembers.map((m) => (
@@ -792,7 +792,7 @@ export default function ScorecardPage() {
                 </div>
               )}
               {eligibleMembers.length > 0 && teeTimesWithPlayers && (
-                <p className="text-xs text-gray-400">
+                <p className="text-sm text-ink-hint">
                   Showing accepted members assigned to your tee-time group.
                 </p>
               )}
@@ -815,21 +815,21 @@ export default function ScorecardPage() {
           )}
 
           {scorecard && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
+            <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 flex items-center justify-between">
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">
+                <p className="text-sm text-ink-muted mb-0.5">
                   Status
                 </p>
-                <p className="text-sm font-semibold text-gray-800">
+                <p className="text-sm font-semibold text-ink-title">
                   {scorecard.status === "in_progress"
                     ? "In progress"
                     : scorecard.status === "submitted"
                     ? "Submitted"
                     : "Locked by admin"}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-sm text-ink-muted mt-1">
                   Player:{" "}
-                  <span className="font-semibold text-gray-800">
+                  <span className="font-semibold text-ink-title">
                     {playerName ?? "—"}
                   </span>
                   {markerName && round && (
@@ -840,23 +840,23 @@ export default function ScorecardPage() {
                         onClick={() =>
                           router.push(`/rounds/${round.id}/my-card`)
                         }
-                        className="underline text-green-700"
+                        className="underline text-brand-700"
                       >
                         Marker: {markerName}
                       </button>
                     </>
                   )}
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-sm text-ink-muted mt-1">
                   Playing HCP:{" "}
-                  <span className="font-semibold text-gray-800">
+                  <span className="font-semibold text-ink-title">
                     {scorecard.handicapAtTime}
                   </span>
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-gray-500 mb-0.5">Totals</p>
-                <p className="text-sm font-semibold text-gray-800">
+                <p className="text-sm text-ink-muted mb-0.5">Totals</p>
+                <p className="text-lg font-bold text-ink-title">
                   {round.format === "stableford"
                     ? scorecard.totalStableford ?? "—"
                     : scorecard.totalGross ?? "—"}
@@ -874,9 +874,9 @@ export default function ScorecardPage() {
           round's course data, giving players something useful to look at
           while the scorecard data loads in the background.
       ─────────────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <h2 className="font-semibold text-gray-800 mb-2">Front 9</h2>
-        <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+        <h2 className="font-semibold text-ink-title mb-2">Front 9</h2>
+        <div className="grid grid-cols-5 gap-2 text-xs text-ink-muted mb-1">
           <span>Hole</span>
           <span>Index</span>
           <span>Par</span>
@@ -895,9 +895,9 @@ export default function ScorecardPage() {
         ))}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <h2 className="font-semibold text-gray-800 mb-2">Back 9</h2>
-        <div className="grid grid-cols-5 gap-2 text-xs text-gray-500 mb-1">
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+        <h2 className="font-semibold text-ink-title mb-2">Back 9</h2>
+        <div className="grid grid-cols-5 gap-2 text-xs text-ink-muted mb-1">
           <span>Hole</span>
           <span>Index</span>
           <span>Par</span>
@@ -924,21 +924,21 @@ export default function ScorecardPage() {
               type="button"
               onClick={handleSignOff}
               disabled={signing}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-4 rounded-2xl text-base transition-colors"
+              className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white font-semibold py-4 rounded-2xl text-base transition-colors"
             >
               {signing ? "Submitting card..." : "Sign & submit card"}
             </button>
           )}
 
           {scorecard.status === "in_progress" && round.status !== "live" && (
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-sm text-gray-600">
+            <div className="bg-surface-muted border border-surface-overlay rounded-2xl p-4 text-sm text-ink-muted">
               Scoring is closed for this round.
             </div>
           )}
 
           {scorecard.status !== "in_progress" && (
             <div className="space-y-2">
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-sm text-green-800">
+              <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 text-sm text-brand-800">
                 ✅ Card submitted.
               </div>
               {scorecard.status === "submitted" && round.status === "live" && (
@@ -946,7 +946,7 @@ export default function ScorecardPage() {
                   type="button"
                   onClick={handleReopen}
                   disabled={reopening}
-                  className="w-full bg-white border border-green-300 text-green-700 text-sm font-semibold py-2.5 rounded-2xl"
+                  className="w-full bg-surface-card border border-brand-300 text-brand-700 text-sm font-semibold py-2.5 rounded-2xl"
                 >
                   {reopening ? "Re-opening..." : "Re-open card to edit"}
                 </button>
@@ -966,9 +966,9 @@ export default function ScorecardPage() {
           specialHoles.t3;
         if (!hasAny) return null;
         return (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-            <h2 className="font-semibold text-gray-800">Side Prizes</h2>
-            <p className="text-xs text-gray-500">
+          <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+            <h2 className="font-semibold text-ink-title">Side Prizes</h2>
+            <p className="text-sm text-ink-muted">
               Claim the winner for each side prize on this round.
             </p>
             {specialHoles.ntp.map((holeNumber) => (
@@ -1158,31 +1158,31 @@ function HoleRow({
 
   return (
     <div
-      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-gray-50 last:border-0 rounded-lg px-1 -mx-1 ${
-        isScored ? "bg-green-50" : ""
+      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-surface-overlay last:border-0 rounded-lg px-1 -mx-1 ${
+        isScored ? "bg-brand-50" : ""
       }`}
     >
-      <div className="text-sm font-medium text-gray-700">
+      <div className="text-sm font-medium text-ink-body">
         {hole.holeNumber}
         {hole.isNTP && <span className="ml-1 text-xs text-yellow-600">NTP</span>}
         {hole.isLD && <span className="ml-1 text-xs text-blue-600">LD</span>}
         {hole.isT2 && <span className="ml-1 text-xs text-emerald-600">T2</span>}
         {hole.isT3 && <span className="ml-1 text-xs text-fuchsia-600">T3</span>}
         {hole.distanceMeters && (
-          <div className="text-xs font-normal text-gray-400">
+          <div className="text-xs font-normal text-ink-hint">
             {hole.distanceMeters}m
           </div>
         )}
       </div>
-      <div className="text-xs text-gray-500 flex items-center gap-1">
+      <div className="text-xs text-ink-muted flex items-center gap-1">
         <span>{hole.strokeIndex}</span>
         {hole.strokesReceived > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-green-100 text-[9px] text-green-700">
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-100 text-[9px] text-brand-700">
             {hole.strokesReceived}
           </span>
         )}
       </div>
-      <div className="text-sm text-gray-600">{hole.par}</div>
+      <div className="text-sm text-ink-body">{hole.par}</div>
       <div>
         <input
           type="number"
@@ -1191,10 +1191,10 @@ function HoleRow({
           disabled={disabled || saving}
           value={hole.grossScore ?? ""}
           onChange={(e) => onStrokeChange(hole.holeNumber, e.target.value)}
-          className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:bg-gray-50"
+          className="w-full px-2 py-1.5 rounded-lg border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-surface-muted"
         />
       </div>
-      <div className="text-sm text-gray-800 flex items-center justify-between gap-1">
+      <div className="text-sm text-ink-title flex items-center justify-between gap-1">
         {editingPoints && !disabled ? (
           <div className="flex items-center gap-1 w-full">
             <input
@@ -1207,12 +1207,12 @@ function HoleRow({
                 if (e.key === "Enter") commitPoints();
                 if (e.key === "Escape") setEditingPoints(false);
               }}
-              className="w-10 px-1.5 py-1 rounded-lg border border-green-400 text-sm text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="w-10 px-1.5 py-1 rounded-lg border border-brand-400 text-sm text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <button
               type="button"
               onClick={commitPoints}
-              className="text-xs font-semibold text-green-700 px-1.5 py-1 rounded-md bg-green-100 hover:bg-green-200"
+              className="text-xs font-semibold text-brand-700 px-1.5 py-1 rounded-md bg-brand-100 hover:bg-brand-200"
             >
               OK
             </button>
@@ -1221,7 +1221,7 @@ function HoleRow({
           <>
             <span
               className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs px-2 ${
-                hasPoints ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
+                hasPoints ? "bg-brand-100 text-brand-700" : "bg-surface-muted text-ink-hint"
               }`}
             >
               {hasPoints ? hole.stablefordPoints : "—"}
@@ -1231,7 +1231,7 @@ function HoleRow({
                 type="button"
                 aria-label={`Edit Stableford points for hole ${hole.holeNumber}`}
                 onClick={openPointsEditor}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-green-600 hover:bg-green-50"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-brand-600 hover:bg-brand-50"
               >
                 <PencilIcon className="h-4 w-4" />
               </button>
@@ -1259,16 +1259,16 @@ function SideClaimSelect({
   onChange: (winnerId: string) => void;
 }) {
   return (
-    <label className="block rounded-xl bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-medium text-gray-800">{label}</span>
-      <span className="block text-xs text-gray-500 mb-1">
+    <label className="block rounded-xl bg-surface-muted px-3 py-2">
+      <span className="block text-sm font-medium text-ink-title">{label}</span>
+      <span className="block text-sm text-ink-muted mb-1">
         Current holder: {claim?.winnerName ?? "Not set"}
       </span>
       <select
         value={claim?.winnerId ?? ""}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled || saving}
-        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 disabled:bg-gray-100 disabled:text-gray-400"
+        className="w-full rounded-lg border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-title disabled:bg-surface-muted disabled:text-ink-hint"
       >
         <option value="">No winner selected</option>
         {members.map((member) => (

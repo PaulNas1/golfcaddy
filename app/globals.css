@@ -9,15 +9,45 @@
  * next/font/local in app/layout.tsx and consumed via tailwind.config.ts
  * fontFamily tokens.
  *
- * This app intentionally does NOT support a dark-mode variant — the
- * product is used on the golf course in bright sunlight and the green
- * brand palette is designed for daylight readability.
+ * Surface and ink design tokens are CSS custom properties so they can
+ * flip automatically under prefers-color-scheme: dark without touching
+ * any component classes.
  */
+
+:root {
+  /* ── Light mode ──────────────────────────────────────── */
+  --surface-page:    #f9fafb;
+  --surface-card:    #ffffff;
+  --surface-muted:   #f3f4f6;
+  --surface-overlay: #e5e7eb;
+
+  --ink-title: #111827;
+  --ink-body:  #374151;
+  --ink-muted: #6b7280;
+  --ink-hint:  #9ca3af;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* ── Dark mode ───────────────────────────────────────── */
+    --surface-page:    #0f172a;
+    --surface-card:    #1e293b;
+    --surface-muted:   #162032;
+    --surface-overlay: #334155;
+
+    --ink-title: #f1f5f9;
+    --ink-body:  #cbd5e1;
+    --ink-muted: #94a3b8;
+    --ink-hint:  #64748b;
+  }
+}
 
 html,
 body {
   /* Prevent bounce-scroll hijacking the fixed bottom nav on iOS */
   overscroll-behavior-y: contain;
+  /* Match the app background in dark mode so areas outside max-w-lg don't flash white */
+  background-color: var(--surface-page);
 }
 
 @layer utilities {

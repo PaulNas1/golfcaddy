@@ -40,18 +40,20 @@ const config: Config = {
           900: "#14532d",
         },
         // ── Surface / card backgrounds ────────────────────────────────
+        // Values driven by CSS custom properties — dark mode flips them
+        // in globals.css under @media (prefers-color-scheme: dark).
         surface: {
-          page:    "#f9fafb", // app page background  (gray-50)
-          card:    "#ffffff", // elevated card
-          muted:   "#f3f4f6", // subtle input / stat bg (gray-100)
-          overlay: "#e5e7eb", // divider / border      (gray-200)
+          page:    "var(--surface-page)",
+          card:    "var(--surface-card)",
+          muted:   "var(--surface-muted)",
+          overlay: "var(--surface-overlay)",
         },
         // ── Text hierarchy ────────────────────────────────────────────
         ink: {
-          title:  "#111827", // heavy headings        (gray-900)
-          body:   "#374151", // body copy             (gray-700)
-          muted:  "#6b7280", // secondary text        (gray-500)
-          hint:   "#9ca3af", // placeholder / caption (gray-400)
+          title:  "var(--ink-title)",
+          body:   "var(--ink-body)",
+          muted:  "var(--ink-muted)",
+          hint:   "var(--ink-hint)",
         },
         // ── Status badges ─────────────────────────────────────────────
         live: {

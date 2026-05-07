@@ -16,9 +16,9 @@ export default function RoundStatusSection({
   onSendScoreReminder,
 }: Props) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+    <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold text-gray-800">Round Status</h2>
+        <h2 className="font-semibold text-ink-title">Round Status</h2>
         {round.resultsPublished && (
           <span className="rounded-full bg-gray-800 px-3 py-1 text-xs font-semibold text-white">
             Completed
@@ -40,14 +40,14 @@ export default function RoundStatusSection({
                     ? s === "live"
                       ? "bg-red-500 text-white border-red-500"
                       : "bg-gray-800 text-white border-gray-800"
-                    : "border-gray-200 text-gray-600 hover:bg-gray-50"
+                    : "border-surface-overlay text-ink-body hover:bg-surface-muted"
                 }`}
               >
                 {s === "live" ? "● Live" : "Upcoming"}
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-ink-hint">
             Setting to Live opens scoring and notifies all members. Round is
             marked Completed automatically when you publish results below.
           </p>
@@ -59,7 +59,7 @@ export default function RoundStatusSection({
           type="button"
           onClick={onSendScoreReminder}
           disabled={saving}
-          className="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:text-gray-300"
+          className="w-full rounded-xl border border-surface-overlay bg-surface-card py-2.5 text-sm font-semibold text-ink-body transition-colors hover:bg-surface-muted disabled:text-ink-hint"
         >
           {saving ? "Sending..." : "Send score reminder"}
         </button>

@@ -48,7 +48,7 @@ function CourseParCorrectionForm({
         <select
           value={hole}
           onChange={(e) => setHole(e.target.value)}
-          className="min-w-0 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 px-3 py-2.5 rounded-xl border border-surface-overlay text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">Hole</option>
           {holes.map((h) => (
@@ -60,7 +60,7 @@ function CourseParCorrectionForm({
         <select
           value={par}
           onChange={(e) => setPar(e.target.value)}
-          className="min-w-0 px-2 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 px-2 py-2.5 rounded-xl border border-surface-overlay text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">Par</option>
           {[3, 4, 5].map((n) => (
@@ -75,7 +75,7 @@ function CourseParCorrectionForm({
           value={yardage}
           onChange={(e) => setYardage(e.target.value)}
           placeholder="m"
-          className="min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-center text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="min-w-0 rounded-xl border border-surface-overlay px-2 py-2.5 text-center text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
           aria-label="Distance in metres"
         />
       </div>
@@ -83,7 +83,7 @@ function CourseParCorrectionForm({
         type="button"
         onClick={handle}
         disabled={disabled || !hole || !par}
-        className="w-full rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-400"
+        className="w-full rounded-xl border border-brand-200 bg-brand-50 py-2.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:text-brand-400"
       >
         Save Correction
       </button>
@@ -151,7 +151,7 @@ function HoleOverrideForm({
           value={hole}
           onChange={(e) => setHole(e.target.value)}
           disabled={isEditing}
-          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="flex-1 px-3 py-2.5 rounded-xl border border-surface-overlay text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">Hole</option>
           {holes.map((h) => (
@@ -163,7 +163,7 @@ function HoleOverrideForm({
         <select
           value={par}
           onChange={(e) => setPar(e.target.value)}
-          className="flex-1 px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="flex-1 px-3 py-2.5 rounded-xl border border-surface-overlay text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">New par</option>
           {[3, 4, 5].map((n) => (
@@ -178,7 +178,7 @@ function HoleOverrideForm({
           value={yardage}
           onChange={(e) => setYardage(e.target.value)}
           placeholder="m"
-          className="w-16 min-w-0 rounded-xl border border-gray-200 px-2 py-2.5 text-center text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="w-16 min-w-0 rounded-xl border border-surface-overlay px-2 py-2.5 text-center text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
           aria-label="Yardage override in metres"
         />
       </div>
@@ -187,7 +187,7 @@ function HoleOverrideForm({
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Reason (e.g. GUR, temporary green)"
-        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
       />
       <button
         type="button"
@@ -210,7 +210,7 @@ function HoleOverrideForm({
             setReason("");
           }}
           disabled={disabled}
-          className="w-full rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50 disabled:text-gray-300"
+          className="w-full rounded-xl border border-surface-overlay bg-surface-card py-2.5 text-sm font-semibold text-ink-body transition-colors hover:bg-surface-muted disabled:text-ink-hint"
         >
           Cancel edit
         </button>
@@ -565,7 +565,7 @@ export default function CourseCorrectionsSection({
       className={`rounded-2xl shadow-sm border p-4 overflow-hidden ${
         round.holeOverrides.length > 0
           ? "border-amber-200 bg-amber-50/40"
-          : "border-gray-100 bg-white"
+          : "border-surface-overlay bg-surface-card"
       }`}
     >
       <button
@@ -574,7 +574,7 @@ export default function CourseCorrectionsSection({
         className="flex w-full items-center justify-between gap-3 text-left"
       >
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-gray-800">Course Corrections</h2>
+          <h2 className="font-semibold text-ink-title">Course Corrections</h2>
           {round.holeOverrides.length > 0 && (
             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
               {round.holeOverrides.length} active override
@@ -582,7 +582,7 @@ export default function CourseCorrectionsSection({
             </span>
           )}
         </div>
-        <span className="shrink-0 text-sm text-gray-400">
+        <span className="shrink-0 text-sm text-ink-hint">
           {open ? "▲" : "▼"}
         </span>
       </button>
@@ -598,10 +598,10 @@ export default function CourseCorrectionsSection({
           {/* Correct Hole Par */}
           <div className="space-y-3">
             <div>
-              <p className="text-sm font-semibold text-gray-800">
+              <p className="text-sm font-semibold text-ink-title">
                 Correct Hole Par &amp; Yardage
               </p>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-ink-muted mt-0.5">
                 Fix incorrect course data — writes directly to this round&apos;s
                 hole data. No players are notified. For in-round changes (GUR
                 etc.) use the Live Par Override in the round panel.
@@ -615,7 +615,7 @@ export default function CourseCorrectionsSection({
 
             {round.holeOverrides.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-gray-600">
+                <p className="text-xs font-medium text-ink-body">
                   Active live overrides:
                 </p>
                 {round.holeOverrides.map((o, index) => (
@@ -643,7 +643,7 @@ export default function CourseCorrectionsSection({
                         onClick={() => setEditingOverride(o)}
                         disabled={saving}
                         aria-label={`Edit override for hole ${o.holeNumber}`}
-                        className="rounded-lg border border-amber-200 bg-white p-2 text-amber-700 transition-colors hover:bg-amber-100 disabled:text-amber-300"
+                        className="rounded-lg border border-amber-200 bg-surface-card p-2 text-amber-700 transition-colors hover:bg-amber-100 disabled:text-amber-300"
                       >
                         <PencilIcon className="h-4 w-4" />
                       </button>
@@ -652,7 +652,7 @@ export default function CourseCorrectionsSection({
                         onClick={() => deleteHoleOverride(o, index)}
                         disabled={saving}
                         aria-label={`Delete override for hole ${o.holeNumber}`}
-                        className="rounded-lg border border-red-100 bg-white p-2 text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
+                        className="rounded-lg border border-red-100 bg-surface-card p-2 text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
                       >
                         <TrashIcon className="h-4 w-4" />
                       </button>
@@ -667,10 +667,10 @@ export default function CourseCorrectionsSection({
           {round.status === "live" && !round.resultsPublished && (
             <div className="space-y-3 border-t border-amber-100 pt-5">
               <div>
-                <p className="text-sm font-semibold text-gray-700">
+                <p className="text-sm font-semibold text-ink-body">
                   Live Par Override
                 </p>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-ink-hint mt-0.5">
                   Apply an on-the-fly change (GUR, temporary tee). Players are
                   notified instantly.
                 </p>
@@ -686,13 +686,13 @@ export default function CourseCorrectionsSection({
           )}
 
           {/* Course Rating & Slope */}
-          <div className="space-y-3 border-t border-gray-100 pt-5">
+          <div className="space-y-3 border-t border-surface-overlay pt-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-gray-800">
+                <p className="text-sm font-semibold text-ink-title">
                   Course Rating &amp; Slope
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-ink-muted mt-0.5">
                   Used for slope-adjusted playing handicap. Leave blank if not
                   applicable.
                 </p>
@@ -713,7 +713,7 @@ export default function CourseCorrectionsSection({
                     );
                     setEditingRatingSlope(true);
                   }}
-                  className="shrink-0 text-xs font-medium text-green-700 hover:underline"
+                  className="shrink-0 text-xs font-medium text-brand-700 hover:underline"
                 >
                   Edit
                 </button>
@@ -723,7 +723,7 @@ export default function CourseCorrectionsSection({
                     type="button"
                     onClick={() => setEditingRatingSlope(false)}
                     disabled={savingRatingSlope}
-                    className="text-xs font-medium text-gray-500 hover:underline disabled:text-gray-300"
+                    className="text-xs font-medium text-ink-muted hover:underline disabled:text-ink-hint"
                   >
                     Cancel
                   </button>
@@ -731,7 +731,7 @@ export default function CourseCorrectionsSection({
                     type="button"
                     onClick={saveRatingSlope}
                     disabled={savingRatingSlope}
-                    className="text-xs font-semibold text-green-700 hover:underline disabled:text-green-300"
+                    className="text-xs font-semibold text-brand-700 hover:underline disabled:text-brand-300"
                   >
                     {savingRatingSlope ? "Saving…" : "Save"}
                   </button>
@@ -762,19 +762,19 @@ export default function CourseCorrectionsSection({
 
             {!editingRatingSlope ? (
               <div className="flex gap-3">
-                <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <div className="flex-1 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-hint">
                     Course Rating
                   </p>
-                  <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                  <p className="mt-0.5 text-sm font-semibold text-ink-title">
                     {round.courseRating != null ? round.courseRating : "—"}
                   </p>
                 </div>
-                <div className="flex-1 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-center">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                <div className="flex-1 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-ink-hint">
                     Slope
                   </p>
-                  <p className="mt-0.5 text-sm font-semibold text-gray-800">
+                  <p className="mt-0.5 text-sm font-semibold text-ink-title">
                     {round.slopeRating != null ? round.slopeRating : "—"}
                   </p>
                 </div>
@@ -782,7 +782,7 @@ export default function CourseCorrectionsSection({
             ) : (
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                  <label className="block text-xs font-medium text-ink-muted mb-1">
                     Course Rating
                   </label>
                   <input
@@ -793,11 +793,11 @@ export default function CourseCorrectionsSection({
                     value={courseRatingDraft}
                     onChange={(e) => setCourseRatingDraft(e.target.value)}
                     placeholder="e.g. 71.5"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">
+                  <label className="block text-xs font-medium text-ink-muted mb-1">
                     Slope
                   </label>
                   <input
@@ -807,7 +807,7 @@ export default function CourseCorrectionsSection({
                     value={slopeRatingDraft}
                     onChange={(e) => setSlopeRatingDraft(e.target.value)}
                     placeholder="e.g. 125"
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
                 </div>
               </div>
@@ -816,13 +816,13 @@ export default function CourseCorrectionsSection({
 
           {/* Stroke Indexes */}
           {round.courseHoles.length === 18 && (
-            <div className="space-y-3 border-t border-gray-100 pt-5">
+            <div className="space-y-3 border-t border-surface-overlay pt-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">
+                  <p className="text-sm font-semibold text-ink-title">
                     Stroke Indexes
                   </p>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-ink-muted mt-0.5">
                     Stroke index 1 = hardest hole. All 18 must be unique.
                   </p>
                 </div>
@@ -830,7 +830,7 @@ export default function CourseCorrectionsSection({
                   <button
                     type="button"
                     onClick={() => setEditingStrokeIndexes(true)}
-                    className="shrink-0 text-xs font-medium text-green-700 hover:underline"
+                    className="shrink-0 text-xs font-medium text-brand-700 hover:underline"
                   >
                     Edit
                   </button>
@@ -847,7 +847,7 @@ export default function CourseCorrectionsSection({
                         setStrokeIndexDrafts(drafts);
                       }}
                       disabled={savingStrokeIndexes}
-                      className="text-xs font-medium text-gray-500 hover:underline disabled:text-gray-300"
+                      className="text-xs font-medium text-ink-muted hover:underline disabled:text-ink-hint"
                     >
                       Cancel
                     </button>
@@ -855,7 +855,7 @@ export default function CourseCorrectionsSection({
                       type="button"
                       onClick={saveStrokeIndexes}
                       disabled={savingStrokeIndexes}
-                      className="text-xs font-semibold text-green-700 hover:underline disabled:text-green-300"
+                      className="text-xs font-semibold text-brand-700 hover:underline disabled:text-brand-300"
                     >
                       {savingStrokeIndexes ? "Saving…" : "Save"}
                     </button>
@@ -880,7 +880,7 @@ export default function CourseCorrectionsSection({
                 {round.courseHoles.flatMap((h) => [
                   <div
                     key={`lbl-${h.number}`}
-                    className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1.5 text-xs font-semibold text-gray-500"
+                    className="flex items-center justify-center rounded-lg bg-surface-muted px-1 py-1.5 text-xs font-semibold text-ink-muted"
                   >
                     H{h.number}
                   </div>,
@@ -897,12 +897,12 @@ export default function CourseCorrectionsSection({
                           [h.number]: e.target.value,
                         }))
                       }
-                      className="w-full rounded-lg border border-gray-200 px-1 py-1.5 text-center text-xs text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500"
+                      className="w-full rounded-lg border border-surface-overlay px-1 py-1.5 text-center text-xs text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500"
                     />
                   ) : (
                     <div
                       key={`si-${h.number}`}
-                      className="flex items-center justify-center rounded-lg border border-gray-100 px-1 py-1.5 text-center font-medium text-gray-800"
+                      className="flex items-center justify-center rounded-lg border border-surface-overlay px-1 py-1.5 text-center font-medium text-ink-title"
                     >
                       {strokeIndexDrafts[h.number] ?? h.strokeIndex}
                     </div>
@@ -914,19 +914,19 @@ export default function CourseCorrectionsSection({
 
           {/* Save to Corrections Library */}
           {round.teeSetId && (
-            <div className="border-t border-gray-100 pt-5 space-y-2">
+            <div className="border-t border-surface-overlay pt-5 space-y-2">
               <div>
-                <p className="text-sm font-semibold text-gray-800">
+                <p className="text-sm font-semibold text-ink-title">
                   Save as Course Corrections
                 </p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-xs text-ink-muted mt-0.5">
                   Saves the current Course Rating, Slope, and all hole Stroke
                   Indexes as permanent corrections for this tee set. Next time
                   you select this course, you&apos;ll be offered these values.
                 </p>
               </div>
               {correctionLibrarySaved && (
-                <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700">
+                <div className="rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700">
                   Corrections saved — they&apos;ll be offered next time this tee
                   set is selected.
                 </div>
@@ -935,7 +935,7 @@ export default function CourseCorrectionsSection({
                 type="button"
                 onClick={saveToCorrectionsLibrary}
                 disabled={savingCorrectionLibrary}
-                className="w-full rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:text-green-400"
+                className="w-full rounded-xl border border-brand-200 bg-brand-50 py-2.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:text-brand-400"
               >
                 {savingCorrectionLibrary
                   ? "Saving…"

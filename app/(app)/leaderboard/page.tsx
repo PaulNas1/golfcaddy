@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useGroupData } from "@/contexts/GroupDataContext";
 import { subscribeSeasonStandings } from "@/lib/firestore";
 import { getVisibleSeasonStandings } from "@/lib/standingsDisplay";
@@ -243,6 +243,12 @@ export default function LeaderboardPage() {
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
+const PODIUM = [
+  { medal: "🥇", border: "border-amber-300",  rankBg: "bg-amber-50",  rankText: "text-amber-700"  },
+  { medal: "🥈", border: "border-zinc-300",   rankBg: "bg-zinc-50",   rankText: "text-zinc-600"   },
+  { medal: "🥉", border: "border-orange-300", rankBg: "bg-orange-50", rankText: "text-orange-700" },
+] as const;
+
 function StandingCard({
   entry,
   isCurrentUser,
@@ -250,18 +256,44 @@ function StandingCard({
   entry: LeaderboardEntry;
   isCurrentUser: boolean;
 }) {
+  const [showProvisionalTip, setShowProvisionalTip] = useState(false);
+  const tipRef = useRef<HTMLSpanElement>(null);
+  const podium = entry.currentRank != null && entry.currentRank <= 3
+    ? PODIUM[entry.currentRank - 1]
+    : null;
+
+  // Close tooltip when tapping outside
+  useEffect(() => {
+    if (!showProvisionalTip) return;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      if (tipRef.current && !tipRef.current.contains(e.target as Node)) {
+        setShowProvisionalTip(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, [showProvisionalTip]);
+
   return (
     <div
       className={`bg-surface-card rounded-2xl shadow-sm border p-4 ${
-        isCurrentUser ? "border-brand-200" : "border-surface-overlay"
+        podium ? podium.border : isCurrentUser ? "border-brand-200" : "border-surface-overlay"
       }`}
     >
       <div className="flex items-center gap-3">
         {/* Rank column */}
-        <div className="w-16 text-center shrink-0">
-          <p className="text-xl font-bold text-ink-title">
-            {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
-          </p>
+        <div className={`w-14 text-center shrink-0 rounded-xl py-1.5 ${podium ? podium.rankBg : ""}`}>
+          {podium ? (
+            <p className="text-2xl leading-none">{podium.medal}</p>
+          ) : (
+            <p className="text-xl font-bold text-ink-title">
+              {entry.currentRank != null ? `#${entry.currentRank}` : "—"}
+            </p>
+          )}
           <p className="mt-0.5 text-xs text-ink-hint">
             {entry.hasStanding ? getRankMovement(entry) : "Unranked"}
           </p>
@@ -284,17 +316,27 @@ function StandingCard({
             {entry.lastStableford != null && (
               <span>Last {entry.lastStableford} pts</span>
             )}
-            <span
-              className={`rounded-full px-2 py-0.5 font-medium ${
-                entry.probation
-                  ? "bg-announce-bg text-announce-muted"
-                  : "bg-surface-muted text-ink-muted"
-              }`}
-            >
-              {entry.probation
-                ? "Provisional"
-                : `HCP ${formatHandicap(entry.currentHandicap)}`}
-            </span>
+            {entry.probation ? (
+              <span ref={tipRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowProvisionalTip((v) => !v)}
+                  className="rounded-full bg-announce-bg px-2 py-0.5 font-medium text-announce-muted underline decoration-dotted"
+                >
+                  Provisional ⓘ
+                </button>
+                {showProvisionalTip && (
+                  <span className="absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-xl bg-ink-title px-3 py-2 text-xs text-white shadow-lg">
+                    This player is still building their handicap. Points won&apos;t count toward the ladder until they&apos;re eligible.
+                    <span className="absolute -bottom-1 left-4 h-2 w-2 rotate-45 bg-ink-title" />
+                  </span>
+                )}
+              </span>
+            ) : (
+              <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-ink-muted">
+                HCP {formatHandicap(entry.currentHandicap)}
+              </span>
+            )}
           </div>
         </div>
 
