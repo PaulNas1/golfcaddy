@@ -9,9 +9,9 @@
  * next/font/local in app/layout.tsx and consumed via tailwind.config.ts
  * fontFamily tokens.
  *
- * Surface and ink design tokens are CSS custom properties so they can
- * flip automatically under prefers-color-scheme: dark without touching
- * any component classes.
+ * All design tokens are CSS custom properties so they flip automatically
+ * under prefers-color-scheme: dark without touching any component classes.
+ * Explicit data-theme overrides beat the system setting in both directions.
  */
 
 :root {
@@ -31,6 +31,21 @@
   --announce-text:   #78350f;
   --announce-label:  #92400e;
   --announce-muted:  #b45309;
+
+  /* Round status badges */
+  --upcoming-bg:   #dbeafe;
+  --upcoming-text: #1d4ed8;
+  --completed-bg:  #f3f4f6;
+  --completed-text: #4b5563;
+  --live-ring:     #fca5a5;
+
+  /* Subscription status badges (platform-admin) */
+  --sub-exempt-bg:    #f3e8ff; --sub-exempt-text:    #7e22ce;
+  --sub-trial-bg:     #dbeafe; --sub-trial-text:     #1d4ed8;
+  --sub-active-bg:    #dcfce7; --sub-active-text:    #15803d;
+  --sub-pastdue-bg:   #fef3c7; --sub-pastdue-text:   #92400e;
+  --sub-suspended-bg: #fee2e2; --sub-suspended-text: #b91c1c;
+  --sub-none-bg:      #f3f4f6; --sub-none-text:      #6b7280;
 }
 
 /* System dark mode — only applies when no explicit data-theme is set */
@@ -52,6 +67,19 @@
     --announce-text:   #fde68a;
     --announce-label:  #fbbf24;
     --announce-muted:  #d97706;
+
+    --upcoming-bg:   #1e3a5f;
+    --upcoming-text: #93c5fd;
+    --completed-bg:  #1e293b;
+    --completed-text: #94a3b8;
+    --live-ring:     #7f1d1d;
+
+    --sub-exempt-bg:    #3b0764; --sub-exempt-text:    #d8b4fe;
+    --sub-trial-bg:     #1e3a5f; --sub-trial-text:     #93c5fd;
+    --sub-active-bg:    #0d2318; --sub-active-text:    #86efac;
+    --sub-pastdue-bg:   #1c1300; --sub-pastdue-text:   #fcd34d;
+    --sub-suspended-bg: #450a0a; --sub-suspended-text: #fca5a5;
+    --sub-none-bg:      #162032; --sub-none-text:      #94a3b8;
   }
 }
 
@@ -73,6 +101,19 @@
   --announce-text:   #fde68a;
   --announce-label:  #fbbf24;
   --announce-muted:  #d97706;
+
+  --upcoming-bg:   #1e3a5f;
+  --upcoming-text: #93c5fd;
+  --completed-bg:  #1e293b;
+  --completed-text: #94a3b8;
+  --live-ring:     #7f1d1d;
+
+  --sub-exempt-bg:    #3b0764; --sub-exempt-text:    #d8b4fe;
+  --sub-trial-bg:     #1e3a5f; --sub-trial-text:     #93c5fd;
+  --sub-active-bg:    #0d2318; --sub-active-text:    #86efac;
+  --sub-pastdue-bg:   #1c1300; --sub-pastdue-text:   #fcd34d;
+  --sub-suspended-bg: #450a0a; --sub-suspended-text: #fca5a5;
+  --sub-none-bg:      #162032; --sub-none-text:      #94a3b8;
 }
 
 /* Explicit light override — forces light even if system is dark */
@@ -93,6 +134,19 @@
   --announce-text:   #78350f;
   --announce-label:  #92400e;
   --announce-muted:  #b45309;
+
+  --upcoming-bg:   #dbeafe;
+  --upcoming-text: #1d4ed8;
+  --completed-bg:  #f3f4f6;
+  --completed-text: #4b5563;
+  --live-ring:     #fca5a5;
+
+  --sub-exempt-bg:    #f3e8ff; --sub-exempt-text:    #7e22ce;
+  --sub-trial-bg:     #dbeafe; --sub-trial-text:     #1d4ed8;
+  --sub-active-bg:    #dcfce7; --sub-active-text:    #15803d;
+  --sub-pastdue-bg:   #fef3c7; --sub-pastdue-text:   #92400e;
+  --sub-suspended-bg: #fee2e2; --sub-suspended-text: #b91c1c;
+  --sub-none-bg:      #f3f4f6; --sub-none-text:      #6b7280;
 }
 
 html,
@@ -120,6 +174,18 @@ input::placeholder,
 textarea::placeholder {
   color: var(--ink-hint);
   opacity: 1; /* Firefox reduces placeholder opacity by default */
+}
+
+/* Bump placeholder contrast in dark mode — ink-hint is too faint on surface-muted */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input::placeholder,
+  :root:not([data-theme="light"]) textarea::placeholder {
+    color: var(--ink-muted);
+  }
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--ink-muted);
 }
 
 @layer utilities {

@@ -96,15 +96,15 @@ export default function SignInPage() {
 
         {/* Step 1 – Find group */}
         {step === 1 && (
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-1">Find your group</h2>
-            <p className="text-gray-500 text-sm mb-6">
+          <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-ink-title mb-1">Find your group</h2>
+            <p className="text-ink-muted text-sm mb-6">
               Enter your social golf group name to get started.
             </p>
 
             <form onSubmit={handleGroupLookup} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-ink-body mb-1">
                   Group name
                 </label>
                 <input
@@ -113,7 +113,7 @@ export default function SignInPage() {
                   onChange={(e) => setGroupInput(e.target.value)}
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="e.g. Four Play"
                 />
               </div>
@@ -133,8 +133,8 @@ export default function SignInPage() {
               </button>
             </form>
 
-            <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-              <p className="text-gray-500 text-sm">
+            <div className="mt-6 pt-6 border-t border-surface-overlay text-center">
+              <p className="text-ink-muted text-sm">
                 New member?{" "}
                 <Link href="/signup" className="text-green-600 font-medium hover:underline">
                   Request access
@@ -146,7 +146,7 @@ export default function SignInPage() {
 
         {/* Step 2 – Sign in */}
         {step === 2 && foundGroup && (
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
+          <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6">
             {/* Group badge */}
             <button
               onClick={() => { setStep(1); setSignInError(""); }}
@@ -164,19 +164,19 @@ export default function SignInPage() {
                   ⛳
                 </span>
               )}
-              <span className="text-sm font-semibold text-gray-700 group-hover:text-green-600 transition-colors">
+              <span className="text-sm font-semibold text-ink-body group-hover:text-green-600 transition-colors">
                 {foundGroup.name}
               </span>
-              <span className="text-xs text-gray-400 group-hover:text-green-500 transition-colors">
+              <span className="text-xs text-ink-hint group-hover:text-green-500 transition-colors">
                 ✕ change
               </span>
             </button>
 
-            <h2 className="text-xl font-bold text-gray-800 mb-6">Sign in</h2>
+            <h2 className="text-xl font-bold text-ink-title mb-6">Sign in</h2>
 
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-ink-body mb-1">
                   Email
                 </label>
                 <input
@@ -185,14 +185,14 @@ export default function SignInPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="you@example.com"
                   autoComplete="email"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-ink-body mb-1">
                   Password
                 </label>
                 <input
@@ -200,7 +200,7 @@ export default function SignInPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
@@ -230,8 +230,8 @@ export default function SignInPage() {
               </Link>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-              <p className="text-gray-500 text-sm">
+            <div className="mt-6 pt-6 border-t border-surface-overlay text-center">
+              <p className="text-ink-muted text-sm">
                 New member?{" "}
                 <Link href="/signup" className="text-green-600 font-medium hover:underline">
                   Request access
@@ -241,7 +241,7 @@ export default function SignInPage() {
           </div>
         )}
       </div>
-      <footer className="mt-6 text-center text-xs text-gray-400 space-x-4">
+      <footer className="mt-6 text-center text-xs text-green-200/70 space-x-4">
         <Link href="/terms">Terms of Use</Link>
         <Link href="/privacy">Privacy Policy</Link>
       </footer>

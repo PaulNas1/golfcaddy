@@ -56,18 +56,19 @@ const config: Config = {
           hint:   "var(--ink-hint)",
         },
         // ── Status badges ─────────────────────────────────────────────
+        // CSS-variable-driven so dark mode flips them — see globals.css
         live: {
-          bg:   "#ef4444", // red-500
+          bg:   "#ef4444", // red-500 — solid, fine in both modes
           text: "#ffffff",
-          ring: "#fca5a5", // red-300
+          ring: "var(--live-ring)",
         },
         upcoming: {
-          bg:   "#dbeafe", // blue-100
-          text: "#1d4ed8", // blue-700
+          bg:   "var(--upcoming-bg)",
+          text: "var(--upcoming-text)",
         },
         completed: {
-          bg:   "#f3f4f6", // gray-100
-          text: "#4b5563", // gray-600
+          bg:   "var(--completed-bg)",
+          text: "var(--completed-text)",
         },
         // ── Announcement amber ────────────────────────────────────────
         // CSS-variable-driven so dark mode can flip them — see globals.css

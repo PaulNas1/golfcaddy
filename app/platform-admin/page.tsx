@@ -43,12 +43,12 @@ const STATUS_CONFIG: Record<
   SubscriptionStatus | "none",
   { label: string; bg: string; text: string }
 > = {
-  exempt:    { label: "Exempt",    bg: "bg-purple-100", text: "text-purple-700" },
-  trial:     { label: "Trial",     bg: "bg-blue-100",   text: "text-blue-700" },
-  active:    { label: "Active",    bg: "bg-green-100",  text: "text-green-700" },
-  past_due:  { label: "Past Due",  bg: "bg-amber-100",  text: "text-amber-700" },
-  suspended: { label: "Suspended", bg: "bg-red-100",    text: "text-red-700" },
-  none:      { label: "No plan",   bg: "bg-gray-100",   text: "text-gray-500" },
+  exempt:    { label: "Exempt",    bg: "bg-[var(--sub-exempt-bg)]",    text: "text-[var(--sub-exempt-text)]" },
+  trial:     { label: "Trial",     bg: "bg-[var(--sub-trial-bg)]",     text: "text-[var(--sub-trial-text)]" },
+  active:    { label: "Active",    bg: "bg-[var(--sub-active-bg)]",    text: "text-[var(--sub-active-text)]" },
+  past_due:  { label: "Past Due",  bg: "bg-[var(--sub-pastdue-bg)]",   text: "text-[var(--sub-pastdue-text)]" },
+  suspended: { label: "Suspended", bg: "bg-[var(--sub-suspended-bg)]", text: "text-[var(--sub-suspended-text)]" },
+  none:      { label: "No plan",   bg: "bg-[var(--sub-none-bg)]",      text: "text-[var(--sub-none-text)]" },
 };
 
 const PLAN_LABELS: Record<SubscriptionPlan, string> = {
@@ -198,8 +198,8 @@ export default function PlatformAdminPage() {
 
   if (authLoading || (!isAuthorised && !authLoading)) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-400 text-sm">Loading...</p>
+      <div className="min-h-screen bg-surface-page flex items-center justify-center">
+        <p className="text-ink-hint text-sm">Loading...</p>
       </div>
     );
   }
@@ -208,7 +208,7 @@ export default function PlatformAdminPage() {
   const hasUnseeded = unseeded.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface-page">
       {/* Header */}
       <div className="bg-green-700 px-4 py-5">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
@@ -248,13 +248,13 @@ export default function PlatformAdminPage() {
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-7">
             {(
               [
-                ["Total",     stats.total,     "bg-white",     "text-gray-800",    null],
-                ["Exempt",    stats.exempt,    "bg-purple-50", "text-purple-700",  "exempt"],
-                ["Trial",     stats.trial,     "bg-blue-50",   "text-blue-700",    "trial"],
-                ["Active",    stats.active,    "bg-green-50",  "text-green-700",   "active"],
-                ["Past Due",  stats.past_due,  "bg-amber-50",  "text-amber-700",   "past_due"],
-                ["Suspended", stats.suspended, "bg-red-50",    "text-red-700",     "suspended"],
-                ["No Plan",   stats.none,      "bg-gray-50",   "text-gray-500",    "none"],
+                ["Total",     stats.total,     "bg-surface-card",              "text-ink-title",                    null],
+                ["Exempt",    stats.exempt,    "bg-[var(--sub-exempt-bg)]",    "text-[var(--sub-exempt-text)]",    "exempt"],
+                ["Trial",     stats.trial,     "bg-[var(--sub-trial-bg)]",     "text-[var(--sub-trial-text)]",     "trial"],
+                ["Active",    stats.active,    "bg-[var(--sub-active-bg)]",    "text-[var(--sub-active-text)]",    "active"],
+                ["Past Due",  stats.past_due,  "bg-[var(--sub-pastdue-bg)]",   "text-[var(--sub-pastdue-text)]",   "past_due"],
+                ["Suspended", stats.suspended, "bg-[var(--sub-suspended-bg)]", "text-[var(--sub-suspended-text)]", "suspended"],
+                ["No Plan",   stats.none,      "bg-[var(--sub-none-bg)]",      "text-[var(--sub-none-text)]",      "none"],
               ] as [string, number, string, string, string | null][]
             ).map(([label, count, bg, text, filterKey]) => {
               const isActive = activeFilter === filterKey;
@@ -265,14 +265,14 @@ export default function PlatformAdminPage() {
                   onClick={() => setActiveFilter(isActive ? null : filterKey)}
                   className={`rounded-2xl border p-3 text-center shadow-sm transition-all ${bg} ${
                     isActive
-                      ? "border-gray-400 ring-2 ring-gray-400 ring-offset-1"
-                      : "border-gray-100 hover:border-gray-300"
+                      ? "border-ink-muted ring-2 ring-ink-muted ring-offset-1"
+                      : "border-surface-overlay hover:border-ink-hint"
                   }`}
                 >
                   <p className={`text-2xl font-bold ${text}`}>{count}</p>
-                  <p className="mt-0.5 text-xs text-gray-500">{label}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">{label}</p>
                   {isActive && (
-                    <p className="mt-1 text-xs font-semibold text-gray-400">✕ clear</p>
+                    <p className="mt-1 text-xs font-semibold text-ink-hint">✕ clear</p>
                   )}
                 </button>
               );
@@ -306,9 +306,9 @@ export default function PlatformAdminPage() {
         <div>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-gray-800">Groups</h2>
+              <h2 className="text-lg font-bold text-ink-title">Groups</h2>
               {activeFilter && (
-                <span className="rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-600 capitalize">
+                <span className="rounded-full bg-surface-overlay px-2.5 py-0.5 text-xs font-medium text-ink-muted capitalize">
                   {activeFilter.replace("_", " ")}
                 </span>
               )}
@@ -316,7 +316,7 @@ export default function PlatformAdminPage() {
             <button
               onClick={fetchGroups}
               disabled={loadingData}
-              className="text-xs text-green-600 hover:underline disabled:text-gray-400"
+              className="text-xs text-green-600 hover:underline disabled:text-ink-hint"
             >
               {loadingData ? "Loading..." : "↻ Refresh"}
             </button>
@@ -325,11 +325,11 @@ export default function PlatformAdminPage() {
           {loadingData ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="animate-pulse bg-gray-100 rounded-2xl h-24" />
+                <div key={i} className="animate-pulse bg-surface-muted rounded-2xl h-24" />
               ))}
             </div>
           ) : groups.length === 0 ? (
-            <div className="rounded-2xl bg-white p-8 text-center text-gray-400 text-sm border border-gray-100">
+            <div className="rounded-2xl bg-surface-card p-8 text-center text-ink-hint text-sm border border-surface-overlay">
               No groups found.
             </div>
           ) : (
@@ -346,24 +346,24 @@ export default function PlatformAdminPage() {
                 return (
                   <div
                     key={group.id}
-                    className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm"
+                    className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
                       {/* Left: identity */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-semibold text-gray-800">{group.name}</span>
-                          <span className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-500">
+                          <span className="font-semibold text-ink-title">{group.name}</span>
+                          <span className="rounded-md bg-surface-muted px-1.5 py-0.5 font-mono text-xs text-ink-muted">
                             {group.slug}
                           </span>
                           <StatusBadge status={subStatus} />
                           {group.subscription?.plan && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-ink-muted">
                               {PLAN_LABELS[group.subscription.plan]}
                             </span>
                           )}
                         </div>
-                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
                           {/* Member usage */}
                           {(() => {
                             const limit = getMemberLimit(group.subscription);
@@ -378,14 +378,14 @@ export default function PlatformAdminPage() {
                                   {limit === Infinity ? `${count} members` : `${count} / ${limit} members`}
                                 </span>
                                 {limit !== Infinity && (
-                                  <span className="inline-flex w-16 h-1.5 rounded-full bg-gray-200 overflow-hidden">
+                                  <span className="inline-flex w-16 h-1.5 rounded-full bg-surface-overlay overflow-hidden">
                                     <span
                                       className={`h-full rounded-full ${atLimit ? "bg-red-400" : nearLimit ? "bg-amber-400" : "bg-green-500"}`}
                                       style={{ width: `${pct}%` }}
                                     />
                                   </span>
                                 )}
-                                <span className="text-gray-400">· {planStr}</span>
+                                <span className="text-ink-hint">· {planStr}</span>
                               </span>
                             );
                           })()}
@@ -411,12 +411,12 @@ export default function PlatformAdminPage() {
                           return (
                             <div className="mt-2.5">
                               <div className="flex items-center justify-between mb-1">
-                                <span className="text-xs text-gray-400">Trial period</span>
+                                <span className="text-xs text-ink-hint">Trial period</span>
                                 <span className={`text-xs font-semibold ${urgent ? "text-red-500" : warning ? "text-amber-500" : "text-blue-500"}`}>
                                   {daysLeft === 0 ? "Expires today" : `${daysLeft} day${daysLeft !== 1 ? "s" : ""} left`}
                                 </span>
                               </div>
-                              <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                              <div className="h-1.5 w-full rounded-full bg-surface-muted overflow-hidden">
                                 <div
                                   className={`h-full rounded-full transition-all ${urgent ? "bg-red-400" : warning ? "bg-amber-400" : "bg-blue-400"}`}
                                   style={{ width: `${pct}%` }}
@@ -432,13 +432,13 @@ export default function PlatformAdminPage() {
                         <button
                           onClick={() => setOpenMenuId((c) => (c === group.id ? null : group.id))}
                           disabled={isActioning}
-                          className="rounded-lg border border-gray-200 p-2 text-gray-500 hover:bg-gray-50 disabled:opacity-40"
+                          className="rounded-lg border border-surface-overlay p-2 text-ink-muted hover:bg-surface-page disabled:opacity-40"
                           aria-label={`Actions for ${group.name}`}
                         >
                           <EllipsisIcon className="h-4 w-4" />
                         </button>
                         {openMenuId === group.id && (
-                          <div className="absolute right-0 top-10 z-20 w-52 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-xl">
+                          <div className="absolute right-0 top-10 z-20 w-52 rounded-2xl border border-surface-overlay bg-surface-card p-1.5 shadow-xl">
                             <ActionItem
                               label="Mark Exempt"
                               description="Free forever"
@@ -493,15 +493,15 @@ export default function PlatformAdminPage() {
 
       {exemptModal && (
         <Modal title={`Exempt: ${exemptModal.name}`} onClose={() => setExemptModal(null)}>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-ink-muted mb-4">
             This group will have free access permanently. Add a note for your own records.
           </p>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Reason</label>
+          <label className="block text-sm font-medium text-ink-body mb-1">Reason</label>
           <input
             type="text"
             value={exemptReason}
             onChange={(e) => setExemptReason(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="e.g. founder_group, beta_tester"
           />
           <div className="mt-4 flex gap-2">
@@ -515,7 +515,7 @@ export default function PlatformAdminPage() {
             >
               Mark Exempt
             </button>
-            <button onClick={() => setExemptModal(null)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm text-gray-600">
+            <button onClick={() => setExemptModal(null)} className="flex-1 rounded-xl border border-surface-overlay py-2.5 text-sm text-ink-muted">
               Cancel
             </button>
           </div>
@@ -525,17 +525,17 @@ export default function PlatformAdminPage() {
       {/* ── Trial Modal ── */}
       {trialModal && (
         <Modal title={`Start Trial: ${trialModal.name}`} onClose={() => setTrialModal(null)}>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-ink-muted mb-4">
             Give this group free access for a set number of days.
           </p>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Trial length (days)</label>
+          <label className="block text-sm font-medium text-ink-body mb-1">Trial length (days)</label>
           <input
             type="number"
             min="1"
             max="365"
             value={trialDays}
             onChange={(e) => setTrialDays(e.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
           <div className="mt-4 flex gap-2">
             <button
@@ -548,7 +548,7 @@ export default function PlatformAdminPage() {
             >
               Start Trial
             </button>
-            <button onClick={() => setTrialModal(null)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm text-gray-600">
+            <button onClick={() => setTrialModal(null)} className="flex-1 rounded-xl border border-surface-overlay py-2.5 text-sm text-ink-muted">
               Cancel
             </button>
           </div>
@@ -558,14 +558,14 @@ export default function PlatformAdminPage() {
       {/* ── Plan / Activate Modal ── */}
       {planModal && (
         <Modal title={`Activate: ${planModal.name}`} onClose={() => setPlanModal(null)}>
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-ink-muted mb-4">
             Manually activate this group on a plan. Stripe will manage this automatically once billing is live.
           </p>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Plan</label>
+          <label className="block text-sm font-medium text-ink-body mb-1">Plan</label>
           <select
             value={selectedPlan}
             onChange={(e) => setSelectedPlan(e.target.value as SubscriptionPlan)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="starter">Starter — 1–20 players</option>
             <option value="club">Club — 21–40 players</option>
@@ -582,7 +582,7 @@ export default function PlatformAdminPage() {
             >
               Activate
             </button>
-            <button onClick={() => setPlanModal(null)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm text-gray-600">
+            <button onClick={() => setPlanModal(null)} className="flex-1 rounded-xl border border-surface-overlay py-2.5 text-sm text-ink-muted">
               Cancel
             </button>
           </div>
@@ -609,12 +609,12 @@ function Modal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+        className="w-full max-w-sm rounded-2xl bg-surface-card p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-800">{title}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+          <h3 className="font-semibold text-ink-title">{title}</h3>
+          <button onClick={onClose} className="text-ink-hint hover:text-ink-muted text-lg">✕</button>
         </div>
         {children}
       </div>
@@ -634,10 +634,10 @@ function ActionItem({
   color: "purple" | "blue" | "green" | "red";
 }) {
   const colors = {
-    purple: "text-purple-700 hover:bg-purple-50",
-    blue:   "text-blue-700 hover:bg-blue-50",
-    green:  "text-green-700 hover:bg-green-50",
-    red:    "text-red-600 hover:bg-red-50",
+    purple: "text-[var(--sub-exempt-text)] hover:bg-[var(--sub-exempt-bg)]",
+    blue:   "text-[var(--sub-trial-text)] hover:bg-[var(--sub-trial-bg)]",
+    green:  "text-[var(--sub-active-text)] hover:bg-[var(--sub-active-bg)]",
+    red:    "text-[var(--sub-suspended-text)] hover:bg-[var(--sub-suspended-bg)]",
   };
   return (
     <button

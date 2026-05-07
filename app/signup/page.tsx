@@ -8,7 +8,7 @@ import { getMemberInvite } from "@/lib/firestore";
 import type { UserGender } from "@/types";
 
 const DATE_INPUT_CLASSNAME =
-  "w-full rounded-xl border border-gray-200 px-4 py-3 text-left text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left";
+  "w-full rounded-xl border border-surface-overlay px-4 py-3 text-left text-base focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left";
 
 export default function SignUpPage() {
   return (
@@ -122,14 +122,14 @@ function SignUpForm() {
           <div className="text-5xl mb-3">⛳</div>
           <h1 className="text-2xl font-bold text-white">GolfCaddy</h1>
         </div>
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6 text-center">
+        <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6 text-center">
           <div className="text-3xl mb-3">🔒</div>
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Invitation required</h2>
-          <p className="text-gray-500 text-sm mb-6">
+          <h2 className="text-lg font-bold text-ink-title mb-2">Invitation required</h2>
+          <p className="text-ink-muted text-sm mb-6">
             GolfCaddy groups are private. You need an invite link from your group
             organiser to create an account.
           </p>
-          <p className="text-gray-400 text-xs mb-6">
+          <p className="text-ink-hint text-xs mb-6">
             Ask your group admin to send you an invite from the Members section of
             their GolfCaddy admin panel.
           </p>
@@ -156,81 +156,81 @@ function SignUpForm() {
           </p>
         </div>
 
-        <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Create account</h2>
-          <p className="text-gray-500 text-sm mb-6">
+        <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6">
+          <h2 className="text-xl font-bold text-ink-title mb-2">Create account</h2>
+          <p className="text-ink-muted text-sm mb-6">
             An admin will review and approve your request before you can access the app.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
+              <label className="block text-sm font-medium text-ink-body mb-1">Full name</label>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Paul Smith" autoComplete="name" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-ink-body mb-1">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="you@example.com" autoComplete="email" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+              <label className="block text-sm font-medium text-ink-body mb-1">Password</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Min 8 characters" autoComplete="new-password" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
+              <label className="block text-sm font-medium text-ink-body mb-1">Confirm password</label>
               <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="••••••••" autoComplete="new-password" />
             </div>
 
-            <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+            <div className="rounded-2xl border border-surface-overlay bg-surface-muted p-4">
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-gray-800">Player profile</h3>
-                <p className="mt-1 text-xs text-gray-500">Optional, but recommended so admins can assign tees properly.</p>
+                <h3 className="text-sm font-semibold text-ink-title">Player profile</h3>
+                <p className="mt-1 text-xs text-ink-muted">Optional, but recommended so admins can assign tees properly.</p>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nickname</label>
+                  <label className="block text-sm font-medium text-ink-body mb-1">Nickname</label>
                   <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Optional nickname" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mobile number</label>
+                  <label className="block text-sm font-medium text-ink-body mb-1">Mobile number</label>
                   <input type="tel" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="Optional mobile" autoComplete="tel" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
+                  <label className="block text-sm font-medium text-ink-body mb-1">Date of birth</label>
                   <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={DATE_INPUT_CLASSNAME} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <label className="block text-sm font-medium text-ink-body mb-1">Gender</label>
                   <select value={gender} onChange={(e) => setGender(e.target.value as UserGender | "")}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500">
+                    className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500">
                     <option value="">Not set</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
                 </div>
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  <span className="text-sm font-medium text-gray-700">I usually play senior tees</span>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-surface-overlay bg-surface-card px-4 py-3">
+                  <span className="text-sm font-medium text-ink-body">I usually play senior tees</span>
                   <input type="checkbox" checked={usesSeniorTees} onChange={(e) => setUsesSeniorTees(e.target.checked)}
-                    className="h-5 w-5 rounded border-gray-300 text-green-600" />
+                    className="h-5 w-5 rounded border-surface-overlay text-green-600" />
                 </label>
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-                  <span className="text-sm font-medium text-gray-700">I usually play pro/back tees</span>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-surface-overlay bg-surface-card px-4 py-3">
+                  <span className="text-sm font-medium text-ink-body">I usually play pro/back tees</span>
                   <input type="checkbox" checked={usesProBackTees} onChange={(e) => setUsesProBackTees(e.target.checked)}
-                    className="h-5 w-5 rounded border-gray-300 text-green-600" />
+                    className="h-5 w-5 rounded border-surface-overlay text-green-600" />
                 </label>
               </div>
             </div>
@@ -241,7 +241,7 @@ function SignUpForm() {
               </div>
             )}
             {checkingInvite && (
-              <div className="bg-white/80 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600">
+              <div className="bg-surface-muted border border-surface-overlay rounded-xl px-4 py-3 text-sm text-ink-muted">
                 Verifying your invite...
               </div>
             )}
@@ -255,8 +255,8 @@ function SignUpForm() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-            <p className="text-gray-500 text-sm">
+          <div className="mt-6 pt-6 border-t border-surface-overlay text-center">
+            <p className="text-ink-muted text-sm">
               Already have an account?{" "}
               <Link href="/signin" className="text-green-600 font-medium hover:underline">Sign in</Link>
             </p>
