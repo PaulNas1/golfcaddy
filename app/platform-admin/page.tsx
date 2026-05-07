@@ -17,10 +17,13 @@ type GroupRow = {
   memberCount: number;
   currentSeason: number;
   adminEmail: string | null;
+  platformNotes: string | null;
   subscription: {
     status: SubscriptionStatus;
     plan: SubscriptionPlan | null;
     exemptReason: string | null;
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
     trialEndsAt: string | null;
     currentPeriodEndsAt: string | null;
   } | null;
@@ -87,8 +90,11 @@ export default function PlatformAdminPage() {
   const [actionGroupId, setActionGroupId] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [seeding, setSeeding] = useState(false);
+  const [expiringTrials, setExpiringTrials] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
+  const [notesValue, setNotesValue] = useState("");
 
   // Modals
   const [exemptModal, setExemptModal] = useState<GroupRow | null>(null);
@@ -164,6 +170,52 @@ export default function PlatformAdminPage() {
     } finally {
       setSeeding(false);
     }
+  };
+
+  // ── Expire trials ────────────────────────────────────────────────────────
+  const handleExpireTrials = async () => {
+    setExpiringTrials(true);
+    setError("");
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const res = await fetch("/api/platform-admin/expire-trials", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed.");
+      setSuccess(
+        data.expired === 0
+          ? "No expired trials found."
+          : `Suspended ${data.expired} expired trial${data.expired !== 1 ? "s" : ""}.`
+      );
+      if (data.expired > 0) await fetchGroups();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed.");
+    } finally {
+      setExpiringTrials(false);
+    }
+  };
+
+  // ── Save notes ────────────────────────────────────────────────────────────
+  const saveNotes = async (groupId: string, notes: string) => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      await fetch("/api/platform-admin/notes", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ groupId, notes }),
+      });
+      setGroups((prev) =>
+        prev.map((g) => (g.id === groupId ? { ...g, platformNotes: notes.trim() || null } : g))
+      );
+    } catch {
+      // non-fatal — notes save silently fails
+    }
+    setEditingNotesId(null);
   };
 
   // ── Update subscription ──────────────────────────────────────────────────
@@ -288,8 +340,8 @@ export default function PlatformAdminPage() {
                 {unseeded.length} group{unseeded.length !== 1 ? "s" : ""} without a subscription plan
               </p>
               <p className="mt-1 text-xs text-amber-700">
-                Run first-time setup to seed FourPlay as exempt and give other groups a 30-day trial.
-                Also grants your account platform admin access permanently.
+                Run first-time setup to give unseeded groups a 30-day trial and grant your account
+                platform admin access permanently.
               </p>
             </div>
             <button
@@ -313,13 +365,22 @@ export default function PlatformAdminPage() {
                 </span>
               )}
             </div>
-            <button
-              onClick={fetchGroups}
-              disabled={loadingData}
-              className="text-xs text-green-600 hover:underline disabled:text-ink-hint"
-            >
-              {loadingData ? "Loading..." : "↻ Refresh"}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleExpireTrials}
+                disabled={expiringTrials || loadingData}
+                className="text-xs text-amber-600 hover:underline disabled:text-ink-hint"
+              >
+                {expiringTrials ? "Expiring..." : "⏱ Expire Trials"}
+              </button>
+              <button
+                onClick={fetchGroups}
+                disabled={loadingData}
+                className="text-xs text-green-600 hover:underline disabled:text-ink-hint"
+              >
+                {loadingData ? "Loading..." : "↻ Refresh"}
+              </button>
+            </div>
           </div>
 
           {loadingData ? (
@@ -396,6 +457,20 @@ export default function PlatformAdminPage() {
                               {group.subscription.exemptReason}
                             </span>
                           )}
+                          {group.subscription?.stripeCustomerId && (
+                            <a
+                              href={`https://dashboard.stripe.com/test/customers/${group.subscription.stripeCustomerId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Stripe ↗
+                            </a>
+                          )}
+                          {group.subscription?.currentPeriodEndsAt && group.subscription.status === "active" && (
+                            <span>Renews {formatDate(group.subscription.currentPeriodEndsAt)}</span>
+                          )}
                         </div>
 
                         {/* Trial countdown bar */}
@@ -425,6 +500,38 @@ export default function PlatformAdminPage() {
                             </div>
                           );
                         })()}
+
+                        {/* Notes */}
+                        {editingNotesId === group.id ? (
+                          <div className="mt-3">
+                            <textarea
+                              autoFocus
+                              value={notesValue}
+                              onChange={(e) => setNotesValue(e.target.value)}
+                              onBlur={() => saveNotes(group.id, notesValue)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") setEditingNotesId(null);
+                                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) saveNotes(group.id, notesValue);
+                              }}
+                              rows={2}
+                              placeholder="Internal notes (only visible here)…"
+                              className="w-full resize-none rounded-lg border border-surface-overlay bg-surface-page px-3 py-2 text-xs text-ink-body focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                            <p className="mt-1 text-xs text-ink-hint">⌘+Enter to save · Esc to cancel · blur to save</p>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setNotesValue(group.platformNotes ?? "");
+                              setEditingNotesId(group.id);
+                            }}
+                            className="mt-2 text-xs text-ink-hint hover:text-ink-muted"
+                          >
+                            {group.platformNotes
+                              ? `📝 ${group.platformNotes}`
+                              : "+ add notes"}
+                          </button>
+                        )}
                       </div>
 
                       {/* Actions menu */}

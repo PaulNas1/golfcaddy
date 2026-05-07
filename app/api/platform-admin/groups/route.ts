@@ -41,9 +41,14 @@ export async function GET(request: NextRequest) {
           memberCount: data.memberCount ?? 0,
           currentSeason: data.currentSeason ?? new Date().getFullYear(),
           adminEmail,
+          platformNotes: data.platformNotes ?? null,
           subscription: data.subscription
             ? {
-                ...data.subscription,
+                status: data.subscription.status ?? null,
+                plan: data.subscription.plan ?? null,
+                exemptReason: data.subscription.exemptReason ?? null,
+                stripeCustomerId: data.subscription.stripeCustomerId ?? null,
+                stripeSubscriptionId: data.subscription.stripeSubscriptionId ?? null,
                 trialEndsAt: data.subscription.trialEndsAt?.toDate?.()?.toISOString() ?? null,
                 currentPeriodEndsAt: data.subscription.currentPeriodEndsAt?.toDate?.()?.toISOString() ?? null,
                 updatedAt: data.subscription.updatedAt?.toDate?.()?.toISOString() ?? null,

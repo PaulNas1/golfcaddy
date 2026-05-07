@@ -64,8 +64,34 @@ async function syncSubscription(
     return;
   }
 
-  const status = toSubscriptionStatus(subscription.status);
+  const newStatus = toSubscriptionStatus(subscription.status);
   const plan = extractPlan(subscription);
+
+  // Read the current Firestore status before overwriting so we can protect
+  // admin-controlled states from being clobbered by Stripe events we triggered.
+  const groupSnap = await adminDb.collection("groups").doc(groupId).get();
+  const currentStatus = groupSnap.data()?.subscription?.status as SubscriptionStatus | undefined;
+
+  // When the platform admin exempts or starts a trial, we cancel the Stripe subscription
+  // immediately, which fires a `customer.subscription.deleted` event mapping to "suspended".
+  // That must not overwrite the admin's intent.
+  if (newStatus === "suspended" && (currentStatus === "exempt" || currentStatus === "trial")) {
+    console.log(`[webhook] skipping suspended sync for ${groupId} — admin status "${currentStatus}" takes priority`);
+    return;
+  }
+
+  // When the platform admin suspends a group, we set cancel_at_period_end=true.
+  // Stripe fires a `customer.subscription.updated` event that still shows status="active"
+  // with cancel_at_period_end=true. We don't want that to overwrite the suspended status.
+  if (
+    newStatus === "active" &&
+    currentStatus === "suspended" &&
+    subscription.cancel_at_period_end === true
+  ) {
+    console.log(`[webhook] skipping cancel_at_period_end active event for ${groupId} — already suspended`);
+    return;
+  }
+
   const periodEndSeconds =
     (subscription as unknown as { current_period_end?: number }).current_period_end ??
     subscription.items?.data?.[0]?.current_period_end ??
@@ -76,7 +102,7 @@ async function syncSubscription(
     .collection("groups")
     .doc(groupId)
     .update({
-      "subscription.status": status,
+      "subscription.status": newStatus,
       "subscription.plan": plan,
       "subscription.stripeSubscriptionId": subscription.id,
       "subscription.stripeCustomerId": String(subscription.customer),
@@ -87,7 +113,7 @@ async function syncSubscription(
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-  console.log(`[webhook] synced group ${groupId} → status=${status} plan=${plan}`);
+  console.log(`[webhook] synced group ${groupId} → status=${newStatus} plan=${plan}`);
 }
 
 // In Stripe SDK v22, Invoice.subscription moved to Invoice.parent.subscription_details.subscription
