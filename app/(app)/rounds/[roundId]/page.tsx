@@ -134,7 +134,6 @@ export default function RoundDetailPage() {
   const [postContent, setPostContent] = useState("");
   const [postingUpdate, setPostingUpdate] = useState(false);
   const [postUpdateError, setPostUpdateError] = useState("");
-  const [courseCardOpen, setCourseCardOpen] = useState(false);
   const [postPhoto, setPostPhoto] = useState<File | null>(null);
   const [postPhotoPreview, setPostPhotoPreview] = useState<string | null>(null);
   const { appUser, canAccessAdmin } = useAuth();
@@ -593,27 +592,13 @@ export default function RoundDetailPage() {
     courseCard: () => {
       if (viewerHoles.length !== 18) return null;
       return (
-        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setCourseCardOpen((o) => !o)}
-            className="w-full flex items-center justify-between px-4 py-3 text-left"
-          >
-            <span className="font-semibold text-ink-title text-sm">Course Card</span>
-            <span className="text-ink-hint text-xs">{courseCardOpen ? "Hide ▲" : "Show ▼"}</span>
-          </button>
-          {courseCardOpen && (
-            <div className="px-4 pb-4">
-              <CourseCardPreview
-                holes={viewerHoles}
-                distanceUnit={appUser?.distanceUnit ?? "meters"}
-                specialHoles={specialHoles}
-                teeSetName={round.teeSetName ?? undefined}
-                note={viewerNote ?? undefined}
-              />
-            </div>
-          )}
-        </div>
+        <CourseCardPreview
+          holes={viewerHoles}
+          distanceUnit={appUser?.distanceUnit ?? "meters"}
+          specialHoles={specialHoles}
+          teeSetName={round.teeSetName ?? undefined}
+          note={viewerNote ?? undefined}
+        />
       );
     },
 

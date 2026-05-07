@@ -33,7 +33,6 @@ export default function HomePage() {
   const [nextRoundRsvp, setNextRoundRsvp] = useState<RoundRsvp | null>(null);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [rsvpBusy, setRsvpBusy] = useState(false);
-  const [courseCardOpen, setCourseCardOpen] = useState(false);
 
   const liveRound = useMemo(
     () => rounds.find((r) => r.status === "live") ?? null,
@@ -327,26 +326,14 @@ export default function HomePage() {
                 const { holes: nextHoles, note: nextNote } = getViewerHoles(nextRound, appUser ?? null);
                 if (nextHoles.length !== 18) return null;
                 return (
-                  <div className="mt-3 rounded-xl border border-surface-overlay overflow-hidden">
-                    <button
-                      type="button"
-                      onClick={() => setCourseCardOpen((o) => !o)}
-                      className="w-full flex items-center justify-between px-3 py-2 text-left bg-surface-muted"
-                    >
-                      <span className="text-xs font-semibold text-ink-body">Course Card</span>
-                      <span className="text-ink-hint text-xs">{courseCardOpen ? "Hide ▲" : "Show ▼"}</span>
-                    </button>
-                    {courseCardOpen && (
-                      <div className="p-3">
-                        <CourseCardPreview
-                          holes={nextHoles}
-                          distanceUnit={appUser?.distanceUnit ?? "meters"}
-                          specialHoles={getEffectiveSpecialHoles(nextRound)}
-                          teeSetName={nextRound.teeSetName ?? undefined}
-                          note={nextNote ?? undefined}
-                        />
-                      </div>
-                    )}
+                  <div className="mt-3">
+                    <CourseCardPreview
+                      holes={nextHoles}
+                      distanceUnit={appUser?.distanceUnit ?? "meters"}
+                      specialHoles={getEffectiveSpecialHoles(nextRound)}
+                      teeSetName={nextRound.teeSetName ?? undefined}
+                      note={nextNote ?? undefined}
+                    />
                   </div>
                 );
               })()}
