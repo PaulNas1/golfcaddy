@@ -176,6 +176,27 @@ textarea::placeholder {
   opacity: 1; /* Firefox reduces placeholder opacity by default */
 }
 
+/*
+ * Date/time input field text — appearance:none suppresses native rendering
+ * so webkit's internal edit-field pseudo-elements don't inherit color
+ * automatically. Explicit rule ensures the format hint (dd/mm/yyyy) and
+ * entered values are always visible against the surface-card background.
+ */
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="time"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-text,
+input[type="time"]::-webkit-datetime-edit-hours-field,
+input[type="time"]::-webkit-datetime-edit-minutes-field,
+input[type="time"]::-webkit-datetime-edit-ampm-field {
+  color: var(--ink-title);
+}
+
 /* Bump placeholder contrast in dark mode — ink-hint is too faint on surface-muted */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) input::placeholder,

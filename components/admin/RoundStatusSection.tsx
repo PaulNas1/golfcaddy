@@ -39,7 +39,7 @@ export default function RoundStatusSection({
                   round.status === s
                     ? s === "live"
                       ? "bg-red-500 text-white border-red-500"
-                      : "bg-gray-800 text-white border-gray-800"
+                      : "bg-brand-700 text-white border-brand-700"
                     : "border-surface-overlay text-ink-body hover:bg-surface-muted"
                 }`}
               >

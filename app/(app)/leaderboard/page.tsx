@@ -326,9 +326,9 @@ function StandingCard({
                   Provisional ⓘ
                 </button>
                 {showProvisionalTip && (
-                  <span className="absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-xl bg-ink-title px-3 py-2 text-xs text-white shadow-lg">
+                  <span className="absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-xl bg-slate-900 px-3 py-2 text-xs text-slate-100 shadow-lg">
                     This player is still building their handicap. Points won&apos;t count toward the ladder until they&apos;re eligible.
-                    <span className="absolute -bottom-1 left-4 h-2 w-2 rotate-45 bg-ink-title" />
+                    <span className="absolute -bottom-1 left-4 h-2 w-2 rotate-45 bg-slate-900" />
                   </span>
                 )}
               </span>
