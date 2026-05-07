@@ -36,6 +36,7 @@
 /* System dark mode — only applies when no explicit data-theme is set */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --surface-page:    #0f172a;
     --surface-card:    #1e293b;
     --surface-muted:   #162032;
@@ -56,6 +57,7 @@
 
 /* Explicit dark override — beats system setting in both directions */
 [data-theme="dark"] {
+  color-scheme: dark;
   --surface-page:    #0f172a;
   --surface-card:    #1e293b;
   --surface-muted:   #162032;
@@ -75,6 +77,7 @@
 
 /* Explicit light override — forces light even if system is dark */
 [data-theme="light"] {
+  color-scheme: light;
   --surface-page:    #f9fafb;
   --surface-card:    #ffffff;
   --surface-muted:   #f3f4f6;
@@ -98,6 +101,25 @@ body {
   overscroll-behavior-y: contain;
   /* Match the app background in dark mode so areas outside max-w-lg don't flash white */
   background-color: var(--surface-page);
+}
+
+/*
+ * Form element baseline — overrides the browser's native light-mode default so
+ * inputs/selects/textareas always match the surface-card token in dark mode.
+ * Without this, Tailwind's text-ink-title (near-white in dark) is invisible
+ * against the browser's default white input background.
+ */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select,
+textarea {
+  background-color: var(--surface-card);
+  color: var(--ink-title);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-hint);
+  opacity: 1; /* Firefox reduces placeholder opacity by default */
 }
 
 @layer utilities {
