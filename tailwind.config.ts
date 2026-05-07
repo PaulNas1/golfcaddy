@@ -70,12 +70,13 @@ const config: Config = {
           text: "#4b5563", // gray-600
         },
         // ── Announcement amber ────────────────────────────────────────
+        // CSS-variable-driven so dark mode can flip them — see globals.css
         announce: {
-          bg:     "#fffbeb", // amber-50
-          border: "#fde68a", // amber-200
-          text:   "#78350f", // amber-900
-          label:  "#92400e", // amber-800
-          muted:  "#b45309", // amber-700
+          bg:     "var(--announce-bg)",
+          border: "var(--announce-border)",
+          text:   "var(--announce-text)",
+          label:  "var(--announce-label)",
+          muted:  "var(--announce-muted)",
         },
       },
     },
