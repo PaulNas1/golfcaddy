@@ -130,13 +130,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   ) => {
     setLoading(true);
     try {
+      if (!options?.groupId) {
+        throw new Error("A group must be selected to sign up.");
+      }
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await createUser(user.uid, {
         email,
         displayName,
         role: "member",
         status: "pending",
-        groupId: options?.groupId ?? "fourplay",
+        groupId: options.groupId,
         ...(options?.inviteId ? { inviteId: options.inviteId } : {}),
         nickname: options?.nickname ?? null,
         mobileNumber: options?.mobileNumber ?? null,

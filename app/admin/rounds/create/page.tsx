@@ -26,7 +26,8 @@ export default function CreateRoundPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getActiveMembers(appUser?.groupId ?? "fourplay")
+    if (!appUser?.groupId) { setMembers([]); return; }
+    getActiveMembers(appUser.groupId)
       .then(setMembers)
       .catch(() => setMembers([]));
   }, [appUser?.groupId]);

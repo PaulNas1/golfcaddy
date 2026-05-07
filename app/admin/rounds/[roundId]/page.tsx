@@ -195,13 +195,13 @@ export default function AdminRoundDetailPage() {
   };
 
   useEffect(() => {
-    if (!roundId) return;
+    if (!roundId || !appUser?.groupId) return;
 
     Promise.all([
       getRound(roundId),
-      getActiveMembers(appUser?.groupId ?? "fourplay"),
+      getActiveMembers(appUser.groupId),
       getRoundRsvps(roundId),
-      getGroup(appUser?.groupId),
+      getGroup(appUser.groupId),
       getSideClaimsForRound(roundId),
     ]).then(
       ([r, activeMembers, roundRsvps, groupRecord, claims]) => {

@@ -149,11 +149,12 @@ export default function AdminRoundLeaderboardPage() {
     const load = async () => {
       setLoading(true);
       try {
+        if (!appUser?.groupId) { setLoading(false); return; }
         const [r, activeMembers, existingResults, groupRecord] = await Promise.all([
           getRound(roundId),
-          getActiveMembers(appUser?.groupId ?? "fourplay"),
+          getActiveMembers(appUser.groupId),
           getResultsForRound(roundId),
-          getGroup(appUser?.groupId),
+          getGroup(appUser.groupId),
         ]);
         if (!r) {
           setRound(null);

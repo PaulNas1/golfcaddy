@@ -339,10 +339,8 @@ export const updateUser = async (uid: string, data: Partial<AppUser>) => {
 
 // ─── Group ───────────────────────────────────────────────────────────────────
 
-const FOURPLAY_GROUP_ID = "fourplay";
-
 export const getGroup = async (
-  groupId = FOURPLAY_GROUP_ID
+  groupId: string
 ): Promise<Group | null> => {
   const snap = await getDoc(doc(db, "groups", groupId));
   if (!snap.exists()) return null;
@@ -865,7 +863,7 @@ export const updateMemberStartingHandicap = async ({
 };
 
 export const getPendingMembers = async (
-  groupId = FOURPLAY_GROUP_ID
+  groupId: string
 ): Promise<AppUser[]> => {
   return getUsersByStatus(groupId, "pending", "createdAt");
 };
@@ -965,19 +963,19 @@ export const getMemberInvitesForGroup = async (
 };
 
 export const getActiveMembers = async (
-  groupId = FOURPLAY_GROUP_ID
+  groupId: string
 ): Promise<AppUser[]> => {
   return getUsersByStatus(groupId, "active", "displayName");
 };
 
 export const getRetiredMembers = async (
-  groupId = FOURPLAY_GROUP_ID
+  groupId: string
 ): Promise<AppUser[]> => {
   return getUsersByStatus(groupId, "retired", "displayName");
 };
 
 export const getSuspendedMembers = async (
-  groupId = FOURPLAY_GROUP_ID
+  groupId: string
 ): Promise<AppUser[]> => {
   return getUsersByStatus(groupId, "suspended", "displayName");
 };

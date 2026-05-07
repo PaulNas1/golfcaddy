@@ -139,14 +139,14 @@ export default function RoundDetailPage() {
   const { appUser, canAccessAdmin } = useAuth();
 
   useEffect(() => {
-    if (roundId) {
+    if (roundId && appUser?.groupId) {
       setLoading(true);
       setError("");
       Promise.all([
         getRound(roundId),
         getResultsForRound(roundId),
-        appUser?.uid ? getRoundRsvp(roundId, appUser.uid) : Promise.resolve(null),
-        getActiveMembers(appUser?.groupId ?? "fourplay"),
+        appUser.uid ? getRoundRsvp(roundId, appUser.uid) : Promise.resolve(null),
+        getActiveMembers(appUser.groupId),
         getSideClaimsForRound(roundId),
       ])
         .then(([r, res, rsvp, activeMembers, claims]) => {
@@ -156,7 +156,7 @@ export default function RoundDetailPage() {
           setMembers(activeMembers);
           setSideClaims(claims);
           if (!r) {
-            getLiveRound(appUser?.groupId ?? "fourplay")
+            getLiveRound(appUser.groupId!)
               .then((live) => {
                 if (live && live.id !== roundId) {
                   router.replace(`/rounds/${live.id}`);

@@ -35,8 +35,9 @@ export default function DebugPage() {
       setLoading(true);
       setCopied(false);
       try {
-        const rounds = await getRounds(appUser?.groupId ?? "fourplay");
-        const liveRound = await getLiveRound(appUser?.groupId ?? "fourplay");
+        if (!appUser?.groupId) return;
+        const rounds = await getRounds(appUser.groupId);
+        const liveRound = await getLiveRound(appUser.groupId);
         const liveRoundDetail = liveRound ? await getRound(liveRound.id) : null;
 
         setState({

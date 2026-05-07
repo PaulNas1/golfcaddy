@@ -62,7 +62,8 @@ export default function AdminMembersPage() {
   const [success, setSuccess] = useState("");
 
   const load = useCallback(async () => {
-    const groupId = appUser?.groupId ?? "fourplay";
+    if (!appUser?.groupId) return;
+    const groupId = appUser.groupId;
     setLoading(true);
     try {
       const [p, a, r, s, groupRecord, memberRecords] = await Promise.all([
