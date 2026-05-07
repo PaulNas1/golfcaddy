@@ -425,8 +425,8 @@ export default function AdminSettingsPage() {
   if (loading) {
     return (
       <div className="space-y-3">
-        <div className="h-8 w-1/2 rounded bg-gray-200 animate-pulse" />
-        <div className="h-40 rounded-2xl bg-gray-100 animate-pulse" />
+        <div className="h-8 w-1/2 rounded bg-surface-overlay animate-pulse" />
+        <div className="h-40 rounded-2xl bg-surface-muted animate-pulse" />
       </div>
     );
   }
@@ -434,13 +434,13 @@ export default function AdminSettingsPage() {
   if (!isAdmin) {
     return (
       <div className="space-y-3">
-        <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
+        <h1 className="text-2xl font-bold text-ink-title">Settings</h1>
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
           Only admins can change group settings, ladder rules, and season management.
         </div>
         <Link
           href="/admin"
-          className="inline-block rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700"
+          className="inline-block rounded-xl border border-surface-overlay bg-surface-card px-4 py-2 text-sm font-semibold text-ink-body"
         >
           Back to admin
         </Link>
@@ -451,8 +451,8 @@ export default function AdminSettingsPage() {
   return (
     <div className="space-y-4 pb-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Settings</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-2xl font-bold text-ink-title">Settings</h1>
+        <p className="text-sm text-ink-muted">
           Set the competition rules used when round results are published.
         </p>
       </div>
@@ -463,43 +463,43 @@ export default function AdminSettingsPage() {
         </div>
       )}
       {success && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
           {success}
         </div>
       )}
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-gray-800">Group Identity</h2>
-        <p className="mt-1 text-xs text-gray-500">
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+        <h2 className="font-semibold text-ink-title">Group Identity</h2>
+        <p className="mt-1 text-xs text-ink-muted">
           This is the name and emblem used for this social group.
         </p>
         <div className="mt-4 space-y-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">
+            <span className="mb-1 block text-xs font-medium text-ink-body">
               Group name
             </span>
             <input
               type="text"
               value={groupName}
               onChange={(event) => setGroupName(event.target.value)}
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Your Social Golf Group"
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">
+            <span className="mb-1 block text-xs font-medium text-ink-body">
               Group logo
             </span>
-            <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
+            <div className="rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
               <input
                 type="file"
                 accept="image/*"
                 onChange={(event) =>
                   handleLogoFileChange(event.target.files?.[0] ?? null)
                 }
-                className="block w-full text-xs text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-green-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-green-700"
+                className="block w-full text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
               />
-              <p className="mt-2 text-xs text-gray-400">
+              <p className="mt-2 text-xs text-ink-hint">
                 Upload a square logo if possible. JPG, PNG, or WebP up to 5 MB.
               </p>
               <button
@@ -511,8 +511,8 @@ export default function AdminSettingsPage() {
               </button>
             </div>
           </label>
-          <div className="rounded-xl bg-gray-50 px-3 py-3">
-            <p className="text-xs font-semibold text-gray-600">Preview</p>
+          <div className="rounded-xl bg-surface-muted px-3 py-3">
+            <p className="text-xs font-semibold text-ink-body">Preview</p>
             <div className="mt-2 flex items-center gap-3">
               {logoPreviewUrl.trim() ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -522,11 +522,11 @@ export default function AdminSettingsPage() {
                   className="h-10 w-10 rounded-lg object-cover"
                 />
               ) : (
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 text-lg">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-lg">
                   ⛳
                 </span>
               )}
-              <span className="text-sm font-semibold text-gray-800">
+              <span className="text-sm font-semibold text-ink-title">
                 {groupName.trim() || "Your group name"}
               </span>
             </div>
@@ -550,7 +550,7 @@ export default function AdminSettingsPage() {
           {Array.from({ length: 10 }, (_, index) => index + 1).map(
             (position) => (
               <label key={position} className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600">
+                <span className="mb-1 block text-xs font-medium text-ink-body">
                   Place {position}
                 </span>
                 <input
@@ -560,7 +560,7 @@ export default function AdminSettingsPage() {
                   onChange={(event) =>
                     updatePoints(position, event.target.value)
                   }
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </label>
             )
@@ -568,9 +568,9 @@ export default function AdminSettingsPage() {
         </div>
       </CollapsibleSettingsSection>
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-gray-800">Season Total</h2>
-        <p className="mt-1 text-xs text-gray-500">
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+        <h2 className="font-semibold text-ink-title">Season Total</h2>
+        <p className="mt-1 text-xs text-ink-muted">
           Count every round, or only a player&apos;s best rounds for the season.
         </p>
         <div className="mt-4 space-y-3">
@@ -586,7 +586,7 @@ export default function AdminSettingsPage() {
             }
           />
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">
+            <span className="mb-1 block text-xs font-medium text-ink-body">
               Best rounds to count
             </span>
             <input
@@ -602,28 +602,28 @@ export default function AdminSettingsPage() {
                   },
                 }))
               }
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </label>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-gray-800">Season Management</h2>
-        <p className="mt-1 text-xs text-gray-500">
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+        <h2 className="font-semibold text-ink-title">Season Management</h2>
+        <p className="mt-1 text-xs text-ink-muted">
           Choose which season new rounds and ladder updates belong to. Past
           season results stay in history, and handicaps continue from each
           player&apos;s latest card.
         </p>
         <div className="mt-4 space-y-3">
-          <div className="rounded-xl bg-gray-50 px-3 py-3">
-            <p className="text-xs font-medium text-gray-500">Active season</p>
-            <p className="mt-1 text-2xl font-bold text-gray-800">
+          <div className="rounded-xl bg-surface-muted px-3 py-3">
+            <p className="text-xs font-medium text-ink-muted">Active season</p>
+            <p className="mt-1 text-2xl font-bold text-ink-title">
               {group?.currentSeason ?? seasonDraft}
             </p>
           </div>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">
+            <span className="mb-1 block text-xs font-medium text-ink-body">
               Change active season
             </span>
             <select
@@ -631,7 +631,7 @@ export default function AdminSettingsPage() {
               onChange={(event) =>
                 setSeasonDraft(Number(event.target.value) || new Date().getFullYear())
               }
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               {getSeasonOptions(group?.currentSeason ?? seasonDraft).map(
                 (seasonOption) => (
@@ -652,7 +652,7 @@ export default function AdminSettingsPage() {
             type="button"
             onClick={handleSeasonUpdate}
             disabled={updatingSeason || !group}
-            className="w-full rounded-xl border border-green-200 bg-green-50 py-3 text-sm font-semibold text-green-700 transition-colors hover:bg-green-100 disabled:border-green-100 disabled:bg-green-50 disabled:text-green-400"
+            className="w-full rounded-xl border border-brand-200 bg-brand-50 py-3 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:border-green-100 disabled:bg-brand-50 disabled:text-green-400"
           >
             {updatingSeason
               ? "Updating season..."
@@ -675,7 +675,7 @@ export default function AdminSettingsPage() {
       >
         <div className="space-y-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">
+            <span className="mb-1 block text-xs font-medium text-ink-body">
               Cards used for handicap movement
             </span>
             <input
@@ -689,7 +689,7 @@ export default function AdminSettingsPage() {
                   handicapRoundsWindow: Number(event.target.value) || 6,
                 }))
               }
-              className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
             />
           </label>
 
@@ -750,7 +750,7 @@ export default function AdminSettingsPage() {
             </p>
           </div>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">
+            <span className="mb-1 block text-xs font-medium text-ink-body">
               Season to recalculate
             </span>
             <select
@@ -758,7 +758,7 @@ export default function AdminSettingsPage() {
               onChange={(event) =>
                 setHandicapRebuildSeason(Number(event.target.value))
               }
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full rounded-xl border border-surface-overlay bg-surface-card px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               {getSeasonOptions(group?.currentSeason ?? seasonDraft).map((season) => (
                 <option key={season} value={season}>
@@ -769,10 +769,10 @@ export default function AdminSettingsPage() {
           </label>
 
           {handicapPreview && (
-            <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-600">
+            <div className="rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3 text-xs text-ink-body">
               <p>
                 Preview for Season {handicapPreview.season}:{" "}
-                <span className="font-semibold text-gray-800">
+                <span className="font-semibold text-ink-title">
                   {handicapPreview.standings} standings
                 </span>
               </p>
@@ -806,7 +806,7 @@ export default function AdminSettingsPage() {
                 }
               }}
               disabled={handicapRebuildBusy || !group}
-              className="rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 disabled:text-gray-300"
+              className="rounded-xl border border-surface-overlay py-2.5 text-sm font-semibold text-ink-body disabled:text-ink-hint"
             >
               {handicapRebuildBusy ? "Working..." : "Preview recalculation"}
             </button>
@@ -837,7 +837,7 @@ export default function AdminSettingsPage() {
                 }
               }}
               disabled={handicapRebuildBusy || !group}
-              className="rounded-xl border border-green-200 bg-green-50 py-2.5 text-sm font-semibold text-green-700 disabled:text-green-300"
+              className="rounded-xl border border-brand-200 bg-brand-50 py-2.5 text-sm font-semibold text-brand-700 disabled:text-green-300"
             >
               Apply recalculation
             </button>
@@ -849,22 +849,22 @@ export default function AdminSettingsPage() {
         type="button"
         onClick={handleSave}
         disabled={saving || !group}
-        className="w-full rounded-xl bg-green-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-green-300"
+        className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-green-300"
       >
         {saving ? "Saving..." : "Save Settings"}
       </button>
 
       {/* ── Subscription & Billing ── */}
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-        <h2 className="font-semibold text-gray-800">Subscription &amp; Billing</h2>
-        <p className="mt-1 text-xs text-gray-500">
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+        <h2 className="font-semibold text-ink-title">Subscription &amp; Billing</h2>
+        <p className="mt-1 text-xs text-ink-muted">
           Manage your GolfCaddy plan. Changes take effect immediately.
         </p>
 
         {/* Current plan */}
-        <div className="mt-4 rounded-xl bg-green-50 border border-green-100 px-4 py-3 flex items-center justify-between gap-3">
+        <div className="mt-4 rounded-xl bg-brand-50 border border-green-100 px-4 py-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-green-800">
+            <p className="text-sm font-semibold text-brand-800">
               {getPlanLabel(group?.subscription)}
             </p>
             {group?.subscription?.currentPeriodEndsAt && (
@@ -884,7 +884,7 @@ export default function AdminSettingsPage() {
                 catch (e) { setBillingError(e instanceof Error ? e.message : "Failed."); }
                 finally { setBillingBusy(false); }
               }}
-              className="shrink-0 rounded-lg bg-white border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-100 transition-colors"
+              className="shrink-0 rounded-lg bg-surface-card border border-brand-200 px-3 py-1.5 text-xs font-medium text-brand-700 hover:bg-brand-100 transition-colors"
             >
               Manage
             </button>
@@ -894,15 +894,15 @@ export default function AdminSettingsPage() {
         {/* Plan picker (shown when not yet on an active paid plan) */}
         {(!group?.subscription?.status || group.subscription.status === "trial" || group.subscription.status === "past_due" || group.subscription.status === "suspended") && (
           <div className="mt-4 space-y-3">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Choose a plan</p>
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-wide">Choose a plan</p>
             {(["starter", "club", "society"] as SubscriptionPlan[]).map((plan) => (
               <div
                 key={plan}
-                className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3"
+                className="flex items-center justify-between rounded-xl border border-surface-overlay px-4 py-3"
               >
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">{PLAN_LABELS[plan]}</p>
-                  <p className="text-xs text-gray-500">A${PLAN_PRICES[plan].monthly}/month</p>
+                  <p className="text-sm font-semibold text-ink-title">{PLAN_LABELS[plan]}</p>
+                  <p className="text-xs text-ink-muted">A${PLAN_PRICES[plan].monthly}/month</p>
                 </div>
                 <button
                   type="button"
@@ -914,7 +914,7 @@ export default function AdminSettingsPage() {
                     catch (e) { setBillingError(e instanceof Error ? e.message : "Failed."); }
                     finally { setBillingBusy(false); }
                   }}
-                  className="rounded-lg bg-green-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:bg-green-300 transition-colors"
+                  className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:bg-green-300 transition-colors"
                 >
                   {billingBusy ? "..." : "Subscribe"}
                 </button>
@@ -930,9 +930,9 @@ export default function AdminSettingsPage() {
         )}
       </section>
 
-      <section className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-red-200 bg-surface-card p-4 shadow-sm">
         <h2 className="font-semibold text-red-700">Danger Zone</h2>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-muted">
           These tools are admin-only and destructive. Each action will ask for a confirmation word before it runs.
         </p>
         <div className="mt-4 space-y-3">
@@ -996,23 +996,23 @@ export default function AdminSettingsPage() {
 
       {showRemovePlayersModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-          <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="border-b border-gray-100 px-4 py-4">
-              <h3 className="text-lg font-semibold text-gray-800">Remove Players</h3>
-              <p className="mt-1 text-sm text-gray-500">
+          <div className="max-h-[85vh] w-full max-w-md overflow-hidden rounded-2xl bg-surface-card shadow-xl">
+            <div className="border-b border-surface-overlay px-4 py-4">
+              <h3 className="text-lg font-semibold text-ink-title">Remove Players</h3>
+              <p className="mt-1 text-sm text-ink-muted">
                 Select one or more players to remove from this group.
               </p>
             </div>
 
             <div className="max-h-[50vh] overflow-y-auto px-4 py-3">
               {removablePlayers.length === 0 ? (
-                <p className="text-sm text-gray-500">No removable players found.</p>
+                <p className="text-sm text-ink-muted">No removable players found.</p>
               ) : (
                 <div className="space-y-2">
                   {removablePlayers.map((player) => (
                     <label
                       key={player.uid}
-                      className="flex items-start gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3"
+                      className="flex items-start gap-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3"
                     >
                       <input
                         type="checkbox"
@@ -1021,10 +1021,10 @@ export default function AdminSettingsPage() {
                         className="mt-1 h-4 w-4 accent-red-600"
                       />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-gray-800">
+                        <span className="block truncate text-sm font-semibold text-ink-title">
                           {player.displayName}
                         </span>
-                        <span className="block text-xs text-gray-500">
+                        <span className="block text-xs text-ink-muted">
                           {formatPlayerStatus(player)}
                         </span>
                       </span>
@@ -1034,14 +1034,14 @@ export default function AdminSettingsPage() {
               )}
             </div>
 
-            <div className="flex gap-2 border-t border-gray-100 px-4 py-4">
+            <div className="flex gap-2 border-t border-surface-overlay px-4 py-4">
               <button
                 type="button"
                 onClick={() => {
                   setShowRemovePlayersModal(false);
                   setSelectedPlayerIds([]);
                 }}
-                className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700"
+                className="flex-1 rounded-xl border border-surface-overlay bg-surface-card py-2.5 text-sm font-semibold text-ink-body"
               >
                 Cancel
               </button>
@@ -1065,10 +1065,10 @@ export default function AdminSettingsPage() {
 
       {pendingDangerConfig && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="font-semibold text-gray-800">{pendingDangerConfig.label}</h3>
-            <p className="mt-2 text-sm text-gray-600">{pendingDangerConfig.confirmation}</p>
-            <p className="mt-3 text-sm text-gray-700">
+          <div className="w-full max-w-sm rounded-2xl bg-surface-card p-6 shadow-xl">
+            <h3 className="font-semibold text-ink-title">{pendingDangerConfig.label}</h3>
+            <p className="mt-2 text-sm text-ink-body">{pendingDangerConfig.confirmation}</p>
+            <p className="mt-3 text-sm text-ink-body">
               Type <span className="font-mono font-bold">{pendingDangerConfig.confirmationWord}</span> to confirm.
             </p>
             <input
@@ -1081,13 +1081,13 @@ export default function AdminSettingsPage() {
                 if (event.key === "Enter") submitPendingDangerAction();
               }}
               placeholder={pendingDangerConfig.confirmationWord}
-              className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-mono uppercase text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="mt-2 w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm font-mono uppercase text-ink-title focus:outline-none focus:ring-2 focus:ring-red-500"
             />
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
                 onClick={() => { setPendingDangerConfig(null); setDangerConfirmInput(""); }}
-                className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-600"
+                className="flex-1 rounded-xl border border-surface-overlay py-2.5 text-sm font-semibold text-ink-body"
               >
                 Cancel
               </button>
@@ -1123,7 +1123,7 @@ function CollapsibleSettingsSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+    <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
       <button
         type="button"
         onClick={onToggle}
@@ -1131,14 +1131,14 @@ function CollapsibleSettingsSection({
         aria-expanded={expanded}
       >
         <span>
-          <span className="block font-semibold text-gray-800">{title}</span>
-          <span className="mt-1 block text-xs text-gray-500">{description}</span>
-          <span className="mt-2 block text-xs font-medium text-green-700">
+          <span className="block font-semibold text-ink-title">{title}</span>
+          <span className="mt-1 block text-xs text-ink-muted">{description}</span>
+          <span className="mt-2 block text-xs font-medium text-brand-700">
             {summary}
           </span>
         </span>
         <span
-          className={`mt-0.5 rounded-lg border border-gray-200 px-2 py-1 text-xs font-semibold text-gray-500 transition-transform ${
+          className={`mt-0.5 rounded-lg border border-surface-overlay px-2 py-1 text-xs font-semibold text-ink-muted transition-transform ${
             expanded ? "rotate-180" : ""
           }`}
         >
@@ -1172,12 +1172,12 @@ function ToggleRow({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-3">
+    <label className="flex items-start justify-between gap-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
       <span>
-        <span className="block text-sm font-semibold text-gray-800">
+        <span className="block text-sm font-semibold text-ink-title">
           {label}
         </span>
-        <span className="block text-xs text-gray-500">{description}</span>
+        <span className="block text-xs text-ink-muted">{description}</span>
       </span>
       <input
         type="checkbox"
@@ -1206,14 +1206,14 @@ function ModeButton({
       onClick={onClick}
       className={`rounded-xl border px-3 py-3 text-left transition-colors ${
         selected
-          ? "border-green-500 bg-green-50"
-          : "border-gray-100 bg-gray-50"
+          ? "border-green-500 bg-brand-50"
+          : "border-surface-overlay bg-surface-muted"
       }`}
     >
-      <span className="block text-sm font-semibold text-gray-800">
+      <span className="block text-sm font-semibold text-ink-title">
         {label}
       </span>
-      <span className="block text-xs text-gray-500">{description}</span>
+      <span className="block text-xs text-ink-muted">{description}</span>
     </button>
   );
 }
@@ -1235,14 +1235,14 @@ function DangerActionCard({
     <div className="rounded-xl border border-red-100 bg-red-50/40 px-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-gray-800">{title}</p>
-          <p className="mt-1 text-xs text-gray-500">{description}</p>
+          <p className="text-sm font-semibold text-ink-title">{title}</p>
+          <p className="mt-1 text-xs text-ink-muted">{description}</p>
         </div>
         <button
           type="button"
           onClick={onClick}
           disabled={busy}
-          className="shrink-0 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:text-red-300"
+          className="shrink-0 rounded-lg border border-red-200 bg-surface-card px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:text-red-300"
         >
           {busy ? "Working..." : buttonLabel}
         </button>

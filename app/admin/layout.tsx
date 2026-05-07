@@ -42,7 +42,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
         <Link
           href="/home"
-          className="flex items-center gap-1 text-gray-400 hover:text-white text-sm transition-colors"
+          className="flex items-center gap-1 text-ink-hint hover:text-white text-sm transition-colors"
         >
           <ChevronLeftIcon className="w-4 h-4" />
           Back to app

@@ -97,7 +97,7 @@ export default function CreateRoundPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <h1 className="text-2xl font-bold text-gray-800">Create Round</h1>
+      <h1 className="text-2xl font-bold text-ink-title">Create Round</h1>
       <RoundDetailsForm
         activeSeason={activeSeason}
         initialRoundNumber={initialRoundNumber}

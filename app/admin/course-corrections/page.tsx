@@ -50,14 +50,14 @@ export default function CourseCorrectionsPage() {
       <div>
         <Link
           href="/admin"
-          className="text-xs text-gray-400 hover:text-gray-600"
+          className="text-xs text-ink-hint hover:text-ink-body"
         >
           ← Admin
         </Link>
-        <h1 className="mt-1 text-2xl font-bold text-gray-800">
+        <h1 className="mt-1 text-2xl font-bold text-ink-title">
           Course Corrections
         </h1>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-ink-muted">
           Saved corrections are offered when you select a matching course during
           round creation. Saving new corrections for the same tee set overwrites
           the previous entry.
@@ -73,13 +73,13 @@ export default function CourseCorrectionsPage() {
       {loading ? (
         <div className="animate-pulse space-y-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-24 rounded-2xl bg-gray-100" />
+            <div key={i} className="h-24 rounded-2xl bg-surface-muted" />
           ))}
         </div>
       ) : corrections.length === 0 ? (
-        <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-medium text-gray-700">No saved corrections</p>
-          <p className="mt-1 text-xs text-gray-400">
+        <div className="rounded-2xl border border-surface-overlay bg-surface-card p-8 text-center shadow-sm">
+          <p className="text-sm font-medium text-ink-body">No saved corrections</p>
+          <p className="mt-1 text-xs text-ink-hint">
             Open a round, make corrections in the Course Corrections section,
             then tap &ldquo;Save as course corrections&rdquo;.
           </p>
@@ -95,17 +95,17 @@ export default function CourseCorrectionsPage() {
             return (
               <div
                 key={correction.teeSetId}
-                className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm space-y-3"
+                className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm space-y-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-gray-800">
+                    <p className="font-semibold text-ink-title">
                       {correction.courseName}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-ink-muted">
                       Tee set: {correction.teeSetName}
                     </p>
-                    <p className="mt-0.5 text-xs text-gray-400">
+                    <p className="mt-0.5 text-xs text-ink-hint">
                       Saved by {correction.savedByName} ·{" "}
                       {correction.savedAt.toLocaleDateString("en-AU", {
                         day: "numeric",
@@ -118,7 +118,7 @@ export default function CourseCorrectionsPage() {
                     type="button"
                     onClick={() => handleDelete(correction)}
                     disabled={deleting === correction.teeSetId}
-                    className="shrink-0 rounded-lg border border-red-100 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
+                    className="shrink-0 rounded-lg border border-red-100 bg-surface-card px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:text-red-300"
                   >
                     {deleting === correction.teeSetId ? "Deleting…" : "Delete"}
                   </button>
@@ -141,7 +141,7 @@ export default function CourseCorrectionsPage() {
                     </span>
                   )}
                   {!ratingCorrected && !siCorrected && (
-                    <span className="text-xs text-gray-400">No data</span>
+                    <span className="text-xs text-ink-hint">No data</span>
                   )}
                 </div>
 
@@ -151,13 +151,13 @@ export default function CourseCorrectionsPage() {
                       <>
                         <div
                           key={`lbl-${h.holeNumber}`}
-                          className="flex items-center justify-center rounded-lg bg-gray-50 px-1 py-1 font-semibold text-gray-500"
+                          className="flex items-center justify-center rounded-lg bg-surface-muted px-1 py-1 font-semibold text-ink-muted"
                         >
                           H{h.holeNumber}
                         </div>
                         <div
                           key={`si-${h.holeNumber}`}
-                          className="flex items-center justify-center rounded-lg border border-gray-100 px-1 py-1 text-center font-medium text-gray-800"
+                          className="flex items-center justify-center rounded-lg border border-surface-overlay px-1 py-1 text-center font-medium text-ink-title"
                         >
                           {h.strokeIndex}
                         </div>

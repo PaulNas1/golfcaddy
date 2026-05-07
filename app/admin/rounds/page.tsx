@@ -79,8 +79,8 @@ export default function AdminRoundsPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Rounds</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-2xl font-bold text-ink-title">Rounds</h1>
+          <p className="text-sm text-ink-muted">
             {selectedSeason === "all"
               ? "All seasons"
               : `Season ${selectedSeason || currentSeason}`}
@@ -94,7 +94,7 @@ export default function AdminRoundsPage() {
             <select
               value={selectedSeason || String(currentSeason)}
               onChange={(event) => setSelectedSeason(event.target.value)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="rounded-xl border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value={String(currentSeason)}>Active season</option>
               {seasonOptions
@@ -109,7 +109,7 @@ export default function AdminRoundsPage() {
           </label>
           <Link
             href="/admin/rounds/create"
-            className="bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-700 transition-colors"
+            className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors"
           >
             + New round
           </Link>
@@ -119,20 +119,20 @@ export default function AdminRoundsPage() {
       {loading ? (
         <div className="space-y-3 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-2xl p-4 h-20 bg-gray-100" />
+            <div key={i} className="bg-surface-card rounded-2xl p-4 h-20 bg-surface-muted" />
           ))}
         </div>
       ) : visibleRounds.length === 0 ? (
         <div className="text-center py-16">
           <div className="text-4xl mb-3">📋</div>
-          <p className="text-gray-500 text-sm mb-4">
+          <p className="text-ink-muted text-sm mb-4">
             {selectedSeason === "all"
               ? "No rounds yet"
               : `No rounds found for Season ${selectedSeason || currentSeason}`}
           </p>
           <Link
             href="/admin/rounds/create"
-            className="inline-block bg-green-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl"
+            className="inline-block bg-brand-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl"
           >
             Create first round
           </Link>

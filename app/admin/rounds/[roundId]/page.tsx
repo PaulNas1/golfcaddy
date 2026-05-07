@@ -547,32 +547,32 @@ export default function AdminRoundDetailPage() {
   if (loading) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-8 bg-gray-200 rounded w-2/3" />
-        <div className="bg-white rounded-2xl p-4 h-32 bg-gray-100" />
+        <div className="h-8 bg-surface-overlay rounded w-2/3" />
+        <div className="bg-surface-card rounded-2xl p-4 h-32 bg-surface-muted" />
       </div>
     );
   }
 
   if (!round) {
-    return <p className="text-gray-400 text-sm">Round not found.</p>;
+    return <p className="text-ink-hint text-sm">Round not found.</p>;
   }
 
   return (
     <div className="space-y-4 pb-8">
       {/* Page header */}
       <div>
-        <div className="text-xs text-gray-500 mb-1">
+        <div className="text-xs text-ink-muted mb-1">
           {getRoundLabel(round)} · {round.season}
         </div>
-        <h1 className="text-xl font-bold text-gray-800">{round.courseName}</h1>
-        <p className="text-gray-500 text-sm">
+        <h1 className="text-xl font-bold text-ink-title">{round.courseName}</h1>
+        <p className="text-ink-muted text-sm">
           {format(round.date, "EEE d MMM yyyy")}
         </p>
       </div>
 
       {/* Global banners */}
       {success && (
-        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-green-700 text-sm">
+        <div className="bg-brand-50 border border-brand-200 rounded-xl px-4 py-3 text-brand-700 text-sm">
           ✅ {success}
         </div>
       )}

@@ -389,7 +389,7 @@ export default function AdminMembersPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Members</h1>
+      <h1 className="text-2xl font-bold text-ink-title">Members</h1>
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -397,29 +397,29 @@ export default function AdminMembersPage() {
         </div>
       )}
       {success && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-700">
           {success}
         </div>
       )}
 
-      <section className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-gray-800">Invite New Player</h2>
-            <p className="mt-1 text-xs text-gray-500">
+            <h2 className="font-semibold text-ink-title">Invite New Player</h2>
+            <p className="mt-1 text-xs text-ink-muted">
               Create a signup link. Add an email or mobile to open your mail or
               messages app with the invite ready to send.
             </p>
           </div>
-          <span className="rounded-lg bg-green-50 p-2 text-green-700">
+          <span className="rounded-lg bg-brand-50 p-2 text-brand-700">
             <InviteIcon className="h-5 w-5" />
           </span>
         </div>
 
         {/* Member usage meter */}
-        <div className="mt-3 rounded-xl bg-gray-50 px-3 py-2.5">
+        <div className="mt-3 rounded-xl bg-surface-muted px-3 py-2.5">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-medium text-gray-600">
+            <span className="text-xs font-medium text-ink-body">
               {memberLimit === Infinity
                 ? `${active.length} members · ${planLabel}`
                 : `${active.length} / ${memberLimit} members · ${planLabel}`}
@@ -429,10 +429,10 @@ export default function AdminMembersPage() {
             )}
           </div>
           {memberLimit !== Infinity && (
-            <div className="h-1.5 w-full rounded-full bg-gray-200">
+            <div className="h-1.5 w-full rounded-full bg-surface-overlay">
               <div
                 className={`h-1.5 rounded-full transition-all ${
-                  atLimit ? "bg-red-400" : active.length / memberLimit >= 0.8 ? "bg-amber-400" : "bg-green-500"
+                  atLimit ? "bg-red-400" : active.length / memberLimit >= 0.8 ? "bg-amber-400" : "bg-brand-500"
                 }`}
                 style={{ width: `${Math.min(100, (active.length / memberLimit) * 100)}%` }}
               />
@@ -454,18 +454,18 @@ export default function AdminMembersPage() {
             type="text"
             value={inviteName}
             onChange={(event) => setInviteName(event.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="Player name"
           />
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-gray-600">
+            <label className="block text-xs font-medium text-ink-body">
               Email or mobile to send to
             </label>
             <div className="flex gap-2">
               <select
                 value={inviteCountryCode}
                 onChange={(event) => setInviteCountryCode(event.target.value)}
-                className="w-28 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-28 rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                 aria-label="Country code"
               >
                 {COUNTRY_CODE_OPTIONS.map((option) => (
@@ -478,12 +478,12 @@ export default function AdminMembersPage() {
                 type="text"
                 value={inviteContact}
                 onChange={(event) => setInviteContact(event.target.value)}
-                className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="flex-1 rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="Optional email or mobile"
                 autoComplete="email tel"
               />
             </div>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-muted">
               Emails open your email app. Mobile numbers open a text message
               draft and use the selected country code unless you type a full
               international number.
@@ -493,7 +493,7 @@ export default function AdminMembersPage() {
             type="button"
             onClick={handleCreateInvite}
             disabled={actioning === "invite" || atLimit}
-            className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
+            className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white disabled:bg-green-300"
           >
             {actioning === "invite"
               ? "Creating..."
@@ -502,11 +502,11 @@ export default function AdminMembersPage() {
                 : getInviteActionLabel(inviteContact)}
           </button>
           {inviteLink && (
-            <div className="rounded-xl bg-gray-50 px-3 py-3">
-              <p className="text-xs font-semibold text-gray-600">
+            <div className="rounded-xl bg-surface-muted px-3 py-3">
+              <p className="text-xs font-semibold text-ink-body">
                 Latest invite link
               </p>
-              <p className="mt-1 break-all text-xs text-gray-500">
+              <p className="mt-1 break-all text-xs text-ink-muted">
                 {inviteLink}
               </p>
               <button
@@ -519,28 +519,28 @@ export default function AdminMembersPage() {
                       : "Copy is not available in this browser. You can still select and share the link below."
                   );
                 }}
-                className="mt-2 text-xs font-semibold text-green-700 underline"
+                className="mt-2 text-xs font-semibold text-brand-700 underline"
               >
                 Copy link
               </button>
             </div>
           )}
           {recentInvites.length > 0 && (
-            <div className="border-t border-gray-100 pt-3">
-              <p className="text-xs font-semibold text-gray-600">
+            <div className="border-t border-surface-overlay pt-3">
+              <p className="text-xs font-semibold text-ink-body">
                 Recent invites
               </p>
               <div className="mt-2 space-y-2">
                 {recentInvites.slice(0, 4).map((invite) => (
                   <div
                     key={invite.id}
-                    className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 px-3 py-2.5"
+                    className="flex items-start justify-between gap-3 rounded-xl border border-surface-overlay px-3 py-2.5"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-700">
+                      <p className="truncate text-sm font-medium text-ink-body">
                         {invite.inviteeName}
                       </p>
-                      <p className="mt-0.5 text-xs text-gray-400">
+                      <p className="mt-0.5 text-xs text-ink-hint">
                         {formatInviteDate(invite.createdAt)}
                       </p>
                     </div>
@@ -552,7 +552,7 @@ export default function AdminMembersPage() {
                             current === invite.id ? null : invite.id
                           )
                         }
-                        className="rounded-lg border border-gray-200 p-1.5 text-gray-500"
+                        className="rounded-lg border border-surface-overlay p-1.5 text-ink-muted"
                         aria-label={`Invite actions for ${invite.inviteeName}`}
                       >
                         <EllipsisIcon className="h-4 w-4" />
@@ -560,13 +560,13 @@ export default function AdminMembersPage() {
                       {activeInviteMenuId === invite.id && (
                         <div
                           ref={inviteMenuRef}
-                          className="absolute right-0 top-9 z-20 w-44 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg"
+                          className="absolute right-0 top-9 z-20 w-44 rounded-xl border border-surface-overlay bg-surface-card p-1.5 shadow-lg"
                         >
                           {invite.status === "created" && (
                             <button
                               type="button"
                               onClick={() => handleResendInvite(invite)}
-                              className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                              className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-ink-body hover:bg-surface-muted"
                             >
                               {invite.contact
                                 ? getInviteContactMethod(invite.contact) === "email"
@@ -589,7 +589,7 @@ export default function AdminMembersPage() {
                                   : "Copy is not available in this browser. Select the link below and share it manually."
                               );
                             }}
-                            className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                            className="flex w-full rounded-lg px-3 py-2 text-left text-sm text-ink-body hover:bg-surface-muted"
                           >
                             Copy link
                           </button>
@@ -616,7 +616,7 @@ export default function AdminMembersPage() {
 
       {/* Pending approvals */}
       <div>
-        <h2 className="font-semibold text-gray-700 mb-3">
+        <h2 className="font-semibold text-ink-body mb-3">
           Pending Approval
           {pending.length > 0 && (
             <span className="ml-2 bg-amber-100 text-amber-700 text-xs font-bold px-2 py-0.5 rounded-full">
@@ -626,9 +626,9 @@ export default function AdminMembersPage() {
         </h2>
 
         {loading ? (
-          <div className="animate-pulse bg-gray-100 rounded-2xl h-20" />
+          <div className="animate-pulse bg-surface-muted rounded-2xl h-20" />
         ) : pending.length === 0 ? (
-          <div className="bg-gray-50 rounded-2xl p-6 text-center text-gray-400 text-sm">
+          <div className="bg-surface-muted rounded-2xl p-6 text-center text-ink-hint text-sm">
             No pending approvals
           </div>
         ) : (
@@ -636,22 +636,22 @@ export default function AdminMembersPage() {
             {pending.map((user) => (
               <div
                 key={user.uid}
-                className="bg-white rounded-2xl shadow-sm border border-amber-100 p-4"
+                className="bg-surface-card rounded-2xl shadow-sm border border-amber-100 p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-lg font-bold text-gray-500">
+                    <div className="w-10 h-10 rounded-full bg-surface-muted flex items-center justify-center text-lg font-bold text-ink-muted">
                       {user.displayName.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-800">{user.displayName}</p>
-                      <p className="text-gray-500 text-xs">{user.email}</p>
+                      <p className="font-semibold text-ink-title">{user.displayName}</p>
+                      <p className="text-ink-muted text-xs">{user.email}</p>
                     </div>
                   </div>
                 </div>
                 <div className="mt-3 space-y-2">
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">
+                    <span className="mb-1 block text-xs font-medium text-ink-body">
                       Approve as
                     </span>
                     <select
@@ -662,7 +662,7 @@ export default function AdminMembersPage() {
                           [user.uid]: event.target.value as UserRole,
                         }))
                       }
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       {approvalRoleOptions.map((role) => (
                         <option key={role} value={role}>
@@ -672,7 +672,7 @@ export default function AdminMembersPage() {
                     </select>
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-gray-600">
+                    <span className="mb-1 block text-xs font-medium text-ink-body">
                       Handicap status
                     </span>
                     <select
@@ -683,7 +683,7 @@ export default function AdminMembersPage() {
                           [user.uid]: event.target.value as HandicapStatus,
                         }))
                       }
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                      className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       <option value="provisional">Probationary</option>
                       <option value="official">Official</option>
@@ -692,7 +692,7 @@ export default function AdminMembersPage() {
                   {(pendingHandicapStatusDrafts[user.uid] ?? "provisional") ===
                     "official" && (
                     <label className="block">
-                      <span className="mb-1 block text-xs font-medium text-gray-600">
+                      <span className="mb-1 block text-xs font-medium text-ink-body">
                         Starting handicap
                       </span>
                       <input
@@ -708,7 +708,7 @@ export default function AdminMembersPage() {
                           }))
                         }
                         placeholder="e.g. 18.4"
-                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                       />
                     </label>
                   )}
@@ -722,7 +722,7 @@ export default function AdminMembersPage() {
                   <button
                     onClick={() => handleApprove(user.uid)}
                     disabled={actioning === user.uid || atLimit}
-                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+                    className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:bg-green-400 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
                   >
                     {actioning === user.uid ? "Approving..." : "✓ Approve"}
                   </button>
@@ -742,10 +742,10 @@ export default function AdminMembersPage() {
 
       {/* Active members */}
       <div>
-        <h2 className="font-semibold text-gray-700 mb-3">
+        <h2 className="font-semibold text-ink-body mb-3">
           Active Members ({active.length})
         </h2>
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-ink-muted mb-3">
           {activeSectionDescription}
         </p>
         <input
@@ -753,16 +753,16 @@ export default function AdminMembersPage() {
           value={activeSearch}
           onChange={(event) => setActiveSearch(event.target.value)}
           placeholder="Search players"
-          className="mb-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+          className="mb-3 w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
         />
         {loading ? (
           <div className="animate-pulse space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-gray-100 rounded-xl h-14" />
+              <div key={i} className="bg-surface-muted rounded-xl h-14" />
             ))}
           </div>
         ) : activeMembers.length === 0 ? (
-          <div className="bg-gray-50 rounded-2xl p-6 text-center text-gray-400 text-sm">
+          <div className="bg-surface-muted rounded-2xl p-6 text-center text-ink-hint text-sm">
             {activeSearch.trim() ? "No players matched your search" : "No active members"}
           </div>
         ) : (
@@ -770,21 +770,21 @@ export default function AdminMembersPage() {
             {activeMembers.map((user) => (
               <div
                 key={user.uid}
-                className="cursor-pointer rounded-xl border border-gray-100 bg-white px-4 py-3 transition-colors hover:bg-gray-50"
+                className="cursor-pointer rounded-xl border border-surface-overlay bg-surface-card px-4 py-3 transition-colors hover:bg-surface-muted"
                 onClick={() => setSelectedActiveUser(user)}
               >
                 <div className="grid grid-cols-[auto,minmax(0,1fr),72px,36px,36px] items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 text-base font-bold text-green-700">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-bold text-brand-700">
                     {user.displayName.charAt(0).toUpperCase()}
                   </div>
                   <MemberListName name={user.displayName} />
 
                   {editingHandicapFor !== user.uid ? (
-                    <span className="w-[72px] whitespace-nowrap rounded-lg bg-gray-50 px-2.5 py-1 text-center text-xs font-semibold text-gray-700">
+                    <span className="w-[72px] whitespace-nowrap rounded-lg bg-surface-muted px-2.5 py-1 text-center text-xs font-semibold text-ink-body">
                       HCP {members[user.uid]?.currentHandicap ?? "—"}
                     </span>
                   ) : (
-                    <span className="w-[72px] text-center text-xs font-medium text-green-700">
+                    <span className="w-[72px] text-center text-xs font-medium text-brand-700">
                       Editing
                     </span>
                   )}
@@ -797,7 +797,7 @@ export default function AdminMembersPage() {
                         event.stopPropagation();
                         startHandicapEdit(user);
                       }}
-                      className="rounded-lg border border-green-100 bg-white p-2 text-green-700"
+                      className="rounded-lg border border-green-100 bg-surface-card p-2 text-brand-700"
                     >
                       <PencilIcon className="h-4 w-4" />
                     </button>
@@ -816,16 +816,16 @@ export default function AdminMembersPage() {
                             current === user.uid ? null : user.uid
                           );
                         }}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500"
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-overlay bg-surface-card text-ink-muted"
                         aria-label={`Manage ${user.displayName}`}
                         aria-expanded={activeMenuUserId === user.uid}
                       >
                         <EllipsisIcon className="h-4 w-4" />
                       </button>
                       {activeMenuUserId === user.uid && (
-                        <div className="absolute right-0 top-full z-20 mt-2 w-56 space-y-3 rounded-xl border border-gray-100 bg-white p-3 shadow-lg">
+                        <div className="absolute right-0 top-full z-20 mt-2 w-56 space-y-3 rounded-xl border border-surface-overlay bg-surface-card p-3 shadow-lg">
                           <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-gray-600">
+                            <span className="mb-1 block text-xs font-medium text-ink-body">
                               Promote
                             </span>
                             <select
@@ -838,7 +838,7 @@ export default function AdminMembersPage() {
                                 )
                               }
                               disabled={actioning === user.uid}
-                              className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                              className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                             >
                               {getAssignableRoles(appUser?.role).map((role) => (
                                 <option key={role} value={role}>
@@ -880,10 +880,10 @@ export default function AdminMembersPage() {
                 </div>
 
                 {editingHandicapFor === user.uid && (
-                  <div className="mt-3 rounded-xl bg-gray-50 px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="mt-3 rounded-xl bg-surface-muted px-3 py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="space-y-2">
                       <label className="block">
-                        <span className="block text-xs font-medium text-gray-600 mb-1">
+                        <span className="block text-xs font-medium text-ink-body mb-1">
                           Starting handicap
                         </span>
                         <input
@@ -893,7 +893,7 @@ export default function AdminMembersPage() {
                           step="0.1"
                           value={handicapInput}
                           onChange={(e) => setHandicapInput(e.target.value)}
-                          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                          className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
                       </label>
                       <div className="flex gap-2">
@@ -901,7 +901,7 @@ export default function AdminMembersPage() {
                           type="button"
                           onClick={() => saveHandicap(user)}
                           disabled={actioning === user.uid}
-                          className="flex-1 rounded-xl bg-green-600 py-2 text-sm font-semibold text-white disabled:bg-green-300"
+                          className="flex-1 rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white disabled:bg-green-300"
                         >
                           {actioning === user.uid ? "Saving..." : "Save"}
                         </button>
@@ -909,7 +909,7 @@ export default function AdminMembersPage() {
                           type="button"
                           onClick={cancelHandicapEdit}
                           disabled={actioning === user.uid}
-                          className="flex-1 rounded-xl border border-gray-200 py-2 text-sm font-semibold text-gray-600"
+                          className="flex-1 rounded-xl border border-surface-overlay py-2 text-sm font-semibold text-ink-body"
                         >
                           Cancel
                         </button>
@@ -1051,18 +1051,18 @@ function MemberDetailModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl"
+        className="w-full max-w-sm rounded-2xl bg-surface-card p-4 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">{user.displayName}</h3>
-            <p className="text-xs text-gray-400">{user.email}</p>
+            <h3 className="text-lg font-semibold text-ink-title">{user.displayName}</h3>
+            <p className="text-xs text-ink-hint">{user.email}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-500"
+            className="rounded-lg border border-surface-overlay px-2.5 py-1 text-xs font-semibold text-ink-muted"
           >
             Close
           </button>
@@ -1110,9 +1110,9 @@ function MemberDetailFact({
   wide?: boolean;
 }) {
   return (
-    <div className={`${wide ? "col-span-2" : ""} rounded-xl bg-gray-50 px-3 py-2`}>
-      <p className="text-xs text-gray-400">{label}</p>
-      <p className="mt-0.5 break-words font-semibold text-gray-700">{value}</p>
+    <div className={`${wide ? "col-span-2" : ""} rounded-xl bg-surface-muted px-3 py-2`}>
+      <p className="text-xs text-ink-hint">{label}</p>
+      <p className="mt-0.5 break-words font-semibold text-ink-body">{value}</p>
     </div>
   );
 }
@@ -1122,10 +1122,10 @@ function MemberListName({ name }: { name: string }) {
 
   return (
     <div className="min-w-0">
-      <p className="truncate text-sm font-medium leading-tight text-gray-800">
+      <p className="truncate text-sm font-medium leading-tight text-ink-title">
         {firstLine}
       </p>
-      <p className="truncate text-sm font-medium leading-tight text-gray-800">
+      <p className="truncate text-sm font-medium leading-tight text-ink-title">
         {secondLine}
       </p>
     </div>
@@ -1173,11 +1173,11 @@ function MemberStatusSection({
 
   return (
     <div>
-      <h2 className="font-semibold text-gray-700 mb-3">{title}</h2>
+      <h2 className="font-semibold text-ink-body mb-3">{title}</h2>
       {loading ? (
-        <div className="animate-pulse bg-gray-100 rounded-2xl h-20" />
+        <div className="animate-pulse bg-surface-muted rounded-2xl h-20" />
       ) : users.length === 0 ? (
-        <div className="bg-gray-50 rounded-2xl p-6 text-center text-gray-400 text-sm">
+        <div className="bg-surface-muted rounded-2xl p-6 text-center text-ink-hint text-sm">
           {emptyMessage}
         </div>
       ) : (
@@ -1185,23 +1185,23 @@ function MemberStatusSection({
           {users.map((user) => (
             <div
               key={user.uid}
-              className="bg-white rounded-xl border border-gray-100 px-4 py-3"
+              className="bg-surface-card rounded-xl border border-surface-overlay px-4 py-3"
             >
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-base font-bold text-gray-500">
+                <div className="w-9 h-9 rounded-full bg-surface-muted flex items-center justify-center text-base font-bold text-ink-muted">
                   {user.displayName.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-800 text-sm">{user.displayName}</p>
-                  <p className="text-gray-400 text-xs truncate">{user.email}</p>
+                  <p className="font-medium text-ink-title text-sm">{user.displayName}</p>
+                  <p className="text-ink-hint text-xs truncate">{user.email}</p>
                 </div>
-                <span className="whitespace-nowrap text-xs text-gray-400">
+                <span className="whitespace-nowrap text-xs text-ink-hint">
                   {formatRoleLabel(user.role)}
                 </span>
               </div>
 
               {canManageUser(appUser, user) && (
-                <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-surface-overlay pt-3">
                   <button
                     type="button"
                     onClick={() => onPrimaryAction(user)}
@@ -1214,7 +1214,7 @@ function MemberStatusSection({
                     type="button"
                     onClick={() => onSecondaryAction(user)}
                     disabled={actioning === user.uid}
-                    className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-600 disabled:text-gray-300"
+                    className="rounded-xl border border-surface-overlay px-3 py-2 text-xs font-semibold text-ink-body disabled:text-ink-hint"
                   >
                     {secondaryActionLabel}
                   </button>

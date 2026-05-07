@@ -55,11 +55,11 @@ export default function BillingPage() {
     <div className="space-y-6 max-w-lg">
       {/* Result banner */}
       {success && (
-        <div className="rounded-xl border border-green-200 bg-green-50 p-4 flex items-start gap-3">
+        <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 flex items-start gap-3">
           <CheckCircleIcon className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
           <div>
-            <p className="font-semibold text-green-800">Subscription activated</p>
-            <p className="text-sm text-green-700 mt-0.5">
+            <p className="font-semibold text-brand-800">Subscription activated</p>
+            <p className="text-sm text-brand-700 mt-0.5">
               Your plan is now live. Thanks for subscribing to GolfCaddy.
             </p>
           </div>
@@ -78,21 +78,21 @@ export default function BillingPage() {
       )}
 
       {/* Current plan card */}
-      <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+      <div className="rounded-xl border border-surface-overlay bg-surface-card divide-y divide-gray-100">
         <div className="px-5 py-4">
-          <h2 className="font-semibold text-gray-900">Current plan</h2>
+          <h2 className="font-semibold text-ink-title">Current plan</h2>
         </div>
 
         <div className="px-5 py-4">
           {subscription === undefined ? (
-            <p className="text-sm text-gray-400">Loading…</p>
+            <p className="text-sm text-ink-hint">Loading…</p>
           ) : !isActive && !isPastDue ? (
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium text-gray-700 capitalize">{subscription?.status ?? "No plan"}</p>
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="font-medium text-ink-body capitalize">{subscription?.status ?? "No plan"}</p>
+                <p className="text-sm text-ink-muted mt-0.5">
                   Choose a plan in{" "}
-                  <Link href="/admin/settings" className="text-green-700 underline">
+                  <Link href="/admin/settings" className="text-brand-700 underline">
                     Settings
                   </Link>{" "}
                   to unlock full access.
@@ -103,11 +103,11 @@ export default function BillingPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-semibold text-gray-900">
+                  <p className="font-semibold text-ink-title">
                     {plan ? PLAN_LABELS[plan] : "Active"} plan
                   </p>
                   {plan && (
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-ink-muted">
                       ${PLAN_PRICES[plan].monthly} AUD / month
                     </p>
                   )}
@@ -115,7 +115,7 @@ export default function BillingPage() {
                 <span
                   className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                     isActive
-                      ? "bg-green-100 text-green-700"
+                      ? "bg-brand-100 text-brand-700"
                       : "bg-amber-100 text-amber-700"
                   }`}
                 >
@@ -130,7 +130,7 @@ export default function BillingPage() {
               )}
 
               {renewalDate && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-ink-muted">
                   {isActive ? "Renews" : "Period ends"} {renewalDate}
                 </p>
               )}
@@ -142,7 +142,7 @@ export default function BillingPage() {
               <button
                 onClick={handleManage}
                 disabled={portalLoading}
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                className="w-full rounded-lg border border-surface-overlay bg-surface-muted px-4 py-2.5 text-sm font-semibold text-ink-body hover:bg-surface-muted transition-colors disabled:opacity-50"
               >
                 {portalLoading ? "Opening portal…" : "Manage billing"}
               </button>
@@ -153,9 +153,9 @@ export default function BillingPage() {
 
       {/* Plan comparison */}
       {(isActive || isPastDue) && plan && (
-        <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+        <div className="rounded-xl border border-surface-overlay bg-surface-card divide-y divide-gray-100">
           <div className="px-5 py-4">
-            <h2 className="font-semibold text-gray-900">Plan limits</h2>
+            <h2 className="font-semibold text-ink-title">Plan limits</h2>
           </div>
           <div className="px-5 py-4 grid grid-cols-3 gap-3 text-center">
             {(["starter", "club", "society"] as const).map((p) => (
@@ -163,22 +163,22 @@ export default function BillingPage() {
                 key={p}
                 className={`rounded-lg border p-3 ${
                   p === plan
-                    ? "border-green-300 bg-green-50"
-                    : "border-gray-100 bg-gray-50"
+                    ? "border-green-300 bg-brand-50"
+                    : "border-surface-overlay bg-surface-muted"
                 }`}
               >
-                <p className={`text-xs font-semibold uppercase tracking-wide ${p === plan ? "text-green-700" : "text-gray-500"}`}>
+                <p className={`text-xs font-semibold uppercase tracking-wide ${p === plan ? "text-brand-700" : "text-ink-muted"}`}>
                   {PLAN_LABELS[p]}
                 </p>
-                <p className={`text-lg font-bold mt-1 ${p === plan ? "text-green-800" : "text-gray-400"}`}>
+                <p className={`text-lg font-bold mt-1 ${p === plan ? "text-brand-800" : "text-ink-hint"}`}>
                   ${PLAN_PRICES[p].monthly}
                 </p>
-                <p className="text-xs text-gray-400">AUD/mo</p>
+                <p className="text-xs text-ink-hint">AUD/mo</p>
               </div>
             ))}
           </div>
           <div className="px-5 py-3">
-            <p className="text-xs text-gray-400 text-center">
+            <p className="text-xs text-ink-hint text-center">
               To change plan, use &ldquo;Manage billing&rdquo; above.
             </p>
           </div>
@@ -187,7 +187,7 @@ export default function BillingPage() {
 
       <Link
         href="/admin/settings"
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm text-ink-muted hover:text-ink-body transition-colors"
       >
         ← Back to Settings
       </Link>

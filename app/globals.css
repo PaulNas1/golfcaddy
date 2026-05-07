@@ -27,9 +27,9 @@
   --ink-hint:  #9ca3af;
 }
 
+/* System dark mode — only applies when no explicit data-theme is set */
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* ── Dark mode ───────────────────────────────────────── */
+  :root:not([data-theme="light"]) {
     --surface-page:    #0f172a;
     --surface-card:    #1e293b;
     --surface-muted:   #162032;
@@ -40,6 +40,32 @@
     --ink-muted: #94a3b8;
     --ink-hint:  #64748b;
   }
+}
+
+/* Explicit dark override — beats system setting in both directions */
+[data-theme="dark"] {
+  --surface-page:    #0f172a;
+  --surface-card:    #1e293b;
+  --surface-muted:   #162032;
+  --surface-overlay: #334155;
+
+  --ink-title: #f1f5f9;
+  --ink-body:  #cbd5e1;
+  --ink-muted: #94a3b8;
+  --ink-hint:  #64748b;
+}
+
+/* Explicit light override — forces light even if system is dark */
+[data-theme="light"] {
+  --surface-page:    #f9fafb;
+  --surface-card:    #ffffff;
+  --surface-muted:   #f3f4f6;
+  --surface-overlay: #e5e7eb;
+
+  --ink-title: #111827;
+  --ink-body:  #374151;
+  --ink-muted: #6b7280;
+  --ink-hint:  #9ca3af;
 }
 
 html,

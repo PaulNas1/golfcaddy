@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme, type Theme } from "@/contexts/ThemeContext";
 import { subscribeMember } from "@/lib/firestore";
 import Avatar from "@/components/ui/Avatar";
 import PlayerProfileForm from "@/components/profile/PlayerProfileForm";
@@ -22,6 +23,7 @@ import type { Member } from "@/types";
 
 export default function ProfilePage() {
   const { appUser, firebaseUser, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
   const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
 
@@ -85,6 +87,34 @@ export default function ProfilePage() {
 
       {/* ── Email / password security ──────────────────────────────────── */}
       <AccountSecuritySection appUser={appUser} firebaseUser={firebaseUser} />
+
+      {/* ── Appearance ────────────────────────────────────────────────── */}
+      <div className="bg-surface-card rounded-2xl border border-surface-overlay p-4">
+        <p className="text-sm font-semibold text-ink-title mb-3">Appearance</p>
+        <div className="flex rounded-xl border border-surface-overlay bg-surface-muted p-1 gap-1">
+          {([
+            { value: "light",  label: "☀️ Light"  },
+            { value: "system", label: "Auto"       },
+            { value: "dark",   label: "🌙 Dark"   },
+          ] as { value: Theme; label: string }[]).map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTheme(value)}
+              className={`flex-1 rounded-lg py-2 text-xs font-semibold transition-colors ${
+                theme === value
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : "text-ink-muted"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-ink-hint">
+          Auto follows your phone&apos;s system setting.
+        </p>
+      </div>
 
       {/* ── Founder platform link (platform admins only) ───────────────── */}
       {appUser.platformAdmin && (

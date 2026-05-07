@@ -445,15 +445,15 @@ export default function AdminRoundLeaderboardPage() {
   if (loading && !round) {
     return (
       <div className="space-y-4">
-        <div className="h-8 bg-gray-200 rounded w-2/3 animate-pulse" />
-        <div className="bg-white rounded-2xl p-4 h-32 bg-gray-100 animate-pulse" />
+        <div className="h-8 bg-surface-overlay rounded w-2/3 animate-pulse" />
+        <div className="bg-surface-card rounded-2xl p-4 h-32 bg-surface-muted animate-pulse" />
       </div>
     );
   }
 
   if (!round) {
     return (
-      <div className="text-gray-400 text-sm">
+      <div className="text-ink-hint text-sm">
         Round not found.
       </div>
     );
@@ -462,13 +462,13 @@ export default function AdminRoundLeaderboardPage() {
   return (
     <div className="space-y-4 pb-8">
       <div>
-        <p className="text-xs text-gray-500 mb-1">
+        <p className="text-xs text-ink-muted mb-1">
           {getRoundLabel(round)} · {round.season}
         </p>
-        <h1 className="text-xl font-bold text-gray-800">
+        <h1 className="text-xl font-bold text-ink-title">
           Live Leaderboard
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p className="text-ink-muted text-sm">
           {round.courseName} · {format(round.date, "EEE d MMM yyyy")}
         </p>
       </div>
@@ -479,21 +479,21 @@ export default function AdminRoundLeaderboardPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-gray-800 text-sm">
+          <h2 className="font-semibold text-ink-title text-sm">
             {rankings.length === 0
               ? "No completed cards yet"
               : "Leaderboard"}
           </h2>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-ink-hint">
             Format:{" "}
             {round.format === "stableford" ? "Stableford" : "Stroke"}
           </span>
         </div>
 
         {rankings.length === 0 ? (
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-ink-hint">
             Once players submit scores, they&apos;ll appear here.
           </p>
         ) : (
@@ -506,27 +506,27 @@ export default function AdminRoundLeaderboardPage() {
                 className="flex items-center justify-between py-2 text-sm"
               >
                 <div className="flex items-center gap-2">
-                  <span className="w-6 text-xs text-gray-400">
+                  <span className="w-6 text-xs text-ink-hint">
                     #{ranking.rank}
                   </span>
                   <div>
-                    <span className="text-gray-700">
+                    <span className="text-ink-body">
                       {ranking.playerName}
                     </span>
                     {ranking.countbackDetail && (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-ink-hint">
                         {ranking.countbackDetail}
                       </p>
                     )}
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-gray-800">
+                  <p className="font-semibold text-ink-title">
                     {round.format === "stableford"
                       ? ranking.stablefordTotal
                       : ranking.grossTotal}
                   </p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-ink-hint">
                     Hcp {ranking.handicap}
                   </p>
                   {!round.resultsPublished &&
@@ -535,7 +535,7 @@ export default function AdminRoundLeaderboardPage() {
                       <button
                         type="button"
                         onClick={() => handleReopenCard(card.id)}
-                        className="mt-1 text-xs text-green-700 underline"
+                        className="mt-1 text-xs text-brand-700 underline"
                       >
                         Re-open card
                       </button>
@@ -549,9 +549,9 @@ export default function AdminRoundLeaderboardPage() {
       </div>
 
       {!round.resultsPublished && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-          <h2 className="font-semibold text-gray-800 text-sm">Side Winners</h2>
-          <p className="text-xs text-gray-500">
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+          <h2 className="font-semibold text-ink-title text-sm">Side Winners</h2>
+          <p className="text-xs text-ink-muted">
             Select winners before publishing. Blank winners are allowed if a prize was not run.
           </p>
           {(specialHoles?.ntp ?? []).map((holeNumber) => (
@@ -599,11 +599,11 @@ export default function AdminRoundLeaderboardPage() {
       )}
 
       {results && (
-        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 space-y-3">
+        <div className="bg-brand-50 border border-brand-200 rounded-2xl p-4 space-y-3">
           <h2 className="font-semibold text-green-900 text-sm">
             Official Results Published
           </h2>
-          <p className="text-xs text-green-800">
+          <p className="text-xs text-brand-800">
             Published {format(results.publishedAt, "EEE d MMM yyyy h:mm a")}
           </p>
           <div className="space-y-1 text-sm text-green-900">
@@ -617,7 +617,7 @@ export default function AdminRoundLeaderboardPage() {
                     #{ranking.rank} {ranking.playerName}
                   </span>
                   {ranking.countbackDetail && (
-                    <p className="text-xs text-green-700">
+                    <p className="text-xs text-brand-700">
                       {ranking.countbackDetail}
                     </p>
                   )}
@@ -640,13 +640,13 @@ export default function AdminRoundLeaderboardPage() {
       )}
 
       {round.resultsPublished && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-gray-800 text-sm">
+              <h2 className="font-semibold text-ink-title text-sm">
                 Re-book This Course
               </h2>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-muted">
                 Create a new upcoming round from this course setup for a future
                 season or the following year.
               </p>
@@ -656,16 +656,16 @@ export default function AdminRoundLeaderboardPage() {
               onClick={() =>
                 showRebookForm ? setShowRebookForm(false) : openRebookForm()
               }
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-green-700 transition-colors hover:bg-green-50"
+              className="rounded-xl border border-surface-overlay bg-surface-card px-3 py-2 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
             >
               {showRebookForm ? "Hide" : "Re-book course"}
             </button>
           </div>
 
           {showRebookForm && (
-            <div className="space-y-3 border-t border-gray-100 pt-3">
-              <div className="rounded-xl border border-green-100 bg-green-50 px-3 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-green-700">
+            <div className="space-y-3 border-t border-surface-overlay pt-3">
+              <div className="rounded-xl border border-green-100 bg-brand-50 px-3 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
                   Season handling
                 </p>
                 <p className="mt-1 text-xs text-green-900">
@@ -678,19 +678,19 @@ export default function AdminRoundLeaderboardPage() {
 
               <div className="grid gap-3 sm:grid-cols-3">
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-gray-700">
+                  <span className="mb-1 block text-xs font-medium text-ink-body">
                     Date
                   </span>
                   <input
                     type="date"
                     value={rebookDate}
                     onChange={(event) => setRebookDate(event.target.value)}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-gray-700">
+                  <span className="mb-1 block text-xs font-medium text-ink-body">
                     Season
                   </span>
                   <input
@@ -709,12 +709,12 @@ export default function AdminRoundLeaderboardPage() {
                         );
                       }
                     }}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="mb-1 block text-xs font-medium text-gray-700">
+                  <span className="mb-1 block text-xs font-medium text-ink-body">
                     Round number
                   </span>
                   <input
@@ -725,17 +725,17 @@ export default function AdminRoundLeaderboardPage() {
                       setRebookRoundNumber(event.target.value);
                       setRebookRoundNumberEdited(true);
                     }}
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </label>
               </div>
 
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-muted">
                 Date and round number are editable. The round number shown here
                 is only a suggestion.
               </p>
 
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-ink-muted">
                 Suggested round number for Season{" "}
                 {rebookSeason || suggestedRebookSeason}:{" "}
                 {suggestedRoundNumberForSeason}. Course data, tee set, pars,
@@ -747,7 +747,7 @@ export default function AdminRoundLeaderboardPage() {
                 type="button"
                 onClick={handleRebook}
                 disabled={rebooking}
-                className="w-full rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-green-300"
+                className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-green-300"
               >
                 {rebooking
                   ? "Creating re-booked round..."
@@ -758,16 +758,16 @@ export default function AdminRoundLeaderboardPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
-        <h2 className="font-semibold text-gray-800 text-sm">Results</h2>
-        <p className="text-xs text-gray-500">
+      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-2">
+        <h2 className="font-semibold text-ink-title text-sm">Results</h2>
+        <p className="text-xs text-ink-muted">
           Publishing saves the official results, side winners, and locks all cards.
         </p>
         <button
           type="button"
           onClick={handlePublish}
           disabled={publishing || round.resultsPublished || rankings.length === 0}
-          className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-green-300 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
         >
           {round.resultsPublished
             ? "Results published"
@@ -804,13 +804,13 @@ function WinnerSelect({
 }) {
   return (
     <label className="block">
-      <span className="block text-xs font-medium text-gray-700 mb-1">
+      <span className="block text-xs font-medium text-ink-body mb-1">
         {label}
       </span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-green-500"
+        className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
       >
         <option value="">No winner selected</option>
         {options.map((option) => (

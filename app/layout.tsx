@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import DevServiceWorkerCleanup from "@/components/DevServiceWorkerCleanup";
 import PushNotificationsManager from "@/components/PushNotificationsManager";
 
@@ -47,13 +48,17 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        {/* Apply saved theme before first paint to prevent flash */}
+        <script dangerouslySetInnerHTML={{ __html: `(function(){var t=localStorage.getItem('golfcaddy_theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);})();` }} />
       </head>
       <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
         <DevServiceWorkerCleanup />
-        <AuthProvider>
-          <PushNotificationsManager />
-          {children}
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <PushNotificationsManager />
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

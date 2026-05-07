@@ -198,7 +198,7 @@ export default function AdminDashboard() {
               disabled={!group}
               className="rounded-xl border border-surface-overlay bg-surface-muted p-4 shadow-sm text-left transition-colors hover:bg-surface-overlay disabled:opacity-40"
             >
-              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white/70">
+              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-card/70">
                 <QRIcon className="h-6 w-6 text-ink-title" />
               </span>
               <span className="block text-sm font-semibold text-ink-title">Invite to join</span>
@@ -306,7 +306,7 @@ function InviteQRModal({
             <>
               {/* QR code */}
               <div className="flex flex-col items-center gap-3">
-                <div className="rounded-2xl border-2 border-brand-100 bg-white p-2">
+                <div className="rounded-2xl border-2 border-brand-100 bg-surface-card p-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={qrSrc}
@@ -376,7 +376,7 @@ function ActionTile({
           : "border-surface-overlay bg-surface-muted text-ink-title hover:bg-surface-overlay"
       }`}
     >
-      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white/70">
+      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-card/70">
         {icon}
       </span>
       <span className="block text-sm font-semibold">{label}</span>
