@@ -267,7 +267,7 @@ export default function TeeTimesEditor({
 
               {guestInputIndex === index && (
                 <div
-                  className="mt-2 flex items-center gap-2"
+                  className="mt-2 space-y-2"
                   onClick={(event) => event.stopPropagation()}
                 >
                   <input
@@ -286,26 +286,28 @@ export default function TeeTimesEditor({
                       }
                     }}
                     placeholder="Guest name"
-                    className="flex-1 rounded-lg border border-surface-overlay bg-surface-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    className="w-full rounded-lg border border-surface-overlay bg-surface-card px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                   />
-                  <button
-                    type="button"
-                    onClick={() => confirmGuest(index)}
-                    className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setGuestInputIndex(null);
-                      setGuestInputValue("");
-                    }}
-                    className="rounded-lg border border-surface-overlay px-3 py-1.5 text-xs font-medium text-ink-muted"
-                  >
-                    Cancel
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => confirmGuest(index)}
+                      className="flex-1 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setGuestInputIndex(null);
+                        setGuestInputValue("");
+                      }}
+                      className="flex-1 rounded-lg border border-surface-overlay px-3 py-1.5 text-xs font-medium text-ink-muted"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </button>
