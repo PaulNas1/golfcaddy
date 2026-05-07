@@ -453,6 +453,8 @@ export const createGroup = async ({
   // Step 2: now that the user doc exists with role:"admin", write group + member.
   const batch = writeBatch(db);
 
+  const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
   batch.set(doc(db, "groups", slug), {
     name,
     slug,
@@ -462,6 +464,16 @@ export const createGroup = async ({
     memberCount: 1,
     currentSeason: currentYear,
     settings: DEFAULT_GROUP_SETTINGS,
+    subscription: {
+      status: "trial",
+      plan: null,
+      trialEndsAt,
+      currentPeriodEndsAt: null,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      exemptReason: null,
+      updatedAt: now,
+    },
     createdAt: now,
     updatedAt: now,
   });

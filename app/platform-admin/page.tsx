@@ -632,8 +632,13 @@ export default function PlatformAdminPage() {
       {/* ── Trial Modal ── */}
       {trialModal && (
         <Modal title={`Start Trial: ${trialModal.name}`} onClose={() => setTrialModal(null)}>
+          {trialModal.subscription?.status === "trial" && trialModal.subscription.trialEndsAt && (
+            <div className="rounded-xl bg-blue-50 border border-blue-100 px-3 py-2.5 text-xs text-blue-700 mb-4">
+              Currently expires <strong>{formatDate(trialModal.subscription.trialEndsAt)}</strong>. Setting a new trial replaces this.
+            </div>
+          )}
           <p className="text-sm text-ink-muted mb-4">
-            Give this group free access for a set number of days.
+            Set how many days of free access to grant from today.
           </p>
           <label className="block text-sm font-medium text-ink-body mb-1">Trial length (days)</label>
           <input
@@ -644,6 +649,16 @@ export default function PlatformAdminPage() {
             onChange={(e) => setTrialDays(e.target.value)}
             className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
+          {Number(trialDays) > 0 && (
+            <p className="mt-2 text-xs text-ink-hint">
+              Trial will end on{" "}
+              <strong>
+                {new Intl.DateTimeFormat("en-AU", {
+                  day: "numeric", month: "short", year: "numeric",
+                }).format(new Date(Date.now() + Number(trialDays) * 86_400_000))}
+              </strong>
+            </p>
+          )}
           <div className="mt-4 flex gap-2">
             <button
               onClick={async () => {
