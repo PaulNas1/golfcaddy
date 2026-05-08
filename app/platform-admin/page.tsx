@@ -101,8 +101,6 @@ export default function PlatformAdminPage() {
   const [exemptReason, setExemptReason] = useState("platform_grant");
   const [trialModal, setTrialModal] = useState<GroupRow | null>(null);
   const [trialDays, setTrialDays] = useState("30");
-  const [planModal, setPlanModal] = useState<GroupRow | null>(null);
-  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan>("starter");
 
   // ── Auth gate ────────────────────────────────────────────────────────────
   // Allow access if the Firestore flag is set OR if the signed-in email matches
@@ -567,15 +565,6 @@ export default function PlatformAdminPage() {
                               color="blue"
                             />
                             <ActionItem
-                              label="Activate"
-                              description="Mark as paid / active"
-                              onClick={() => {
-                                setOpenMenuId(null);
-                                setPlanModal(group);
-                              }}
-                              color="green"
-                            />
-                            <ActionItem
                               label="Suspend"
                               description="Block access"
                               onClick={() => {
@@ -677,39 +666,6 @@ export default function PlatformAdminPage() {
         </Modal>
       )}
 
-      {/* ── Plan / Activate Modal ── */}
-      {planModal && (
-        <Modal title={`Activate: ${planModal.name}`} onClose={() => setPlanModal(null)}>
-          <p className="text-sm text-ink-muted mb-4">
-            Manually activate this group on a plan. Stripe will manage this automatically once billing is live.
-          </p>
-          <label className="block text-sm font-medium text-ink-body mb-1">Plan</label>
-          <select
-            value={selectedPlan}
-            onChange={(e) => setSelectedPlan(e.target.value as SubscriptionPlan)}
-            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="starter">Starter — 1–20 players</option>
-            <option value="club">Club — 21–40 players</option>
-            <option value="society">Society — 41–80 players</option>
-          </select>
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={async () => {
-                const g = planModal;
-                setPlanModal(null);
-                await updateSubscription(g.id, "active", { plan: selectedPlan });
-              }}
-              className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700"
-            >
-              Activate
-            </button>
-            <button onClick={() => setPlanModal(null)} className="flex-1 rounded-xl border border-surface-overlay py-2.5 text-sm text-ink-muted">
-              Cancel
-            </button>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
