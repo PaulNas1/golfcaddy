@@ -217,7 +217,7 @@ export default function SubscriptionWallPage() {
         {/* Footer */}
         <div className="space-y-3">
           <a
-            href="mailto:support@golfcaddy.app"
+            href="mailto:hello@golfcaddy.club"
             className="block w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
           >
             Contact Support
