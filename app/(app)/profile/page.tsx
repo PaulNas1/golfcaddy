@@ -133,6 +133,23 @@ export default function ProfilePage() {
         </Link>
       )}
 
+      {/* ── Help & Getting Started ────────────────────────────────────── */}
+      <Link
+        href="/help"
+        className="flex items-center justify-between gap-3 w-full bg-surface-card rounded-2xl border border-surface-overlay px-4 py-3.5"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xl">📖</span>
+          <div className="text-left">
+            <p className="text-sm font-semibold text-ink-title">Help &amp; Getting Started</p>
+            <p className="text-xs text-ink-muted">
+              {appUser.role === "admin" ? "Guides for admins and members" : "How to use GolfCaddy"}
+            </p>
+          </div>
+        </div>
+        <ChevronRightIcon className="w-4 h-4 text-ink-hint" />
+      </Link>
+
       {/* ── Sign out ───────────────────────────────────────────────────── */}
       <button
         type="button"
