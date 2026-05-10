@@ -110,18 +110,18 @@ export default function TeeTimesEditor({
     <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-ink-title">Tee Times</h2>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onRandomise}
-            className="text-ink-action text-sm font-medium hover:underline"
+            className="flex items-center gap-1 rounded-lg border border-surface-overlay px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:border-ink-muted transition-colors"
           >
-            Randomise groups
+            ⇄ Randomise
           </button>
           <button
             type="button"
             onClick={onAddTeeTime}
-            className="text-ink-action text-sm font-medium hover:underline"
+            className="flex items-center gap-0.5 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-500 transition-colors"
           >
             + Add tee time
           </button>
@@ -196,7 +196,7 @@ export default function TeeTimesEditor({
                       setGuestInputIndex(index);
                       setGuestInputValue("");
                     }}
-                    className="text-ink-action text-xs font-medium hover:underline"
+                    className="text-ink-muted text-xs hover:text-ink-action transition-colors"
                   >
                     Add guest
                   </button>

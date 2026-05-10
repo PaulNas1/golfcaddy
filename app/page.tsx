@@ -44,15 +44,15 @@ export default function RootPage() {
         <div className="w-full max-w-xs space-y-3">
           <Link
             href="/signin"
-            className="block w-full bg-white text-brand-700 font-semibold text-base py-3.5 rounded-2xl text-center shadow-lg hover:bg-brand-50 transition-colors"
+            className="block w-full bg-white text-brand-700 font-bold text-base py-4 rounded-2xl text-center shadow-lg active:scale-[0.98] transition-transform"
           >
             Sign in to your group
           </Link>
           <Link
             href="/create-group"
-            className="block w-full bg-brand-600 border border-brand-400 text-white font-semibold text-base py-3.5 rounded-2xl text-center hover:bg-brand-500 transition-colors"
+            className="block w-full border border-white/40 text-white/90 font-medium text-sm py-3 rounded-2xl text-center hover:border-white/70 transition-colors"
           >
-            Create Social Group Account
+            Create a group account
           </Link>
         </div>
       </div>

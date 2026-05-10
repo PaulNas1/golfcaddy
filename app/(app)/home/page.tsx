@@ -240,7 +240,7 @@ export default function HomePage() {
       {/* ── Next round card ───────────────────────────────────────── */}
       <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay overflow-hidden">
         <div className="bg-brand-600 px-4 py-2">
-          <p className="text-brand-100 text-xs font-semibold uppercase tracking-wide">Next Round</p>
+          <p className="text-brand-100 text-xs font-semibold">Next Round</p>
         </div>
         <div className="p-4">
           {loading ? (
@@ -264,11 +264,7 @@ export default function HomePage() {
                         : ""}
                     </p>
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                        nextRound.format === "stableford"
-                          ? "bg-brand-100 text-brand-700"
-                          : "bg-blue-100 text-blue-700"
-                      }`}>
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface-muted text-ink-muted">
                         {nextRound.format === "stableford" ? "Stableford" : "Stroke Play"}
                       </span>
                     </div>
@@ -279,34 +275,33 @@ export default function HomePage() {
 
               {/* ── Inline RSVP ───────────────────────────────────── */}
               {nextRound.rsvpOpen && (
-                <div className="mt-4 border-t border-surface-overlay pt-3">
-                  <p className="text-xs font-semibold text-ink-muted mb-2">Are you playing?</p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={rsvpBusy}
-                      onClick={() => handleRsvp("accepted")}
-                      className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors ${
-                        nextRoundRsvp?.status === "accepted"
-                          ? "bg-brand-600 border-brand-600 text-white"
-                          : "bg-surface-muted border-surface-overlay text-ink-body hover:border-brand-400"
-                      }`}
-                    >
-                      ✓ I&apos;m in
-                    </button>
-                    <button
-                      type="button"
-                      disabled={rsvpBusy}
-                      onClick={() => handleRsvp("declined")}
-                      className={`flex-1 py-3 rounded-xl text-sm font-semibold border transition-colors ${
-                        nextRoundRsvp?.status === "declined"
-                          ? "bg-ink-muted border-ink-muted text-white"
-                          : "bg-surface-muted border-surface-overlay text-ink-body hover:border-ink-muted"
-                      }`}
-                    >
-                      ✗ Can&apos;t make it
-                    </button>
-                  </div>
+                <div className="mt-4 border-t border-surface-overlay pt-3 space-y-2">
+                  {/* Primary action — full width, dominant */}
+                  <button
+                    type="button"
+                    disabled={rsvpBusy}
+                    onClick={() => handleRsvp("accepted")}
+                    className={`w-full py-3 rounded-xl text-sm font-bold transition-colors ${
+                      nextRoundRsvp?.status === "accepted"
+                        ? "bg-brand-600 text-white"
+                        : "bg-brand-600 text-white hover:bg-brand-500 active:scale-[0.98]"
+                    }`}
+                  >
+                    {nextRoundRsvp?.status === "accepted" ? "✓ I'm in" : "I'm Going ✓"}
+                  </button>
+                  {/* Secondary action — smaller, subordinate */}
+                  <button
+                    type="button"
+                    disabled={rsvpBusy}
+                    onClick={() => handleRsvp("declined")}
+                    className={`w-full py-2 rounded-xl text-xs font-medium border transition-colors ${
+                      nextRoundRsvp?.status === "declined"
+                        ? "border-ink-muted bg-surface-muted text-ink-body"
+                        : "border-surface-overlay text-ink-muted hover:border-ink-muted hover:text-ink-body"
+                    }`}
+                  >
+                    Can&apos;t make it
+                  </button>
                 </div>
               )}
               {!nextRound.rsvpOpen && nextRoundRsvp && (
@@ -399,16 +394,14 @@ export default function HomePage() {
               return (
                 <div
                   key={standing.id}
-                  className={`flex items-center justify-between py-2.5 text-sm ${
-                    isMe ? "text-brand-700" : ""
-                  }`}
+                  className="flex items-center justify-between py-2.5 text-sm"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="w-7 text-xs font-semibold text-ink-hint">
                       #{standing.displayCurrentRank}
                     </span>
                     <div className="min-w-0">
-                      <p className={`font-medium truncate ${isMe ? "text-brand-700" : "text-ink-title"}`}>
+                      <p className={`font-medium truncate ${isMe ? "text-ink-action font-semibold" : "text-ink-title"}`}>
                         {standing.memberName}{isMe ? " (you)" : ""}
                       </p>
                       <p className="text-xs text-ink-hint">
@@ -417,7 +410,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-brand-700">
+                    <p className={`font-bold ${isMe ? "text-ink-action" : "text-ink-title"}`}>
                       {standing.totalPoints}
                     </p>
                     <p className="text-xs text-ink-hint">pts</p>
@@ -467,7 +460,7 @@ function SeasonRecapCard({
     <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 shadow-sm">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">Season {season}</p>
+          <p className="text-xs font-medium text-ink-action">Season {season}</p>
           <h3 className="font-bold text-ink-title text-lg">Season Wrapped 🏆</h3>
         </div>
         <span className="text-3xl">⛳</span>
@@ -488,7 +481,7 @@ function SeasonRecapCard({
             <div
               key={s.memberId}
               className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
-                isMe ? "bg-brand-100" : "bg-surface-card"
+                isMe ? "bg-surface-muted" : "bg-surface-card"
               }`}
             >
               <span className="text-lg w-7 text-center">{podiumMedals[i]}</span>

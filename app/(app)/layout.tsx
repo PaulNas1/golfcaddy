@@ -206,12 +206,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 key={href}
                 type="button"
                 onClick={() => handleTabTap(href)}
-                className={`flex-1 flex flex-col items-center pt-2 pb-1 gap-0.5 transition-colors ${
+                className={`flex-1 flex flex-col items-center pt-2 pb-1 gap-0.5 transition-colors relative ${
                   active ? "text-brand-600" : "text-ink-hint"
                 }`}
               >
-                <Icon className="w-6 h-6" />
-                <span className="text-xs font-medium">{label}</span>
+                {active && (
+                  <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-500" />
+                )}
+                <Icon className={`w-6 h-6 transition-opacity ${active ? "opacity-100" : "opacity-40"}`} />
+                <span className={`text-xs transition-all ${active ? "font-semibold" : "font-medium"}`}>{label}</span>
               </button>
             );
           })}
