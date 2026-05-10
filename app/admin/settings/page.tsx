@@ -1206,7 +1206,7 @@ function ModeButton({
       onClick={onClick}
       className={`rounded-xl border px-3 py-3 text-left transition-colors ${
         selected
-          ? "border-green-500 bg-brand-50"
+          ? "border-surface-selectedBorder bg-surface-selected"
           : "border-surface-overlay bg-surface-muted"
       }`}
     >

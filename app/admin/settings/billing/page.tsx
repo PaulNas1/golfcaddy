@@ -163,7 +163,7 @@ export default function BillingPage() {
                 key={p}
                 className={`rounded-lg border p-3 ${
                   p === plan
-                    ? "border-green-300 bg-brand-50"
+                    ? "border-surface-selectedBorder bg-surface-selected"
                     : "border-surface-overlay bg-surface-muted"
                 }`}
               >

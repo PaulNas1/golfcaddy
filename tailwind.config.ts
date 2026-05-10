@@ -43,10 +43,12 @@ const config: Config = {
         // Values driven by CSS custom properties — dark mode flips them
         // in globals.css under @media (prefers-color-scheme: dark).
         surface: {
-          page:    "var(--surface-page)",
-          card:    "var(--surface-card)",
-          muted:   "var(--surface-muted)",
-          overlay: "var(--surface-overlay)",
+          page:           "var(--surface-page)",
+          card:           "var(--surface-card)",
+          muted:          "var(--surface-muted)",
+          overlay:        "var(--surface-overlay)",
+          selected:       "var(--surface-selected)",
+          selectedBorder: "var(--surface-selected-border)",
         },
         // ── Text hierarchy ────────────────────────────────────────────
         ink: {
@@ -54,6 +56,7 @@ const config: Config = {
           body:   "var(--ink-body)",
           muted:  "var(--ink-muted)",
           hint:   "var(--ink-hint)",
+          action: "var(--ink-action)",
         },
         // ── Status badges ─────────────────────────────────────────────
         // CSS-variable-driven so dark mode flips them — see globals.css

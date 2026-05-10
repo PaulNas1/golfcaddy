@@ -145,8 +145,8 @@ export default function SubscriptionWallPage() {
                     disabled={!!checkoutPlan}
                     className={`w-full text-left rounded-2xl border-2 p-4 transition-all active:scale-[0.99] ${
                       isRecommended
-                        ? "border-green-500 bg-green-50"
-                        : "border-gray-100 bg-white hover:border-gray-200"
+                        ? "border-surface-selectedBorder bg-surface-selected"
+                        : "border-surface-overlay bg-surface-muted hover:border-surface-overlay"
                     } disabled:opacity-60`}
                   >
                     <div className="flex items-center justify-between gap-3">

@@ -114,14 +114,14 @@ export default function TeeTimesEditor({
           <button
             type="button"
             onClick={onRandomise}
-            className="text-brand-700 text-sm font-medium hover:underline"
+            className="text-ink-action text-sm font-medium hover:underline"
           >
             Randomise groups
           </button>
           <button
             type="button"
             onClick={onAddTeeTime}
-            className="text-brand-600 text-sm font-medium hover:underline"
+            className="text-ink-action text-sm font-medium hover:underline"
           >
             + Add tee time
           </button>
@@ -136,7 +136,7 @@ export default function TeeTimesEditor({
         changing their RSVP.
       </p>
       {playersSummary && (
-        <p className="text-xs text-brand-700">{playersSummary}</p>
+        <p className="text-xs text-ink-action">{playersSummary}</p>
       )}
 
       <div className="space-y-3">
@@ -160,7 +160,7 @@ export default function TeeTimesEditor({
               }
               className={`w-full rounded-xl border p-3 text-left transition-colors ${
                 isActive
-                  ? "border-green-300 bg-brand-50"
+                  ? "border-surface-selectedBorder bg-surface-selected"
                   : "border-surface-overlay bg-surface-muted hover:border-surface-overlay"
               }`}
             >
@@ -178,7 +178,7 @@ export default function TeeTimesEditor({
                   <div
                     className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-sm ${
                       isActive
-                        ? "border-green-300 bg-surface-card text-ink-title"
+                        ? "border-surface-selectedBorder bg-surface-card text-ink-title"
                         : "border-surface-overlay bg-surface-card text-ink-title"
                     }`}
                   >
@@ -196,7 +196,7 @@ export default function TeeTimesEditor({
                       setGuestInputIndex(index);
                       setGuestInputValue("");
                     }}
-                    className="text-brand-700 text-xs font-medium hover:underline"
+                    className="text-ink-action text-xs font-medium hover:underline"
                   >
                     Add guest
                   </button>
@@ -243,7 +243,7 @@ export default function TeeTimesEditor({
                           event.stopPropagation();
                           openRemovalPrompt(index, member);
                         }}
-                        className="rounded-lg border border-brand-200 bg-surface-card px-2.5 py-1 text-xs font-medium text-brand-700"
+                        className="rounded-lg border border-brand-200 dark:border-brand-700 bg-surface-card px-2.5 py-1 text-xs font-medium text-ink-action"
                       >
                         {formatShortMemberName(member, members)}
                       </button>
@@ -257,7 +257,7 @@ export default function TeeTimesEditor({
                         event.stopPropagation();
                         onRemoveGuest(index, guestName);
                       }}
-                      className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700"
+                      className="rounded-lg border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-1 text-xs font-medium"
                     >
                       {guestName} ×
                     </button>
@@ -363,11 +363,11 @@ export default function TeeTimesEditor({
                 disabled={activeTeeTimeIndex == null}
                 className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
                   activeTeeTimeIndex != null && isAssignedToActive
-                    ? "border-green-600 bg-brand-600 text-white"
+                    ? "border-brand-600 bg-brand-600 text-white"
                     : isAssigned
-                    ? "border-green-300 bg-brand-50 text-brand-700"
+                    ? "border-surface-selectedBorder bg-surface-selected text-ink-action"
                     : activeTeeTimeIndex != null
-                    ? "border-surface-overlay bg-surface-card text-ink-body hover:border-green-300 hover:text-brand-700"
+                    ? "border-surface-overlay bg-surface-card text-ink-body hover:border-surface-selectedBorder hover:text-ink-action"
                     : "border-surface-overlay bg-surface-card text-ink-hint"
                 }`}
               >

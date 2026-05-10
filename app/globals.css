@@ -20,11 +20,14 @@
   --surface-card:    #ffffff;
   --surface-muted:   #f3f4f6;
   --surface-overlay: #e5e7eb;
+  --surface-selected:        #f0fdf4;
+  --surface-selected-border: #86efac;
 
-  --ink-title: #111827;
-  --ink-body:  #374151;
-  --ink-muted: #6b7280;
-  --ink-hint:  #9ca3af;
+  --ink-title:  #111827;
+  --ink-body:   #374151;
+  --ink-muted:  #6b7280;
+  --ink-hint:   #9ca3af;
+  --ink-action: #15803d;
 
   --announce-bg:     #fffbeb;
   --announce-border: #fde68a;
@@ -54,13 +57,16 @@
     color-scheme: dark;
     --surface-page:    #0f172a;
     --surface-card:    #1e293b;
-    --surface-muted:   #162032;
+    --surface-muted:   #1a2740;
     --surface-overlay: #334155;
+    --surface-selected:        #14532d;
+    --surface-selected-border: #22c55e;
 
-    --ink-title: #f1f5f9;
-    --ink-body:  #cbd5e1;
-    --ink-muted: #94a3b8;
-    --ink-hint:  #64748b;
+    --ink-title:  #f1f5f9;
+    --ink-body:   #cbd5e1;
+    --ink-muted:  #94a3b8;
+    --ink-hint:   #94a3b8;
+    --ink-action: #22c55e;
 
     --announce-bg:     #1c1300;
     --announce-border: #78350f;
@@ -88,13 +94,16 @@
   color-scheme: dark;
   --surface-page:    #0f172a;
   --surface-card:    #1e293b;
-  --surface-muted:   #162032;
+  --surface-muted:   #1a2740;
   --surface-overlay: #334155;
+  --surface-selected:        #14532d;
+  --surface-selected-border: #22c55e;
 
-  --ink-title: #f1f5f9;
-  --ink-body:  #cbd5e1;
-  --ink-muted: #94a3b8;
-  --ink-hint:  #64748b;
+  --ink-title:  #f1f5f9;
+  --ink-body:   #cbd5e1;
+  --ink-muted:  #94a3b8;
+  --ink-hint:   #94a3b8;
+  --ink-action: #22c55e;
 
   --announce-bg:     #1c1300;
   --announce-border: #78350f;
@@ -123,11 +132,14 @@
   --surface-card:    #ffffff;
   --surface-muted:   #f3f4f6;
   --surface-overlay: #e5e7eb;
+  --surface-selected:        #f0fdf4;
+  --surface-selected-border: #86efac;
 
-  --ink-title: #111827;
-  --ink-body:  #374151;
-  --ink-muted: #6b7280;
-  --ink-hint:  #9ca3af;
+  --ink-title:  #111827;
+  --ink-body:   #374151;
+  --ink-muted:  #6b7280;
+  --ink-hint:   #9ca3af;
+  --ink-action: #15803d;
 
   --announce-bg:     #fffbeb;
   --announce-border: #fde68a;
@@ -148,6 +160,62 @@
   --sub-suspended-bg: #fee2e2; --sub-suspended-text: #b91c1c;
   --sub-none-bg:      #f3f4f6; --sub-none-text:      #6b7280;
 }
+
+/*
+ * Dark mode — brand scale corrections
+ *
+ * brand-50/100/200 and text-brand-600/700/800/900 are static hex values in
+ * tailwind.config.ts (not CSS variables), so they don't flip automatically.
+ * These rules correct every component that uses them without touching each file.
+ *
+ * Specificity (0,3,0) beats Tailwind utilities (0,1,0) so no !important needed.
+ * Hover variants (.hover\:bg-brand-50 etc.) are separate Tailwind classes and
+ * also corrected here for consistency.
+ */
+@media (prefers-color-scheme: dark) {
+  /* brand scale — text */
+  :root:not([data-theme="light"]) .text-brand-600 { color: #22c55e; }
+  :root:not([data-theme="light"]) .text-brand-700 { color: #22c55e; }
+  :root:not([data-theme="light"]) .text-brand-800 { color: #4ade80; }
+  :root:not([data-theme="light"]) .text-brand-900 { color: #4ade80; }
+
+  /* brand scale — backgrounds */
+  :root:not([data-theme="light"]) .bg-brand-50  { background-color: #14532d; }
+  :root:not([data-theme="light"]) .bg-brand-100 { background-color: #166534; }
+  :root:not([data-theme="light"]) .hover\:bg-brand-50:hover  { background-color: #15803d; }
+  :root:not([data-theme="light"]) .hover\:bg-brand-100:hover { background-color: #15803d; }
+
+  /* brand scale — borders */
+  :root:not([data-theme="light"]) .border-brand-100 { border-color: #14532d; }
+  :root:not([data-theme="light"]) .border-brand-200 { border-color: #166534; }
+  :root:not([data-theme="light"]) .border-brand-300 { border-color: #16a34a; }
+
+  /* Tailwind built-in green scale — same problem, same fix */
+  :root:not([data-theme="light"]) .text-green-700 { color: #22c55e; }
+  :root:not([data-theme="light"]) .text-green-800 { color: #4ade80; }
+  :root:not([data-theme="light"]) .bg-green-50    { background-color: #14532d; }
+  :root:not([data-theme="light"]) .border-green-100 { border-color: #14532d; }
+  :root:not([data-theme="light"]) .border-green-200 { border-color: #166534; }
+}
+[data-theme="dark"] .text-brand-600 { color: #22c55e; }
+[data-theme="dark"] .text-brand-700 { color: #22c55e; }
+[data-theme="dark"] .text-brand-800 { color: #4ade80; }
+[data-theme="dark"] .text-brand-900 { color: #4ade80; }
+
+[data-theme="dark"] .bg-brand-50  { background-color: #14532d; }
+[data-theme="dark"] .bg-brand-100 { background-color: #166534; }
+[data-theme="dark"] .hover\:bg-brand-50:hover  { background-color: #15803d; }
+[data-theme="dark"] .hover\:bg-brand-100:hover { background-color: #15803d; }
+
+[data-theme="dark"] .border-brand-100 { border-color: #14532d; }
+[data-theme="dark"] .border-brand-200 { border-color: #166534; }
+[data-theme="dark"] .border-brand-300 { border-color: #16a34a; }
+
+[data-theme="dark"] .text-green-700   { color: #22c55e; }
+[data-theme="dark"] .text-green-800   { color: #4ade80; }
+[data-theme="dark"] .bg-green-50      { background-color: #14532d; }
+[data-theme="dark"] .border-green-100 { border-color: #14532d; }
+[data-theme="dark"] .border-green-200 { border-color: #166534; }
 
 html,
 body {
