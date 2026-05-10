@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChevronRightIcon } from "@/components/ui/icons";
 
@@ -121,8 +120,6 @@ const MEMBER_GUIDES: GuideItem[] = [
     ],
   },
 ];
-
-type Section = { guide: GuideItem; expanded: boolean };
 
 function GuideAccordion({ guides }: { guides: GuideItem[] }) {
   const [expanded, setExpanded] = useState<number | null>(null);
