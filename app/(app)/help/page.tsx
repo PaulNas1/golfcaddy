@@ -218,10 +218,10 @@ export default function HelpPage() {
         <p className="text-xs text-ink-muted">
           Reach out at{" "}
           <a
-            href="mailto:support@golfcaddy.club"
+            href="mailto:hello@golfcaddy.club"
             className="text-brand-600 hover:underline"
           >
-            support@golfcaddy.club
+            hello@golfcaddy.club
           </a>
         </p>
       </div>
