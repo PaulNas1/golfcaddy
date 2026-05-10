@@ -1027,29 +1027,29 @@ function RsvpCard({
   // Confirmed response state
   if (myRsvp?.status === "accepted") {
     return (
-      <div className="rounded-2xl border border-brand-200 bg-brand-50 p-4 space-y-3">
+      <div className="rounded-2xl border border-surface-selectedBorder bg-surface-selected p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-bold text-brand-800 text-lg">✓ You&apos;re in!</p>
-            <p className="text-xs text-brand-700 mt-0.5">
+            <p className="font-bold text-ink-title text-lg">✓ You&apos;re in!</p>
+            <p className="text-xs text-ink-body mt-0.5">
               Your RSVP is confirmed.
             </p>
           </div>
           <button
             type="button"
             onClick={onChangeResponse}
-            className="shrink-0 rounded-full border border-brand-300 bg-surface-card px-3 py-1 text-xs font-semibold text-brand-700"
+            className="shrink-0 rounded-full border border-surface-selectedBorder bg-surface-card px-3 py-1 text-xs font-semibold text-ink-action"
           >
             Change
           </button>
         </div>
 
         {accepted.length > 0 && (
-          <div className="rounded-xl bg-white/70 px-3 py-2.5 space-y-1.5">
-            <p className="text-xs font-semibold text-brand-800">
+          <div className="rounded-xl bg-surface-card px-3 py-2.5 space-y-1.5">
+            <p className="text-xs font-semibold text-ink-title">
               {accepted.length}{totalMembers > 0 ? ` of ${totalMembers}` : ""} members attending
             </p>
-            <p className="text-xs text-brand-700 leading-relaxed">
+            <p className="text-xs text-ink-body leading-relaxed">
               {attendeeNames.join(", ")}
               {accepted.length > 6 ? ` +${accepted.length - 6} more` : ""}
             </p>
