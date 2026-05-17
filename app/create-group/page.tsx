@@ -96,6 +96,8 @@ export default function CreateGroupPage() {
 
       // Write user doc first (rules allow isSignedIn + own uid),
       // then group + member batch (rules require isAdmin — user doc must exist first).
+      const trialEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
       await createGroup({
         name: groupName.trim(),
         slug,
@@ -103,6 +105,18 @@ export default function CreateGroupPage() {
         adminDisplayName: adminName.trim(),
         adminEmail: adminEmail.trim(),
       });
+
+      // Fire welcome email — non-blocking, don't await
+      fetch("/api/email/welcome", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: adminEmail.trim(),
+          adminName: adminName.trim(),
+          groupName: groupName.trim(),
+          trialEndsAt: trialEndsAt.toISOString(),
+        }),
+      }).catch(() => {});
 
       // All writes succeeded — go straight home, no need to search for the group.
       router.replace("/home");

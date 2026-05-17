@@ -4,6 +4,104 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = "GolfCaddy <hello@golfcaddy.club>";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://golfcaddy.club";
 
+// ─── Welcome (on group creation) ─────────────────────────────────────────────
+
+export async function sendWelcomeEmail({
+  to,
+  adminName,
+  groupName,
+  trialEndsAt,
+}: {
+  to: string;
+  adminName: string;
+  groupName: string;
+  trialEndsAt: Date;
+}) {
+  const endsOn = new Intl.DateTimeFormat("en-AU", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(trialEndsAt);
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Welcome to GolfCaddy — ${groupName} is ready to go`,
+    html: buildEmail({
+      preheader: `Your group is set up and your 30-day free trial has started. Let's get a round on the books.`,
+      heading: `Welcome to GolfCaddy ⛳`,
+      body: `Hi ${adminName},<br><br>
+<strong>${groupName}</strong> is all set up and your 30-day free trial has started. You've got until <strong>${endsOn}</strong> to explore everything GolfCaddy has to offer.<br><br>
+Here's what to do first:<br>
+• Invite your crew — share your group link so members can join<br>
+• Create your first round — set the course, date, and format<br>
+• Set up your season — handicaps and leaderboards update automatically after every round<br><br>
+Any questions? Just reply to this email — we're happy to help.`,
+      ctaLabel: "Go to GolfCaddy",
+      ctaUrl: `${APP_URL}/home`,
+      footer: "You're receiving this because you created a GolfCaddy group.",
+    }),
+  });
+}
+
+// ─── Payment Confirmed ────────────────────────────────────────────────────────
+
+export async function sendPaymentConfirmedEmail({
+  to,
+  adminName,
+  groupName,
+  planName,
+}: {
+  to: string;
+  adminName: string;
+  groupName: string;
+  planName: string;
+}) {
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `You're subscribed — welcome to GolfCaddy ${planName}`,
+    html: buildEmail({
+      preheader: `Payment confirmed. ${groupName} is now on the ${planName} plan.`,
+      heading: "You're all set",
+      body: `Hi ${adminName},<br><br>
+Payment confirmed — <strong>${groupName}</strong> is now on the <strong>${planName}</strong> plan. Full access is restored and your rounds, leaderboards, and history are right where you left them.<br><br>
+You can manage your subscription, update payment details, or download invoices any time from your billing portal.`,
+      ctaLabel: "Manage billing",
+      ctaUrl: `${APP_URL}/admin/settings/billing`,
+      footer: "You're receiving this because you're the admin of a GolfCaddy group.",
+    }),
+  });
+}
+
+// ─── Payment Failed ───────────────────────────────────────────────────────────
+
+export async function sendPaymentFailedEmail({
+  to,
+  adminName,
+  groupName,
+}: {
+  to: string;
+  adminName: string;
+  groupName: string;
+}) {
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: `Action needed — payment failed for ${groupName}`,
+    html: buildEmail({
+      preheader: `We couldn't process your payment. Update your details to keep access.`,
+      heading: "Payment failed",
+      body: `Hi ${adminName},<br><br>
+We weren't able to process the payment for <strong>${groupName}</strong>. This can happen when a card expires or has insufficient funds.<br><br>
+Your group still has access for now, but if the payment isn't resolved soon your account will be suspended. Update your payment details to keep everything running smoothly.`,
+      ctaLabel: "Update payment details",
+      ctaUrl: `${APP_URL}/admin/settings/billing`,
+      footer: "You're receiving this because you're the admin of a GolfCaddy group.",
+    }),
+  });
+}
+
 // ─── Trial Warning (7 days before expiry) ────────────────────────────────────
 
 export async function sendTrialWarningEmail({

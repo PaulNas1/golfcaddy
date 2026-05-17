@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { getStripe, isStripeConfigured, PRICE_ID_TO_PLAN } from "@/lib/stripeServer";
 import { getFirebaseAdminDb, isFirebaseAdminConfigured } from "@/lib/firebaseAdmin";
+import { sendPaymentConfirmedEmail, sendPaymentFailedEmail } from "@/lib/email";
 import type { SubscriptionStatus, SubscriptionPlan } from "@/types";
 
 // ─── Stripe requires the raw body for signature verification ─────────────────
@@ -126,6 +127,29 @@ function getInvoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
   return typeof sub === "string" ? sub : sub.id;
 }
 
+async function getGroupAdmin(
+  adminDb: ReturnType<typeof getFirebaseAdminDb>,
+  groupId: string
+): Promise<{ email: string; displayName: string; groupName: string } | null> {
+  try {
+    const groupSnap = await adminDb.collection("groups").doc(groupId).get();
+    const groupData = groupSnap.data();
+    if (!groupData) return null;
+    const adminId = groupData.adminIds?.[0];
+    if (!adminId) return null;
+    const userSnap = await adminDb.collection("users").doc(adminId).get();
+    const userData = userSnap.data();
+    if (!userData?.email) return null;
+    return {
+      email: userData.email,
+      displayName: userData.displayName ?? "there",
+      groupName: groupData.name ?? groupId,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function handleInvoicePaymentFailed(
   adminDb: ReturnType<typeof getFirebaseAdminDb>,
   invoice: Stripe.Invoice
@@ -144,6 +168,15 @@ async function handleInvoicePaymentFailed(
     });
 
   console.log(`[webhook] payment failed for group ${groupId} → past_due`);
+
+  const admin = await getGroupAdmin(adminDb, groupId);
+  if (admin) {
+    await sendPaymentFailedEmail({
+      to: admin.email,
+      adminName: admin.displayName,
+      groupName: admin.groupName,
+    }).catch(() => {});
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -184,6 +217,28 @@ export async function POST(request: NextRequest) {
         if (subId) {
           const sub = await getStripe().subscriptions.retrieve(subId);
           await syncSubscription(adminDb, sub);
+
+          // Send confirmation only on first payment, not renewals
+          if ((invoice as Stripe.Invoice & { billing_reason?: string }).billing_reason === "subscription_create") {
+            const groupId =
+              groupIdFromSubscription(sub) ||
+              (await groupIdByCustomer(adminDb, String(sub.customer)));
+            if (groupId) {
+              const admin = await getGroupAdmin(adminDb, groupId);
+              const plan = extractPlan(sub);
+              const planName = plan
+                ? { starter: "Starter", club: "Club", society: "Society" }[plan]
+                : "GolfCaddy";
+              if (admin) {
+                await sendPaymentConfirmedEmail({
+                  to: admin.email,
+                  adminName: admin.displayName,
+                  groupName: admin.groupName,
+                  planName,
+                }).catch(() => {});
+              }
+            }
+          }
         }
         break;
       }
