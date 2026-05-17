@@ -29,41 +29,33 @@ export async function GET(request: NextRequest) {
         const groupId = doc.id;
         const adminIds: string[] = data.adminIds ?? [];
 
-        const [
-          adminUserSnap,
-          lastRoundSnap,
-          roundsLast30Snap,
-          newMembersSnap,
-          allMembersSnap,
-        ] = await Promise.all([
+        // Single-field groupId queries only — no composite indexes required.
+        // Activity signals are derived in memory from the full result sets.
+        const [adminUserSnap, roundsSnap, allMembersSnap] = await Promise.all([
           adminIds.length > 0
             ? adminDb.collection("users").doc(adminIds[0]).get()
             : Promise.resolve(null),
-          adminDb.collection("rounds")
-            .where("groupId", "==", groupId)
-            .orderBy("date", "desc")
-            .limit(1)
-            .get(),
-          adminDb.collection("rounds")
-            .where("groupId", "==", groupId)
-            .where("date", ">=", thirtyDaysAgo)
-            .count()
-            .get(),
-          adminDb.collection("members")
-            .where("groupId", "==", groupId)
-            .where("createdAt", ">=", thirtyDaysAgo)
-            .count()
-            .get(),
-          adminDb.collection("members")
-            .where("groupId", "==", groupId)
-            .select()
-            .get(),
+          adminDb.collection("rounds").where("groupId", "==", groupId).get(),
+          adminDb.collection("members").where("groupId", "==", groupId).get(),
         ]);
 
         const adminEmail = adminUserSnap?.data()?.email ?? null;
-        const lastRoundAt = lastRoundSnap.docs[0]?.data()?.date?.toDate?.()?.toISOString() ?? null;
-        const roundsLast30Days = roundsLast30Snap.data().count;
-        const newMembersLast30Days = newMembersSnap.data().count;
+
+        // Derive round signals in memory
+        const roundDates = roundsSnap.docs
+          .map((d) => d.data().date?.toDate?.() as Date | undefined)
+          .filter((d): d is Date => d instanceof Date);
+        const lastRoundAt =
+          roundDates.length > 0
+            ? new Date(Math.max(...roundDates.map((d) => d.getTime()))).toISOString()
+            : null;
+        const roundsLast30Days = roundDates.filter((d) => d >= thirtyDaysAgo).length;
+
+        // Derive member signals in memory
+        const newMembersLast30Days = allMembersSnap.docs.filter((d) => {
+          const t = d.data().createdAt?.toDate?.();
+          return t instanceof Date && t >= thirtyDaysAgo;
+        }).length;
 
         // Count members who logged in within the last 7 days
         const memberUids = allMembersSnap.docs.map((d) => d.id);
