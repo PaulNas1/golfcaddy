@@ -28,6 +28,13 @@ type GroupRow = {
     currentPeriodEndsAt: string | null;
   } | null;
   createdAt: string | null;
+  activity: {
+    lastRoundAt: string | null;
+    roundsLast30Days: number;
+    newMembersLast30Days: number;
+    membersActiveThisWeek: number;
+    totalMembers: number;
+  } | null;
 };
 
 type Stats = {
@@ -74,6 +81,19 @@ function formatDate(iso: string | null) {
   const d = new Date(iso);
   if (!isFinite(d.getTime())) return "—";
   return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(d);
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return "never";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diffMs / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months === 1) return "1mo ago";
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}yr ago`;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -470,6 +490,45 @@ export default function PlatformAdminPage() {
                             <span>Renews {formatDate(group.subscription.currentPeriodEndsAt)}</span>
                           )}
                         </div>
+
+                        {/* Activity signals */}
+                        {group.activity && (
+                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                            {/* Last round */}
+                            <span className={`flex items-center gap-1 ${
+                              !group.activity.lastRoundAt ? "text-ink-hint" :
+                              Date.now() - new Date(group.activity.lastRoundAt).getTime() > 60 * 86400000
+                                ? "text-red-500 font-medium"
+                                : Date.now() - new Date(group.activity.lastRoundAt).getTime() > 30 * 86400000
+                                  ? "text-amber-500 font-medium"
+                                  : "text-ink-muted"
+                            }`}>
+                              <span>⛳</span>
+                              <span>Last round: {timeAgo(group.activity.lastRoundAt)}</span>
+                            </span>
+                            {/* Rounds last 30 days */}
+                            <span className="text-ink-muted">
+                              {group.activity.roundsLast30Days} round{group.activity.roundsLast30Days !== 1 ? "s" : ""} / 30d
+                            </span>
+                            {/* New members */}
+                            {group.activity.newMembersLast30Days > 0 && (
+                              <span className="text-green-600 font-medium">
+                                +{group.activity.newMembersLast30Days} member{group.activity.newMembersLast30Days !== 1 ? "s" : ""}
+                              </span>
+                            )}
+                            {/* Login activity */}
+                            {group.activity.totalMembers > 0 && (
+                              <span className={`${
+                                group.activity.membersActiveThisWeek === 0 ? "text-ink-hint" :
+                                group.activity.membersActiveThisWeek / group.activity.totalMembers < 0.3
+                                  ? "text-amber-500"
+                                  : "text-ink-muted"
+                              }`}>
+                                {group.activity.membersActiveThisWeek}/{group.activity.totalMembers} active this week
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Trial countdown bar */}
                         {group.subscription?.status === "trial" && group.subscription.trialEndsAt && (() => {
