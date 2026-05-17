@@ -341,9 +341,6 @@ export default function PlatformAdminPage() {
                 >
                   <p className={`text-2xl font-bold ${text}`}>{count}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">{label}</p>
-                  {isActive && (
-                    <p className="mt-1 text-xs font-semibold text-ink-hint">✕ clear</p>
-                  )}
                 </button>
               );
             })}
