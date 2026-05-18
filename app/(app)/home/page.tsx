@@ -343,7 +343,7 @@ export default function HomePage() {
 
       {/* ── Pinned announcement ───────────────────────────────────── */}
       {pinnedAnnouncement && (
-        <Link href="/feed" prefetch={false}>
+        <Link href="/feed" prefetch={false} className="block">
           <div className="rounded-2xl border border-announce-border bg-announce-bg p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
