@@ -349,6 +349,7 @@ export default function RoundDetailPage() {
           slopeRating: round.slopeRating,
           courseRating: round.courseRating,
           coursePar: round.coursePar,
+          gender: myMember.gender,
         })
       : null;
   const acceptedMemberIds = new Set(

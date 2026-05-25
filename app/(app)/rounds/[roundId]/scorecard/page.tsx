@@ -362,6 +362,7 @@ export default function ScorecardPage() {
         slopeRating: playerTeeSet?.slopeRating ?? round.slopeRating,
         courseRating: playerTeeSet?.courseRating ?? round.courseRating,
         coursePar: playerCoursePar,
+        gender: playerMember?.gender,
       });
 
       const id = await createScorecard({

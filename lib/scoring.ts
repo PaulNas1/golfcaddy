@@ -1,4 +1,4 @@
-import type { HandicapMode, HoleScore, ScoringFormat } from "@/types";
+import type { HandicapMode, HoleScore, ScoringFormat, UserGender } from "@/types";
 
 // Basic Stableford + stroke-play helpers for now.
 // Once full course data is wired in, we can swap the placeholders.
@@ -15,27 +15,32 @@ export function calculateStrokesReceived(
   return strokes;
 }
 
+// Golf Australia WHS consistency factors: Daily HCP = raw × 0.93 × CF
+const GA_FACTOR_MEN = 0.93 * 0.9986;
+const GA_FACTOR_WOMEN = 0.93 * 1.0483;
+
 export function calculatePlayingHandicap({
   handicap,
   mode,
   slopeRating,
   courseRating,
   coursePar,
+  gender,
 }: {
   handicap: number;
   mode: HandicapMode;
   slopeRating?: number | null;
   courseRating?: number | null;
   coursePar?: number | null;
+  gender?: UserGender | null;
 }) {
   if (!Number.isFinite(handicap)) return 0;
   if (mode !== "slope_adjusted") {
     return Math.max(0, Math.round(handicap));
   }
 
-  // USGA formula: Playing HCP = (HCP × Slope/113) + (Course Rating − Par)
-  // When slope is unknown, 113 is the standard scratch value — still allows
-  // the course rating differential to apply correctly.
+  // Golf Australia WHS formula:
+  // Daily HCP = [HI × (Slope/113) + (CR − Par)] × 0.93 × ConsistencyFactor
   const effectiveSlope =
     typeof slopeRating === "number" && slopeRating > 0 ? slopeRating : 113;
   let adjusted = (handicap * effectiveSlope) / 113;
@@ -44,7 +49,8 @@ export function calculatePlayingHandicap({
     adjusted += courseRating - coursePar;
   }
 
-  return Math.max(0, Math.round(adjusted));
+  const gaFactor = gender === "female" ? GA_FACTOR_WOMEN : GA_FACTOR_MEN;
+  return Math.max(0, Math.round(adjusted * gaFactor));
 }
 
 export function calculateStablefordPoints(
