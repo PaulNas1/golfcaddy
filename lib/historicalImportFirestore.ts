@@ -18,7 +18,6 @@ import {
   buildSeasonStandings,
   getAverageStableford,
   getBestStableford,
-  getSeasonStandingId,
 } from "./season";
 import { normaliseGroupSettings } from "./settings";
 import { normaliseLooseKey } from "./historicalImport";
@@ -46,7 +45,7 @@ export async function importHistoricalRoundsToFirestore({
   const importedResults: Results[] = [];
 
   for (const group of parsed.rounds) {
-    const roundId = await writeRound(group, groupId, adminUser, now);
+    const roundId = await writeRound(group, groupId, adminUser);
     writeScorecardsForRound(group, roundId, groupId, memberMapping, adminUser);
 
     const rankings = buildRankings(group, memberMapping);
@@ -118,8 +117,7 @@ export async function importHistoricalRoundsToFirestore({
 async function writeRound(
   group: HistoricalImportRoundGroup,
   groupId: string,
-  adminUser: AppUser,
-  now: Date
+  adminUser: AppUser
 ): Promise<string> {
   const ref = await addDoc(collection(db, "rounds"), {
     groupId,

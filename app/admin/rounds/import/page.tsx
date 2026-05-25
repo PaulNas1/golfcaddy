@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMembersForGroup } from "@/lib/firestore";
@@ -38,9 +38,10 @@ export default function ImportHistoricalRoundsPage() {
       .catch(() => {});
   }, [appUser?.groupId]);
 
-  const memberById = new Map(members.map((m) => [m.id, m]));
-  const memberByNorm = new Map(
-    members.map((m) => [normaliseLooseKey(m.displayName), m])
+  const memberById = useMemo(() => new Map(members.map((m) => [m.id, m])), [members]);
+  const memberByNorm = useMemo(
+    () => new Map(members.map((m) => [normaliseLooseKey(m.displayName), m])),
+    [members]
   );
 
   const handleFile = useCallback(
