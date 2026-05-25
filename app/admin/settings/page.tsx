@@ -73,6 +73,8 @@ export default function AdminSettingsPage() {
     new Date().getFullYear()
   );
   const [handicapRebuildBusy, setHandicapRebuildBusy] = useState(false);
+  const [rawHandicapWindow, setRawHandicapWindow] = useState(String(normaliseGroupSettings().handicapRoundsWindow));
+  const [rawHandicapBestX, setRawHandicapBestX] = useState(String(normaliseGroupSettings().handicapBestX));
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingError, setBillingError] = useState("");
   const [handicapPreview, setHandicapPreview] = useState<{
@@ -126,7 +128,10 @@ export default function AdminSettingsPage() {
           setLogoPreviewUrl(groupRecord?.logoUrl ?? "");
           setLogoFile(null);
           setLogoRemoved(false);
-          setSettings(normaliseGroupSettings(groupRecord?.settings));
+          const loaded = normaliseGroupSettings(groupRecord?.settings);
+          setSettings(loaded);
+          setRawHandicapWindow(String(loaded.handicapRoundsWindow));
+          setRawHandicapBestX(String(loaded.handicapBestX));
           setSeasonDraft(groupRecord?.currentSeason ?? new Date().getFullYear());
           setHandicapRebuildSeason(groupRecord?.currentSeason ?? new Date().getFullYear());
           setLoading(false);
@@ -683,13 +688,14 @@ export default function AdminSettingsPage() {
                 type="number"
                 min={1}
                 max={20}
-                value={settings.handicapRoundsWindow}
-                onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    handicapRoundsWindow: Number(event.target.value) || 6,
-                  }))
-                }
+                value={rawHandicapWindow}
+                onChange={(event) => setRawHandicapWindow(event.target.value)}
+                onBlur={() => {
+                  const parsed = parseInt(rawHandicapWindow, 10);
+                  const clamped = Number.isFinite(parsed) && parsed >= 1 ? Math.min(parsed, 20) : settings.handicapRoundsWindow;
+                  setSettings((current) => ({ ...current, handicapRoundsWindow: clamped }));
+                  setRawHandicapWindow(String(clamped));
+                }}
                 className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </label>
@@ -701,13 +707,14 @@ export default function AdminSettingsPage() {
                 type="number"
                 min={1}
                 max={settings.handicapRoundsWindow}
-                value={settings.handicapBestX}
-                onChange={(event) =>
-                  setSettings((current) => ({
-                    ...current,
-                    handicapBestX: Number(event.target.value) || current.handicapRoundsWindow,
-                  }))
-                }
+                value={rawHandicapBestX}
+                onChange={(event) => setRawHandicapBestX(event.target.value)}
+                onBlur={() => {
+                  const parsed = parseInt(rawHandicapBestX, 10);
+                  const clamped = Number.isFinite(parsed) && parsed >= 1 ? Math.min(parsed, settings.handicapRoundsWindow) : settings.handicapBestX;
+                  setSettings((current) => ({ ...current, handicapBestX: clamped }));
+                  setRawHandicapBestX(String(clamped));
+                }}
                 className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </label>
