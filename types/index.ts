@@ -412,7 +412,7 @@ export interface HandicapHistory {
   previousHandicap: number;
   newHandicap: number;
   reason: string;
-  source: "manual_admin" | "published_round";
+  source: "manual_admin" | "published_round" | "historical_import";
   changeType?:
     | "movement"
     | "initial_allocation"

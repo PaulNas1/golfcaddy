@@ -27,7 +27,7 @@ test("parses a valid historical import file and groups rows into rounds", () => 
 test("accepts round-name imports when no round number is present", () => {
   const parsed = parseHistoricalImportCsv(`Season,Round date,Round name,Golf course name,Player name,Player handicap,Stableford points,Ladder points
 2024,14/09/2024,Club Championship Final,Kingston Heath,Alex Green,10,37,12
-2024,14/09/2024,Club Championship Final,Blake Stone,15,31,8
+2024,14/09/2024,Club Championship Final,Kingston Heath,Blake Stone,15,31,8
 `);
 
   assert.equal(parsed.rounds.length, 1);

@@ -108,6 +108,12 @@ export default function AdminRoundsPage() {
             </select>
           </label>
           <Link
+            href="/admin/rounds/import"
+            className="border border-surface-overlay text-ink-body text-sm font-semibold px-4 py-2 rounded-xl hover:bg-surface-muted transition-colors"
+          >
+            Import historical
+          </Link>
+          <Link
             href="/admin/rounds/create"
             className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors"
           >

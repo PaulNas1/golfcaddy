@@ -6,6 +6,9 @@ export interface HistoricalImportRow {
   roundNumber: number | null;
   roundName: string | null;
   courseName: string;
+  slope: number | null;
+  cr: number | null;
+  par: number | null;
   playerName: string;
   playerHandicap: number;
   stablefordPoints: number;
@@ -24,6 +27,9 @@ export interface HistoricalImportRoundGroup {
   roundNumber: number | null;
   roundName: string | null;
   courseName: string;
+  slope: number | null;
+  cr: number | null;
+  par: number | null;
   rows: HistoricalImportRow[];
 }
 
@@ -39,6 +45,9 @@ export const HISTORICAL_IMPORT_TEMPLATE_HEADERS = [
   "Round number",
   "Round name",
   "Golf course name",
+  "Slope",
+  "Course rating",
+  "Par",
   "Player name",
   "Player handicap",
   "Stableford points",
@@ -55,6 +64,9 @@ type ColumnKey =
   | "roundNumber"
   | "roundName"
   | "courseName"
+  | "slope"
+  | "cr"
+  | "par"
   | "playerName"
   | "playerHandicap"
   | "stablefordPoints"
@@ -70,6 +82,9 @@ const COLUMN_ALIASES: Record<ColumnKey, string[]> = {
   roundNumber: ["roundnumber", "roundno", "round"],
   roundName: ["roundname", "roundtitle"],
   courseName: ["golfcoursename", "coursename", "course"],
+  slope: ["slope", "sloperating", "slopeindex"],
+  cr: ["courserating", "cr", "rating", "courserating"],
+  par: ["par", "coursepar"],
   playerName: ["playername", "membername", "player"],
   playerHandicap: ["playerhandicap", "handicap", "hcp"],
   stablefordPoints: ["stablefordpoints", "stableford", "stbpoints", "stb"],
@@ -171,12 +186,22 @@ export function parseHistoricalImportCsv(
       );
     }
 
+    const slopeRaw = readOptionalCell(rawRow, columnIndexes.slope)?.trim();
+    const crRaw = readOptionalCell(rawRow, columnIndexes.cr)?.trim();
+    const parRaw = readOptionalCell(rawRow, columnIndexes.par)?.trim();
+    const slope = slopeRaw ? parseNumber(slopeRaw, "Slope", sourceRowNumber) : null;
+    const cr = crRaw ? parseNumber(crRaw, "Course rating", sourceRowNumber) : null;
+    const par = parRaw ? parseNumber(parRaw, "Par", sourceRowNumber) : null;
+
     const row: HistoricalImportRow = {
       season,
       roundDate,
       roundNumber,
       roundName,
       courseName,
+      slope,
+      cr,
+      par,
       playerName,
       playerHandicap,
       stablefordPoints,
@@ -225,6 +250,9 @@ export function parseHistoricalImportCsv(
       roundNumber: row.roundNumber,
       roundName: row.roundName,
       courseName: row.courseName,
+      slope: row.slope,
+      cr: row.cr,
+      par: row.par,
       rows: [row],
     });
   });
