@@ -723,11 +723,13 @@ function rebuildSeasonHandicapHistory({
   membersById,
   seasonHistory,
   handicapRoundsWindow,
+  handicapBestX,
 }: {
   standings: SeasonStanding[];
   membersById: Map<string, Member>;
   seasonHistory: HandicapHistory[];
   handicapRoundsWindow: number;
+  handicapBestX: number;
 }) {
   const seasonHistoryByMember = new Map<string, HandicapHistory[]>();
   seasonHistory.forEach((entry) => {
@@ -761,6 +763,7 @@ function rebuildSeasonHandicapHistory({
         officialHandicapAssignedAt,
         roundResults: cumulativeResults,
         window: handicapRoundsWindow,
+        bestX: handicapBestX,
         effectiveAt: roundResult.date,
       });
 
@@ -1493,6 +1496,7 @@ export const deleteRoundCascade = async (roundId: string) => {
     membersById,
     seasonHistory: seasonHandicapHistory,
     handicapRoundsWindow: groupSettings.handicapRoundsWindow,
+    handicapBestX: groupSettings.handicapBestX,
   });
   const seasonHistoryByMemberId = new Map<string, HandicapHistory[]>();
   seasonHandicapHistory.forEach((entry) => {
@@ -2144,6 +2148,7 @@ export const publishRoundResultsWithStage3 = async ({
       officialHandicapAssignedAt: member?.officialHandicapAssignedAt ?? null,
       roundResults: standing.roundResults,
       window: groupSettings.handicapRoundsWindow,
+      bestX: groupSettings.handicapBestX,
       effectiveAt: publishedAt,
     });
     const memberRef = doc(db, "members", standing.memberId);
@@ -2437,6 +2442,7 @@ export const previewSeasonHandicapRebuild = async (
     membersById,
     seasonHistory,
     handicapRoundsWindow: normaliseGroupSettings(group?.settings).handicapRoundsWindow,
+    handicapBestX: normaliseGroupSettings(group?.settings).handicapBestX,
   });
   const syncMemberSnapshot = shouldSyncMemberSeasonSnapshot(group, season);
 
@@ -2508,6 +2514,7 @@ export const rebuildSeasonHandicaps = async ({
     membersById,
     seasonHistory,
     handicapRoundsWindow: normaliseGroupSettings(group?.settings).handicapRoundsWindow,
+    handicapBestX: normaliseGroupSettings(group?.settings).handicapBestX,
   });
   const syncMemberSnapshot = shouldSyncMemberSeasonSnapshot(group, season);
   const writer = createBatchedWriter();

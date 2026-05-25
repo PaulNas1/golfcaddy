@@ -71,7 +71,8 @@ export interface MemberInvite {
 
 export interface GroupSettings {
   pointsTable: Record<string, number>; // "1" → 10, "2" → 9, etc.
-  handicapRoundsWindow: number;         // default 6
+  handicapRoundsWindow: number;         // default 6 — pool of recent rounds to consider
+  handicapBestX: number;                // default = handicapRoundsWindow — best N scores from pool
   minimumRoundsForPoints: number;       // default 3
   handicapMode: HandicapMode;
   bestXofY: {

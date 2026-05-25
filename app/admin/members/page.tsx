@@ -1393,8 +1393,7 @@ function buildInviteLink({
   inviteeName: string;
   contact: string | null;
 }) {
-  const origin =
-    typeof window !== "undefined" ? window.location.origin : "";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://golfcaddy.club";
   const params = new URLSearchParams({
     groupId,
     groupName,

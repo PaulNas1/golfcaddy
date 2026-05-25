@@ -674,24 +674,47 @@ export default function AdminSettingsPage() {
         }
       >
         <div className="space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-body">
-              Cards used for handicap movement
-            </span>
-            <input
-              type="number"
-              min={3}
-              max={12}
-              value={settings.handicapRoundsWindow}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  handicapRoundsWindow: Number(event.target.value) || 6,
-                }))
-              }
-              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-body">
+                Round pool (last N rounds)
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={settings.handicapRoundsWindow}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    handicapRoundsWindow: Number(event.target.value) || 6,
+                  }))
+                }
+                className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-body">
+                Best cards to use
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={settings.handicapRoundsWindow}
+                value={settings.handicapBestX}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    handicapBestX: Number(event.target.value) || current.handicapRoundsWindow,
+                  }))
+                }
+                className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </label>
+          </div>
+          <p className="text-xs text-ink-muted">
+            e.g. pool&nbsp;6, best&nbsp;3 → average of the 3 highest Stableford scores from the last 6 rounds. Set best = pool to use all rounds.
+          </p>
 
           <div className="grid grid-cols-1 gap-2">
             <ModeButton
@@ -1321,7 +1344,11 @@ function getPointsSummary(pointsTable: GroupSettings["pointsTable"]) {
 function getHandicapSummary(settings: GroupSettings) {
   const handicapModeLabel =
     settings.handicapMode === "slope_adjusted"
-      ? "Slope-adjusted mode"
-      : "Local handicap mode";
-  return `${settings.handicapRoundsWindow} cards, ${handicapModeLabel}`;
+      ? "Slope-adjusted"
+      : "Local";
+  const windowLabel =
+    settings.handicapBestX < settings.handicapRoundsWindow
+      ? `Best ${settings.handicapBestX} of ${settings.handicapRoundsWindow}`
+      : `${settings.handicapRoundsWindow} cards`;
+  return `${windowLabel}, ${handicapModeLabel}`;
 }

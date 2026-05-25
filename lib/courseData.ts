@@ -196,11 +196,15 @@ export function getEffectiveCourseHoles(
 }
 
 export function getEffectiveSpecialHoles(round: Round): SpecialHoles {
+  // Use round.courseHoles as the single source of truth for NTP — same data
+  // the course card shows via getViewerHoles. Tee-set-picking logic in
+  // getEffectiveCourseHoles can diverge when availableTeeSets has stale data.
+  const baseHoles =
+    round.courseHoles.length === 18 ? round.courseHoles : getFallbackCourseHoles();
+  const holes = applyHoleOverrides(baseHoles, round.holeOverrides);
   return {
     ...round.specialHoles,
-    ntp: getEffectiveCourseHoles(round)
-      .filter((hole) => hole.par === 3)
-      .map((hole) => hole.number),
+    ntp: holes.filter((hole) => hole.par === 3).map((hole) => hole.number),
   };
 }
 

@@ -8,6 +8,7 @@ import type {
 } from "@/types";
 import {
   DEFAULT_HANDICAP_WINDOW,
+  DEFAULT_HANDICAP_BEST_X,
   calculateHandicapTransition as calculateHandicapTransitionCore,
   calculateInitialHandicap as calculateInitialHandicapCore,
   calculateNextHandicap as calculateNextHandicapCore,
@@ -256,16 +257,18 @@ export function getRecentStablefordAverage(
 export function calculateNextHandicap(
   currentHandicap: number,
   roundResults: RoundResult[],
-  window = DEFAULT_HANDICAP_WINDOW
+  window = DEFAULT_HANDICAP_WINDOW,
+  bestX = DEFAULT_HANDICAP_BEST_X
 ) {
-  return calculateNextHandicapCore(currentHandicap, roundResults, window);
+  return calculateNextHandicapCore(currentHandicap, roundResults, window, bestX);
 }
 
 export function calculateInitialHandicap(
   roundResults: RoundResult[],
-  window = DEFAULT_HANDICAP_WINDOW
+  window = DEFAULT_HANDICAP_WINDOW,
+  bestX = DEFAULT_HANDICAP_BEST_X
 ) {
-  return calculateInitialHandicapCore(roundResults, window);
+  return calculateInitialHandicapCore(roundResults, window, bestX);
 }
 
 export function calculateHandicapTransition({
@@ -274,6 +277,7 @@ export function calculateHandicapTransition({
   officialHandicapAssignedAt,
   roundResults,
   window = DEFAULT_HANDICAP_WINDOW,
+  bestX = DEFAULT_HANDICAP_BEST_X,
   effectiveAt,
 }: {
   currentHandicap: number;
@@ -281,6 +285,7 @@ export function calculateHandicapTransition({
   officialHandicapAssignedAt?: Date | null;
   roundResults: RoundResult[];
   window?: number;
+  bestX?: number;
   effectiveAt: Date;
 }) {
   return calculateHandicapTransitionCore({
@@ -289,6 +294,7 @@ export function calculateHandicapTransition({
     officialHandicapAssignedAt,
     roundResults,
     window,
+    bestX,
     effectiveAt,
   });
 }

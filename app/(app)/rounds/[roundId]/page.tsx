@@ -36,6 +36,9 @@ import {
   getTeeTimeGroupLabel,
 } from "@/lib/teeTimes";
 import { useAuth } from "@/contexts/AuthContext";
+import { useGroupData } from "@/contexts/GroupDataContext";
+import { calculatePlayingHandicap } from "@/lib/scoring";
+import { normaliseGroupSettings } from "@/lib/settings";
 import { uploadFeedPostImages, validateImageFile } from "@/lib/storageUploads";
 import type {
   AppUser,
@@ -137,6 +140,7 @@ export default function RoundDetailPage() {
   const [postPhoto, setPostPhoto] = useState<File | null>(null);
   const [postPhotoPreview, setPostPhotoPreview] = useState<string | null>(null);
   const { appUser, canAccessAdmin } = useAuth();
+  const { group, groupMembers } = useGroupData();
 
   useEffect(() => {
     if (roundId && appUser?.groupId) {
@@ -335,6 +339,18 @@ export default function RoundDetailPage() {
   };
   const specialHoles = getEffectiveSpecialHoles(round);
   const { holes: viewerHoles, note: viewerNote } = getViewerHoles(round, appUser ?? null);
+  const groupSettings = normaliseGroupSettings(group?.settings);
+  const myMember = appUser ? groupMembers.find((m) => m.userId === appUser.uid) : null;
+  const myPlayingHandicap =
+    myMember != null && myMember.currentHandicap > 0
+      ? calculatePlayingHandicap({
+          handicap: myMember.currentHandicap,
+          mode: groupSettings.handicapMode,
+          slopeRating: round.slopeRating,
+          courseRating: round.courseRating,
+          coursePar: round.coursePar,
+        })
+      : null;
   const acceptedMemberIds = new Set(
     rsvps
       .filter((rsvp) => rsvp.status === "accepted")
@@ -570,6 +586,16 @@ export default function RoundDetailPage() {
             <p className="text-xs text-ink-muted">
               {round.teeSetName} tees · Par {round.coursePar ?? "—"}
               {round.slopeRating ? ` · Slope ${round.slopeRating}` : ""}
+              {round.courseRating ? ` · CR ${round.courseRating}` : ""}
+            </p>
+          )}
+          {myPlayingHandicap != null && (
+            <p className="text-xs text-ink-muted">
+              Your playing HCP:{" "}
+              <span className="font-semibold text-ink-title">{myPlayingHandicap}</span>
+              {groupSettings.handicapMode === "slope_adjusted" && (
+                <span className="ml-1 text-ink-hint">(slope adjusted)</span>
+              )}
             </p>
           )}
           {round.courseSource && (

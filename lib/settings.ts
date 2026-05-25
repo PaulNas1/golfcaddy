@@ -16,6 +16,7 @@ export const DEFAULT_POINTS_TABLE: Record<string, number> = {
 export const DEFAULT_GROUP_SETTINGS: GroupSettings = {
   pointsTable: DEFAULT_POINTS_TABLE,
   handicapRoundsWindow: 6,
+  handicapBestX: 6,
   minimumRoundsForPoints: 3,
   handicapMode: "local",
   bestXofY: {
@@ -40,6 +41,8 @@ export function normaliseGroupSettings(
     },
     handicapRoundsWindow:
       settings?.handicapRoundsWindow ?? DEFAULT_GROUP_SETTINGS.handicapRoundsWindow,
+    handicapBestX:
+      settings?.handicapBestX ?? settings?.handicapRoundsWindow ?? DEFAULT_GROUP_SETTINGS.handicapBestX,
     minimumRoundsForPoints:
       settings?.minimumRoundsForPoints ??
       DEFAULT_GROUP_SETTINGS.minimumRoundsForPoints,
