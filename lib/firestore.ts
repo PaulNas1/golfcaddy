@@ -3424,3 +3424,178 @@ export const deleteCourseCorrection = async (
 ): Promise<void> => {
   await deleteDoc(doc(db, "groups", groupId, "courseCorrections", teeSetId));
 };
+
+// ─── Placeholder Members ──────────────────────────────────────────────────────
+
+export const createPlaceholderMember = async ({
+  groupId,
+  displayName,
+  startingHandicap,
+  season,
+}: {
+  groupId: string;
+  displayName: string;
+  startingHandicap: number;
+  season: number;
+}): Promise<string> => {
+  const id = `placeholder_${crypto.randomUUID()}`;
+  await setDoc(doc(db, "members", id), {
+    userId: id,
+    groupId,
+    displayName,
+    avatarUrl: null,
+    isPlaceholder: true,
+    currentHandicap: startingHandicap,
+    handicapStatus: "provisional",
+    officialHandicapAssignedAt: null,
+    seasonYear: season,
+    seasonPoints: 0,
+    seasonRank: null,
+    roundsPlayed: 0,
+    ntpWins: 0,
+    ldWins: 0,
+    t2Wins: 0,
+    t3Wins: 0,
+    avgStableford: null,
+    bestStableford: null,
+    bestRoundId: null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return id;
+};
+
+export const deletePlaceholderMember = async (placeholderId: string): Promise<void> => {
+  await deleteDoc(doc(db, "members", placeholderId));
+};
+
+export const linkPlaceholderMember = async ({
+  placeholderId,
+  realUid,
+  realDisplayName,
+  groupId,
+}: {
+  placeholderId: string;
+  realUid: string;
+  realDisplayName: string;
+  groupId: string;
+}): Promise<void> => {
+  const placeholderSnap = await getDoc(doc(db, "members", placeholderId));
+  if (!placeholderSnap.exists()) throw new Error("Placeholder member not found.");
+  const placeholderData = placeholderSnap.data() ?? {};
+
+  const writer = createBatchedWriter();
+
+  // Carry placeholder stats to the real member doc
+  await writer.queue((batch) =>
+    batch.set(
+      doc(db, "members", realUid),
+      {
+        ...placeholderData,
+        id: realUid,
+        userId: realUid,
+        displayName: realDisplayName,
+        isPlaceholder: false,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    )
+  );
+
+  await writer.queue((batch) => batch.delete(doc(db, "members", placeholderId)));
+
+  // Scorecards
+  const scorecardsSnap = await getDocs(
+    query(
+      collection(db, "scorecards"),
+      where("groupId", "==", groupId),
+      where("playerId", "==", placeholderId)
+    )
+  );
+  for (const d of scorecardsSnap.docs) {
+    await writer.queue((batch) =>
+      batch.update(d.ref, { playerId: realUid, updatedAt: serverTimestamp() })
+    );
+  }
+
+  // Results — rebuild rankings and sideResults arrays
+  const resultsSnap = await getDocs(
+    query(collection(db, "results"), where("groupId", "==", groupId))
+  );
+  for (const d of resultsSnap.docs) {
+    const data = d.data();
+    const rankings = (data.rankings ?? []) as Array<Record<string, unknown>>;
+    const hasPlaceholder = rankings.some((r) => r.playerId === placeholderId);
+    if (!hasPlaceholder) continue;
+
+    const updatedRankings = rankings.map((r) =>
+      r.playerId === placeholderId
+        ? { ...r, playerId: realUid, playerName: realDisplayName }
+        : r
+    );
+
+    const sr = data.sideResults ?? {};
+    const remapSide = (s: Record<string, unknown> | null) =>
+      s?.winnerId === placeholderId
+        ? { ...s, winnerId: realUid, winnerName: realDisplayName }
+        : s;
+
+    await writer.queue((batch) =>
+      batch.update(d.ref, {
+        rankings: updatedRankings,
+        sideResults: {
+          ntp: ((sr.ntp ?? []) as Array<Record<string, unknown>>).map((s) =>
+            remapSide(s) ?? s
+          ),
+          ld: remapSide(sr.ld as Record<string, unknown> | null) ?? sr.ld,
+          t2: remapSide(sr.t2 as Record<string, unknown> | null) ?? sr.t2,
+          t3: remapSide(sr.t3 as Record<string, unknown> | null) ?? sr.t3,
+        },
+        updatedAt: serverTimestamp(),
+      })
+    );
+  }
+
+  // Season standings — delete old doc, create new with real uid
+  const standingsSnap = await getDocs(
+    query(
+      collection(db, "seasonStandings"),
+      where("groupId", "==", groupId),
+      where("memberId", "==", placeholderId)
+    )
+  );
+  for (const d of standingsSnap.docs) {
+    const data = d.data();
+    const newId = getSeasonStandingId(groupId, data.season as number, realUid);
+    await writer.queue((batch) =>
+      batch.set(doc(db, "seasonStandings", newId), {
+        ...data,
+        memberId: realUid,
+        memberName: realDisplayName,
+        id: newId,
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await writer.queue((batch) => batch.delete(d.ref));
+  }
+
+  // Handicap history
+  const historySnap = await getDocs(
+    query(
+      collection(db, "handicapHistory"),
+      where("groupId", "==", groupId),
+      where("memberId", "==", placeholderId)
+    )
+  );
+  for (const d of historySnap.docs) {
+    await writer.queue((batch) =>
+      batch.update(d.ref, {
+        memberId: realUid,
+        memberName: realDisplayName,
+        updatedAt: serverTimestamp(),
+      })
+    );
+  }
+
+  await writer.commit();
+};

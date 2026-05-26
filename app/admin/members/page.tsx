@@ -15,6 +15,9 @@ import {
   rejectMember,
   updateMemberStartingHandicap,
   updateUser,
+  createPlaceholderMember,
+  deletePlaceholderMember,
+  linkPlaceholderMember,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMemberLimit, getPlanLabel } from "@/lib/subscription";
@@ -60,6 +63,11 @@ export default function AdminMembersPage() {
   const [selectedActiveUser, setSelectedActiveUser] = useState<AppUser | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [placeholders, setPlaceholders] = useState<Member[]>([]);
+  const [placeholderName, setPlaceholderName] = useState("");
+  const [placeholderHcp, setPlaceholderHcp] = useState("");
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+  const [linkToUid, setLinkToUid] = useState("");
 
   const load = useCallback(async () => {
     if (!appUser?.groupId) return;
@@ -80,8 +88,11 @@ export default function AdminMembersPage() {
       setSuspended(s);
       setGroup(groupRecord);
       setSeason(groupRecord?.currentSeason ?? new Date().getFullYear());
+      setPlaceholders(memberRecords.filter((m) => m.isPlaceholder));
       setMembers(
-        Object.fromEntries(memberRecords.map((member) => [member.userId, member]))
+        Object.fromEntries(
+          memberRecords.filter((m) => !m.isPlaceholder).map((m) => [m.userId, m])
+        )
       );
 
       getMemberInvitesForGroup(groupId)
@@ -375,6 +386,74 @@ export default function AdminMembersPage() {
     }
   };
 
+  const handleAddPlaceholder = async () => {
+    if (!appUser) return;
+    const name = placeholderName.trim();
+    const hcp = Number(placeholderHcp);
+    if (!name) { setError("Enter a name for the placeholder member."); return; }
+    if (!Number.isFinite(hcp) || hcp < 0 || hcp > 54) {
+      setError("Starting handicap must be between 0 and 54.");
+      return;
+    }
+    setActioning("placeholder");
+    setError("");
+    try {
+      await createPlaceholderMember({
+        groupId: appUser.groupId,
+        displayName: name,
+        startingHandicap: Number(hcp.toFixed(1)),
+        season,
+      });
+      setPlaceholderName("");
+      setPlaceholderHcp("");
+      setSuccess(`${name} added as a placeholder member.`);
+      await load();
+    } catch {
+      setError("Could not add placeholder. Please try again.");
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const handleDeletePlaceholder = async (p: Member) => {
+    if (!confirm(`Remove placeholder "${p.displayName}"? This cannot be undone.`)) return;
+    setActioning(p.id);
+    setError("");
+    try {
+      await deletePlaceholderMember(p.id);
+      setSuccess(`${p.displayName} removed.`);
+      await load();
+    } catch {
+      setError("Could not remove placeholder. Please try again.");
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const handleLinkPlaceholder = async (p: Member) => {
+    if (!appUser || !linkToUid) return;
+    const realUser = active.find((u) => u.uid === linkToUid);
+    if (!realUser) return;
+    setActioning(p.id);
+    setError("");
+    try {
+      await linkPlaceholderMember({
+        placeholderId: p.id,
+        realUid: realUser.uid,
+        realDisplayName: realUser.displayName,
+        groupId: appUser.groupId,
+      });
+      setLinkingId(null);
+      setLinkToUid("");
+      setSuccess(`${p.displayName}'s history linked to ${realUser.displayName}.`);
+      await load();
+    } catch {
+      setError("Could not link account. Please try again.");
+    } finally {
+      setActioning(null);
+    }
+  };
+
   const approvalRoleOptions = getAssignableRoles(appUser?.role);
   const activeSectionDescription =
     "Set each player's GolfCaddy starting handicap here. Published rounds will move it from this baseline.";
@@ -612,6 +691,127 @@ export default function AdminMembersPage() {
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Placeholder members */}
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm space-y-4">
+        <div>
+          <h2 className="font-semibold text-ink-title">Placeholder Members</h2>
+          <p className="mt-1 text-xs text-ink-muted">
+            Add players by name before they register. Use these for the historical
+            data import, then link to their account once they sign up.
+          </p>
+        </div>
+
+        {/* Existing placeholders */}
+        {placeholders.length > 0 && (
+          <div className="space-y-2">
+            {placeholders.map((p) => (
+              <div
+                key={p.id}
+                className="rounded-xl border border-surface-overlay bg-surface-muted px-4 py-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink-body">{p.displayName}</p>
+                    <p className="text-xs text-ink-muted">
+                      HCP {p.currentHandicap} · Placeholder
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLinkingId((cur) => (cur === p.id ? null : p.id));
+                        setLinkToUid("");
+                      }}
+                      className="text-xs font-semibold text-brand-600 hover:underline"
+                    >
+                      Link account
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePlaceholder(p)}
+                      disabled={actioning === p.id}
+                      className="text-xs text-red-500 hover:underline disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                {linkingId === p.id && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-xs text-ink-muted">
+                      Select the registered player to transfer {p.displayName}&apos;s history to:
+                    </p>
+                    <select
+                      value={linkToUid}
+                      onChange={(e) => setLinkToUid(e.target.value)}
+                      className="w-full rounded-xl border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      <option value="">— select member —</option>
+                      {[...active]
+                        .sort((a, b) => a.displayName.localeCompare(b.displayName))
+                        .map((u) => (
+                          <option key={u.uid} value={u.uid}>
+                            {u.displayName}
+                          </option>
+                        ))}
+                    </select>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleLinkPlaceholder(p)}
+                        disabled={!linkToUid || actioning === p.id}
+                        className="flex-1 rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white disabled:opacity-40"
+                      >
+                        {actioning === p.id ? "Linking…" : "Confirm link"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setLinkingId(null); setLinkToUid(""); }}
+                        className="flex-1 rounded-xl border border-surface-overlay py-2 text-sm font-semibold text-ink-body"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add placeholder form */}
+        <div className="space-y-3 border-t border-surface-overlay pt-4">
+          <p className="text-xs font-medium text-ink-body">Add placeholder</p>
+          <input
+            type="text"
+            value={placeholderName}
+            onChange={(e) => setPlaceholderName(e.target.value)}
+            placeholder="Player name"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <input
+            type="number"
+            value={placeholderHcp}
+            onChange={(e) => setPlaceholderHcp(e.target.value)}
+            placeholder="Starting handicap (e.g. 18)"
+            min="0"
+            max="54"
+            step="0.1"
+            className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          <button
+            type="button"
+            onClick={handleAddPlaceholder}
+            disabled={actioning === "placeholder"}
+            className="w-full rounded-xl bg-surface-muted border border-surface-overlay py-2.5 text-sm font-semibold text-ink-body hover:bg-surface-card transition-colors disabled:opacity-40"
+          >
+            {actioning === "placeholder" ? "Adding…" : "+ Add placeholder"}
+          </button>
         </div>
       </section>
 

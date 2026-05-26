@@ -108,6 +108,7 @@ export interface Member {
   groupId: string;
   displayName: string;
   avatarUrl: string | null;
+  isPlaceholder?: boolean;
   currentHandicap: number;
   handicapStatus?: HandicapStatus;
   officialHandicapAssignedAt?: Date | null;
