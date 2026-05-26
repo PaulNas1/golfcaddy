@@ -119,8 +119,8 @@ export default function ImportHistoricalRoundsPage() {
 
   const templateCsv = [
     HISTORICAL_IMPORT_TEMPLATE_HEADERS.join(","),
-    "2025,2025-03-15,1,,Royal Melbourne,113,71.5,72,John Smith,18,34,10,Yes,,,",
-    "2025,2025-03-15,1,,Royal Melbourne,113,71.5,72,Jane Doe,15,31,8,,Yes,,",
+    '2025,2025-03-15,1,,Royal Melbourne,113,71.5,72,John Smith,18,34,10,"2,9",5,,',
+    "2025,2025-03-15,1,,Royal Melbourne,113,71.5,72,Jane Doe,15,31,8,14,,,16",
   ].join("\n");
 
   const downloadTemplate = () => {
@@ -269,7 +269,9 @@ function UploadStep({
         <p className="font-medium text-ink-body">Required columns</p>
         <p>Season · Round date · Round number or Round name · Golf course name · Player name · Player handicap · Stableford points · Ladder points</p>
         <p className="font-medium text-ink-body mt-2">Optional columns</p>
-        <p>Slope · Course rating · Par · NTP · LD · T2 · T3</p>
+        <p>Slope · Course rating · Par</p>
+        <p className="font-medium text-ink-body mt-2">Side prizes — enter hole numbers, not Yes/No</p>
+        <p>NTP: one or more hole numbers comma-separated (e.g. <span className="font-mono">2</span> or <span className="font-mono">2,9,14</span>) · LD / T2 / T3: single hole number (e.g. <span className="font-mono">5</span>)</p>
         <button
           onClick={onDownloadTemplate}
           className="text-brand-600 font-medium hover:underline mt-2 block"
@@ -437,6 +439,31 @@ function RoundPreviewCard({ group }: { group: HistoricalImportRoundGroup }) {
           ))}
         </tbody>
       </table>
+      <SidePrizesPreview rows={group.rows} />
+    </div>
+  );
+}
+
+function SidePrizesPreview({ rows }: { rows: HistoricalImportRoundGroup["rows"] }) {
+  const ntpEntries = rows.flatMap((r) =>
+    r.ntpHoles.map((h) => ({ player: r.playerName, hole: h }))
+  );
+  const ldRow = rows.find((r) => r.ldHole != null);
+  const t2Row = rows.find((r) => r.t2Hole != null);
+  const t3Row = rows.find((r) => r.t3Hole != null);
+
+  if (!ntpEntries.length && !ldRow && !t2Row && !t3Row) return null;
+
+  const holeLabel = (h: number) => (h > 0 ? ` (Hole ${h})` : "");
+
+  return (
+    <div className="border-t border-surface-overlay pt-2 space-y-1 text-xs text-ink-muted">
+      {ntpEntries.map((e, i) => (
+        <p key={i}><span className="font-medium text-ink-body">NTP{holeLabel(e.hole)}:</span> {e.player}</p>
+      ))}
+      {ldRow && <p><span className="font-medium text-ink-body">LD{holeLabel(ldRow.ldHole!)}:</span> {ldRow.playerName}</p>}
+      {t2Row && <p><span className="font-medium text-ink-body">T2{holeLabel(t2Row.t2Hole!)}:</span> {t2Row.playerName}</p>}
+      {t3Row && <p><span className="font-medium text-ink-body">T3{holeLabel(t3Row.t3Hole!)}:</span> {t3Row.playerName}</p>}
     </div>
   );
 }

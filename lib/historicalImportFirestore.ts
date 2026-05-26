@@ -243,23 +243,27 @@ function buildSideResults(
   group: HistoricalImportRoundGroup,
   memberMapping: MemberMapping
 ): Results["sideResults"] {
-  const toWinner = (row: (typeof group.rows)[0] | undefined) => {
-    if (!row) return { holeNumber: 0, winnerId: null, winnerName: null };
+  const toWinner = (row: (typeof group.rows)[0] | undefined, holeNumber: number) => {
+    if (!row) return { holeNumber, winnerId: null, winnerName: null };
     const member = memberMapping.get(normaliseLooseKey(row.playerName));
     return {
-      holeNumber: 0,
+      holeNumber,
       winnerId: member?.id ?? null,
       winnerName: member?.displayName ?? row.playerName,
     };
   };
 
+  const ldRow = group.rows.find((r) => r.ldHole != null);
+  const t2Row = group.rows.find((r) => r.t2Hole != null);
+  const t3Row = group.rows.find((r) => r.t3Hole != null);
+
   return {
-    ntp: group.rows
-      .filter((r) => r.ntp)
-      .map((r) => toWinner(r)),
-    ld: toWinner(group.rows.find((r) => r.ld)),
-    t2: toWinner(group.rows.find((r) => r.t2)),
-    t3: toWinner(group.rows.find((r) => r.t3)),
+    ntp: group.rows.flatMap((r) =>
+      r.ntpHoles.map((holeNumber) => toWinner(r, holeNumber))
+    ),
+    ld: toWinner(ldRow, ldRow?.ldHole ?? 0),
+    t2: toWinner(t2Row, t2Row?.t2Hole ?? 0),
+    t3: toWinner(t3Row, t3Row?.t3Hole ?? 0),
   };
 }
 

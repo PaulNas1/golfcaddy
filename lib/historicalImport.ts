@@ -13,10 +13,10 @@ export interface HistoricalImportRow {
   playerHandicap: number;
   stablefordPoints: number;
   ladderPoints: number;
-  ntp: boolean;
-  ld: boolean;
-  t2: boolean;
-  t3: boolean;
+  ntpHoles: number[];
+  ldHole: number | null;
+  t2Hole: number | null;
+  t3Hole: number | null;
   sourceRowNumber: number;
 }
 
@@ -206,10 +206,10 @@ export function parseHistoricalImportCsv(
       playerHandicap,
       stablefordPoints,
       ladderPoints,
-      ntp: parseBooleanCell(readOptionalCell(rawRow, columnIndexes.ntp)),
-      ld: parseBooleanCell(readOptionalCell(rawRow, columnIndexes.ld)),
-      t2: parseBooleanCell(readOptionalCell(rawRow, columnIndexes.t2)),
-      t3: parseBooleanCell(readOptionalCell(rawRow, columnIndexes.t3)),
+      ntpHoles: parseNtpHoles(readOptionalCell(rawRow, columnIndexes.ntp)),
+      ldHole: parsePrizeHole(readOptionalCell(rawRow, columnIndexes.ld)),
+      t2Hole: parsePrizeHole(readOptionalCell(rawRow, columnIndexes.t2)),
+      t3Hole: parsePrizeHole(readOptionalCell(rawRow, columnIndexes.t3)),
       sourceRowNumber,
     };
 
@@ -344,18 +344,27 @@ function parseNumber(value: string, label: string, rowNumber: number) {
   return parsed;
 }
 
-function parseBooleanCell(value: string | null) {
-  if (!value) return false;
+const PRIZE_TRUTHY = new Set(["1", "y", "yes", "true", "won", "winner", "x"]);
+const PRIZE_FALSY  = new Set(["", "no", "false", "0"]);
+
+function parseNtpHoles(value: string | null): number[] {
+  if (!value) return [];
   const normalised = value.trim().toLowerCase();
-  return [
-    "1",
-    "y",
-    "yes",
-    "true",
-    "won",
-    "winner",
-    "x",
-  ].includes(normalised);
+  if (PRIZE_FALSY.has(normalised)) return [];
+  if (PRIZE_TRUTHY.has(normalised)) return [0]; // legacy "Yes" → unknown hole
+  return normalised
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+function parsePrizeHole(value: string | null): number | null {
+  if (!value) return null;
+  const normalised = value.trim().toLowerCase();
+  if (PRIZE_FALSY.has(normalised)) return null;
+  if (PRIZE_TRUTHY.has(normalised)) return 0; // legacy "Yes" → unknown hole
+  const n = parseInt(normalised.split(",")[0].trim(), 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 function parseImportDate(value: string, rowNumber: number) {
