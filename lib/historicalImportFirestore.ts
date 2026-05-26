@@ -1,6 +1,4 @@
 import {
-  addDoc,
-  collection,
   doc,
   serverTimestamp,
   setDoc,
@@ -28,6 +26,18 @@ import type {
 } from "./historicalImport";
 
 export type MemberMapping = Map<string, Member>;
+
+function toSlug(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function buildRoundId(groupId: string, group: HistoricalImportRoundGroup): string {
+  const dateStr = group.roundDate.toISOString().slice(0, 10).replace(/-/g, "");
+  const roundKey =
+    group.roundNumber != null ? String(group.roundNumber) : toSlug(group.roundName ?? "nr");
+  const courseSlug = toSlug(group.courseName).slice(0, 30);
+  return `hist_${groupId}_${group.season}_${dateStr}_${roundKey}_${courseSlug}`;
+}
 
 export async function importHistoricalRoundsToFirestore({
   groupId,
@@ -119,7 +129,8 @@ async function writeRound(
   groupId: string,
   adminUser: AppUser
 ): Promise<string> {
-  const ref = await addDoc(collection(db, "rounds"), {
+  const roundId = buildRoundId(groupId, group);
+  await setDoc(doc(db, "rounds", roundId), {
     groupId,
     courseId: "",
     courseName: group.courseName,
@@ -151,7 +162,7 @@ async function writeRound(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  return roundId;
 }
 
 function writeScorecardsForRound(
@@ -165,7 +176,7 @@ function writeScorecardsForRound(
     const member = memberMapping.get(normaliseLooseKey(row.playerName));
     if (!member) continue;
 
-    addDoc(collection(db, "scorecards"), {
+    setDoc(doc(db, "scorecards", `${roundId}_${member.id}`), {
       roundId,
       groupId,
       playerId: member.id,

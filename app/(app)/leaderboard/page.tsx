@@ -78,53 +78,76 @@ export default function LeaderboardPage() {
     const membersById = new Map(groupMembers.map((m) => [m.id, m]));
     const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 6;
     const minimumRoundsForPoints = group?.settings.minimumRoundsForPoints ?? 3;
-    const visibleStandings = getVisibleSeasonStandings(
-      standings,
-      new Set(activeMembers.map((m) => m.uid))
-    );
+
+    const placeholderMembers = groupMembers.filter((m) => m.isPlaceholder);
+    const allVisibleIds = new Set([
+      ...activeMembers.map((m) => m.uid),
+      ...placeholderMembers.map((m) => m.id),
+    ]);
+
+    const visibleStandings = getVisibleSeasonStandings(standings, allVisibleIds);
     const standingsByMemberId = new Map(
       visibleStandings.map((s) => [s.memberId, s])
     );
 
-    return activeMembers
-      .map<LeaderboardEntry>((activeMember) => {
-        const standing = standingsByMemberId.get(activeMember.uid) ?? null;
-        const member = membersById.get(activeMember.uid) ?? null;
-        const memberSeasonMatches = member?.seasonYear === selectedSeason;
-        const roundsPlayed =
-          standing?.roundsPlayed ??
-          (memberSeasonMatches ? member?.roundsPlayed ?? 0 : 0);
-        const currentHandicap = member?.currentHandicap ?? null;
-        const isOfficial =
-          member?.handicapStatus === "official" ||
-          (member?.handicapStatus == null && (currentHandicap ?? 0) > 0);
-        const probation =
-          !member ||
-          (!isOfficial &&
-            (roundsPlayed < minimumRoundsForPoints ||
-              member?.handicapStatus === "provisional" ||
-              (member?.handicapStatus == null &&
-                (currentHandicap ?? 0) <= 0 &&
-                roundsPlayed < handicapRoundsWindow)));
+    const registeredEntries = activeMembers.map<LeaderboardEntry>((activeMember) => {
+      const standing = standingsByMemberId.get(activeMember.uid) ?? null;
+      const member = membersById.get(activeMember.uid) ?? null;
+      const memberSeasonMatches = member?.seasonYear === selectedSeason;
+      const roundsPlayed =
+        standing?.roundsPlayed ??
+        (memberSeasonMatches ? member?.roundsPlayed ?? 0 : 0);
+      const currentHandicap = member?.currentHandicap ?? null;
+      const isOfficial =
+        member?.handicapStatus === "official" ||
+        (member?.handicapStatus == null && (currentHandicap ?? 0) > 0);
+      const probation =
+        !member ||
+        (!isOfficial &&
+          (roundsPlayed < minimumRoundsForPoints ||
+            member?.handicapStatus === "provisional" ||
+            (member?.handicapStatus == null &&
+              (currentHandicap ?? 0) <= 0 &&
+              roundsPlayed < handicapRoundsWindow)));
 
-        return {
-          memberId: activeMember.uid,
-          memberName: activeMember.displayName,
-          currentRank: standing?.displayCurrentRank ?? null,
-          previousRank: standing?.displayPreviousRank ?? null,
-          totalPoints:
-            standing?.totalPoints ??
-            (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
-          grossSeasonPoints:
-            standing?.grossSeasonPoints ??
-            (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
-          roundsPlayed,
-          lastStableford: standing?.roundResults[0]?.stableford ?? null,
-          currentHandicap,
-          probation,
-          hasStanding: Boolean(standing),
-        };
-      })
+      return {
+        memberId: activeMember.uid,
+        memberName: activeMember.displayName,
+        currentRank: standing?.displayCurrentRank ?? null,
+        previousRank: standing?.displayPreviousRank ?? null,
+        totalPoints:
+          standing?.totalPoints ??
+          (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
+        grossSeasonPoints:
+          standing?.grossSeasonPoints ??
+          (memberSeasonMatches ? member?.seasonPoints ?? 0 : 0),
+        roundsPlayed,
+        lastStableford: standing?.roundResults[0]?.stableford ?? null,
+        currentHandicap,
+        probation,
+        hasStanding: Boolean(standing),
+      };
+    });
+
+    const placeholderEntries = placeholderMembers.flatMap((placeholder) => {
+      const standing = standingsByMemberId.get(placeholder.id);
+      if (!standing) return [];
+      return [{
+        memberId: placeholder.id,
+        memberName: placeholder.displayName,
+        currentRank: standing.displayCurrentRank,
+        previousRank: standing.displayPreviousRank ?? null,
+        totalPoints: standing.totalPoints,
+        grossSeasonPoints: standing.grossSeasonPoints,
+        roundsPlayed: standing.roundsPlayed,
+        lastStableford: standing.roundResults[0]?.stableford ?? null,
+        currentHandicap: placeholder.currentHandicap,
+        probation: false,
+        hasStanding: true,
+      } satisfies LeaderboardEntry];
+    });
+
+    return [...registeredEntries, ...placeholderEntries]
       .sort((a, b) => {
         if (a.hasStanding && b.hasStanding) {
           if ((a.currentRank ?? Infinity) !== (b.currentRank ?? Infinity)) {
@@ -144,13 +167,16 @@ export default function LeaderboardPage() {
     standings,
   ]);
 
-  const activeMemberIds = useMemo(
-    () => new Set(activeMembers.map((m) => m.uid)),
-    [activeMembers]
+  const allVisibleMemberIds = useMemo(
+    () => new Set([
+      ...activeMembers.map((m) => m.uid),
+      ...groupMembers.filter((m) => m.isPlaceholder).map((m) => m.id),
+    ]),
+    [activeMembers, groupMembers]
   );
   const sidePrizeStandings = useMemo(
-    () => standings.filter((s) => activeMemberIds.has(s.memberId)),
-    [activeMemberIds, standings]
+    () => standings.filter((s) => allVisibleMemberIds.has(s.memberId)),
+    [allVisibleMemberIds, standings]
   );
 
   const sideLeaderboards = [
