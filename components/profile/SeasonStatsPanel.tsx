@@ -440,7 +440,7 @@ function RoundHistoryRow({
             )}
           </div>
           <p className="text-xs text-ink-hint">
-            {format(roundResult.date, "EEE d MMM yyyy")} · Finish #{roundResult.finish}
+            {format(round?.date ?? roundResult.date, "EEE d MMM yyyy")} · Finish #{roundResult.finish}
             {round?.roundName ? ` · ${round.roundName}` : round?.roundNumber ? ` · Round ${round.roundNumber}` : ""}
           </p>
           <p className="mt-1 text-xs text-ink-muted">
