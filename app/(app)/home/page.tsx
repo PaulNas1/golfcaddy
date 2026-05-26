@@ -81,9 +81,12 @@ export default function HomePage() {
     () =>
       getVisibleSeasonStandings(
         currentSeasonStandings,
-        new Set(activeMembers.map((m) => m.uid))
+        new Set([
+          ...activeMembers.map((m) => m.uid),
+          ...groupMembers.filter((m) => m.isPlaceholder).map((m) => m.id),
+        ])
       ),
-    [activeMembers, currentSeasonStandings]
+    [activeMembers, currentSeasonStandings, groupMembers]
   );
 
   // Current user's standing — for the personal stats strip
