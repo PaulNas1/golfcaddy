@@ -6,7 +6,7 @@ import { format, formatDistanceToNow, isToday } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
 import {
-  subscribeRoundRsvp,
+  subscribeRoundRsvps,
   subscribePinnedAnnouncement,
   setRoundRsvp,
 } from "@/lib/firestore";
@@ -15,7 +15,7 @@ import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { getEffectiveSpecialHoles, getViewerHoles } from "@/lib/courseData";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
 import InstallPrompt from "@/components/InstallPrompt";
-import { ChevronRightIcon, PencilIcon, EyeIcon } from "@/components/ui/icons";
+import { ChevronRightIcon, ChevronDownIcon, PencilIcon, EyeIcon, CheckIcon, XIcon } from "@/components/ui/icons";
 import type { Post, Round, RoundRsvp } from "@/types";
 
 export default function HomePage() {
@@ -30,9 +30,10 @@ export default function HomePage() {
     loading,
   } = useGroupData();
 
-  const [nextRoundRsvp, setNextRoundRsvp] = useState<RoundRsvp | null>(null);
+  const [nextRoundRsvps, setNextRoundRsvps] = useState<RoundRsvp[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
   const [rsvpBusy, setRsvpBusy] = useState(false);
+  const [rosterOpen, setRosterOpen] = useState(false);
 
   const liveRound = useMemo(
     () => rounds.find((r) => r.status === "live") ?? null,
@@ -65,17 +66,16 @@ export default function HomePage() {
   }, [appUser?.groupId]);
 
   useEffect(() => {
-    if (!nextRound?.id || !appUser?.uid) {
-      setNextRoundRsvp(null);
+    if (!nextRound?.id) {
+      setNextRoundRsvps([]);
       return;
     }
-    return subscribeRoundRsvp(
+    return subscribeRoundRsvps(
       nextRound.id,
-      appUser.uid,
-      (rsvp) => setNextRoundRsvp(rsvp),
-      () => setNextRoundRsvp(null)
+      setNextRoundRsvps,
+      (err) => console.warn("Unable to subscribe to round RSVPs", err)
     );
-  }, [appUser?.uid, nextRound?.id]);
+  }, [nextRound?.id]);
 
   const visibleStandings = useMemo(
     () =>
@@ -99,6 +99,20 @@ export default function HomePage() {
   const myMember = useMemo(
     () => groupMembers.find((m) => m.userId === appUser?.uid) ?? null,
     [groupMembers, appUser?.uid]
+  );
+
+  // My RSVP + the going / can't-make-it roster for the next round
+  const myRsvp = useMemo(
+    () => nextRoundRsvps.find((r) => r.memberId === appUser?.uid) ?? null,
+    [nextRoundRsvps, appUser?.uid]
+  );
+  const goingNames = useMemo(
+    () => nextRoundRsvps.filter((r) => r.status === "accepted").map((r) => r.memberName),
+    [nextRoundRsvps]
+  );
+  const outNames = useMemo(
+    () => nextRoundRsvps.filter((r) => r.status === "declined").map((r) => r.memberName),
+    [nextRoundRsvps]
   );
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
@@ -278,43 +292,95 @@ export default function HomePage() {
 
               {/* ── Inline RSVP ───────────────────────────────────── */}
               {nextRound.rsvpOpen && (
-                <div className="mt-4 border-t border-surface-overlay pt-3 space-y-2">
-                  {/* Primary action — full width, dominant */}
-                  <button
-                    type="button"
-                    disabled={rsvpBusy}
-                    onClick={() => handleRsvp("accepted")}
-                    className={`w-full py-3 rounded-xl text-sm font-bold transition-colors ${
-                      nextRoundRsvp?.status === "accepted"
-                        ? "bg-brand-600 text-white"
-                        : "bg-brand-600 text-white hover:bg-brand-500 active:scale-[0.98]"
-                    }`}
-                  >
-                    {nextRoundRsvp?.status === "accepted" ? "✓ I'm in" : "I'm Going ✓"}
-                  </button>
-                  {/* Secondary action — smaller, subordinate */}
-                  <button
-                    type="button"
-                    disabled={rsvpBusy}
-                    onClick={() => handleRsvp("declined")}
-                    className={`w-full py-2 rounded-xl text-xs font-medium border transition-colors ${
-                      nextRoundRsvp?.status === "declined"
-                        ? "border-ink-muted bg-surface-muted text-ink-body"
-                        : "border-surface-overlay text-ink-muted hover:border-ink-muted hover:text-ink-body"
-                    }`}
-                  >
-                    Can&apos;t make it
-                  </button>
+                <div className="mt-4 border-t border-surface-overlay pt-3 space-y-3">
+                  {/* Segmented toggle — neutral until you choose */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={rsvpBusy}
+                      aria-pressed={myRsvp?.status === "accepted"}
+                      onClick={() => handleRsvp("accepted")}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold border-2 transition-colors disabled:opacity-60 ${
+                        myRsvp?.status === "accepted"
+                          ? "border-brand-600 bg-brand-600 text-white"
+                          : "border-surface-overlay text-ink-body hover:border-brand-600 hover:text-brand-700"
+                      }`}
+                    >
+                      <CheckIcon className="w-4 h-4" />
+                      Going
+                    </button>
+                    <button
+                      type="button"
+                      disabled={rsvpBusy}
+                      aria-pressed={myRsvp?.status === "declined"}
+                      onClick={() => handleRsvp("declined")}
+                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-bold border-2 transition-colors disabled:opacity-60 ${
+                        myRsvp?.status === "declined"
+                          ? "border-red-600 bg-red-600 text-white"
+                          : "border-surface-overlay text-ink-muted hover:border-red-500 hover:text-red-600"
+                      }`}
+                    >
+                      <XIcon className="w-4 h-4" />
+                      Can&apos;t make it
+                    </button>
+                  </div>
+
+                  {/* Who's in / who's out — collapsible */}
+                  {(goingNames.length > 0 || outNames.length > 0) && (
+                    <div className="rounded-xl bg-surface-muted overflow-hidden text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setRosterOpen((open) => !open)}
+                        aria-expanded={rosterOpen}
+                        className="flex w-full items-center justify-between px-3 py-2.5"
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="font-semibold text-brand-700">
+                            {goingNames.length} going
+                          </span>
+                          {outNames.length > 0 && (
+                            <>
+                              <span className="text-ink-hint">·</span>
+                              <span className="font-semibold text-red-600">
+                                {outNames.length} out
+                              </span>
+                            </>
+                          )}
+                        </span>
+                        <ChevronDownIcon
+                          className={`w-4 h-4 text-ink-hint transition-transform ${
+                            rosterOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                      {rosterOpen && (
+                        <div className="border-t border-surface-overlay px-3 py-2.5 space-y-1.5">
+                          {goingNames.length > 0 && (
+                            <div className="flex gap-2">
+                              <span className="shrink-0 font-semibold text-brand-700">Going</span>
+                              <span className="text-ink-muted">{goingNames.join(", ")}</span>
+                            </div>
+                          )}
+                          {outNames.length > 0 && (
+                            <div className="flex gap-2">
+                              <span className="shrink-0 font-semibold text-red-600">Out</span>
+                              <span className="text-ink-muted">{outNames.join(", ")}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
-              {!nextRound.rsvpOpen && nextRoundRsvp && (
+              {!nextRound.rsvpOpen && myRsvp && (
                 <div className="mt-3 flex items-center gap-2">
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                    nextRoundRsvp.status === "accepted"
+                    myRsvp.status === "accepted"
                       ? "bg-brand-100 text-brand-700"
                       : "bg-surface-muted text-ink-muted"
                   }`}>
-                    {nextRoundRsvp.status === "accepted" ? "✓ I'm in" : "✗ Can't make it"}
+                    {myRsvp.status === "accepted" ? "✓ I'm in" : "✗ Can't make it"}
                   </span>
                 </div>
               )}
