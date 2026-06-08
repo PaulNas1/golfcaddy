@@ -38,3 +38,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal design-review scratch page — not for production build
+app/design-review/
