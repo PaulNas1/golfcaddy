@@ -53,6 +53,26 @@ export default function HomePage() {
     );
   }, [rounds]);
 
+  const lastCompletedRound = useMemo<Round | null>(() => {
+    return (
+      rounds
+        .filter((r) => r.status === "completed")
+        .sort((a, b) => b.date.getTime() - a.date.getTime())[0] ?? null
+    );
+  }, [rounds]);
+
+  // The season is "wrapped" only once we're past its configured end month —
+  // not merely because no round happens to be scheduled.
+  const seasonOver = useMemo(() => {
+    const startMonth = group?.settings?.seasonStartMonth ?? 1;
+    const endMonth = group?.settings?.seasonEndMonth ?? 12;
+    const year = Number(currentSeason);
+    const endYear = startMonth <= endMonth ? year : year + 1;
+    // First instant after the season: first day of the month following endMonth.
+    const afterSeason = new Date(endYear, endMonth, 1);
+    return new Date() >= afterSeason;
+  }, [group?.settings?.seasonStartMonth, group?.settings?.seasonEndMonth, currentSeason]);
+
   useEffect(() => {
     if (!appUser?.groupId) {
       setPinnedAnnouncement(null);
@@ -192,13 +212,22 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Off-season recap card ────────────────────────────────── */}
+      {/* ── Recap card: season wrap (off-season) vs between-rounds standings ── */}
       {!liveRound && !nextRound && !loading && visibleStandings.length > 0 && (
-        <SeasonRecapCard
-          standings={visibleStandings}
-          season={currentSeason}
-          myMemberId={appUser?.uid ?? null}
-        />
+        seasonOver ? (
+          <SeasonRecapCard
+            standings={visibleStandings}
+            season={currentSeason}
+            myMemberId={appUser?.uid ?? null}
+          />
+        ) : (
+          <RoundRecapCard
+            standings={visibleStandings}
+            season={currentSeason}
+            roundNumber={lastCompletedRound?.roundNumber ?? null}
+            myMemberId={appUser?.uid ?? null}
+          />
+        )
       )}
 
       {/* ── Live round banner ─────────────────────────────────────── */}
@@ -565,6 +594,81 @@ function SeasonRecapCard({
 
       {myRank != null && myRank > 3 && myStanding && (
         <div className="mt-3 flex items-center gap-3 rounded-xl bg-surface-card px-3 py-2">
+          <span className="text-sm font-semibold text-ink-hint w-7 text-center">#{myRank}</span>
+          <span className="flex-1 font-medium text-sm text-ink-title truncate">
+            {myStanding.memberName} (you)
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-700">{myStanding.totalPoints} pts</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Mid-season standings snapshot shown between rounds (not a season result).
+function RoundRecapCard({
+  standings,
+  season,
+  roundNumber,
+  myMemberId,
+}: {
+  standings: VisibleSeasonStanding[];
+  season: number;
+  roundNumber: number | null;
+  myMemberId: string | null;
+}) {
+  const sorted = [...standings]
+    .filter((s) => s.displayCurrentRank != null)
+    .sort((a, b) => (a.displayCurrentRank ?? 99) - (b.displayCurrentRank ?? 99));
+
+  const top3 = sorted.slice(0, 3);
+  const myStanding = myMemberId ? standings.find((s) => s.memberId === myMemberId) : null;
+  const myRank = myStanding?.displayCurrentRank;
+  const totalRounds = standings.reduce((max, s) => Math.max(max, s.roundsPlayed ?? 0), 0);
+  const leader = top3[0];
+
+  return (
+    <div className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-xs font-medium text-ink-action">
+            Season {season}{roundNumber != null ? ` · Round ${roundNumber} complete` : ""}
+          </p>
+          <h3 className="font-bold text-ink-title text-lg">Current Standings</h3>
+        </div>
+        <span className="text-3xl">⛳</span>
+      </div>
+
+      {leader && (
+        <p className="text-sm text-ink-hint mb-3">
+          <span className="font-semibold text-ink-title">{leader.memberName}</span> leads with{" "}
+          <span className="font-semibold text-ink-title">{leader.totalPoints} points</span>
+          {totalRounds > 0 ? ` after ${totalRounds} rounds.` : "."}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {top3.map((s) => {
+          const isMe = s.memberId === myMemberId;
+          return (
+            <div
+              key={s.memberId}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2 ${
+                isMe ? "bg-brand-50" : "bg-surface-muted"
+              }`}
+            >
+              <span className="text-sm font-bold text-ink-hint w-7 text-center">#{s.displayCurrentRank}</span>
+              <span className={`flex-1 font-medium text-sm truncate ${isMe ? "text-brand-800" : "text-ink-title"}`}>
+                {s.memberName}{isMe ? " (you)" : ""}
+              </span>
+              <span className="shrink-0 text-sm font-bold text-brand-700">{s.totalPoints} pts</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {myRank != null && myRank > 3 && myStanding && (
+        <div className="mt-3 flex items-center gap-3 rounded-xl bg-surface-muted px-3 py-2">
           <span className="text-sm font-semibold text-ink-hint w-7 text-center">#{myRank}</span>
           <span className="flex-1 font-medium text-sm text-ink-title truncate">
             {myStanding.memberName} (you)
