@@ -30,6 +30,7 @@ import {
   withSeededCourseData,
 } from "@/lib/courseData";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
+import LiveStandingsCard from "@/components/rounds/LiveStandingsCard";
 import { getRoundLabel, hasRoundScorecards } from "@/lib/roundDisplay";
 import {
   formatTeeTime,
@@ -553,50 +554,15 @@ export default function RoundDetailPage() {
     liveStandings: () => {
       if (liveCards.length === 0) return null;
       return (
-        <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-ink-title">Live Standings</h2>
-            <span className="text-xs font-medium text-ink-hint rounded-full bg-surface-muted px-2 py-0.5">
-              Unofficial
-            </span>
-          </div>
-          <div className="divide-y divide-surface-overlay">
-            {liveCards
-              .slice()
-              .sort((a, b) => {
-                if (round.format === "stableford") {
-                  return (b.totalStableford ?? -Infinity) - (a.totalStableford ?? -Infinity);
-                }
-                return (a.totalGross ?? Infinity) - (b.totalGross ?? Infinity);
-              })
-              .map((card, idx) => {
-                const member = members.find((m) => m.uid === card.playerId);
-                const name = member?.displayName ?? `Player ${card.playerId.slice(0, 6)}`;
-                const isMe = card.playerId === appUser?.uid;
-                return (
-                  <div
-                    key={card.id}
-                    className={`flex items-center justify-between py-2 text-sm ${isMe ? "font-semibold" : ""}`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 text-xs text-ink-muted">#{idx + 1}</span>
-                      <span className={isMe ? "text-brand-700" : "text-ink-body"}>
-                        {name}{isMe ? " (you)" : ""}
-                      </span>
-                    </div>
-                    <span className={isMe ? "text-brand-700" : "text-ink-title"}>
-                      {round.format === "stableford"
-                        ? card.totalStableford != null ? `${card.totalStableford} pts` : "—"
-                        : card.totalGross != null ? String(card.totalGross) : "—"}
-                    </span>
-                  </div>
-                );
-              })}
-          </div>
-          <p className="text-xs text-ink-muted">
-            Scores update in real time. Final results are published by the admin after the round.
-          </p>
-        </div>
+        <LiveStandingsCard
+          rankings={rankings}
+          format={round.format}
+          playedHolesByPlayerId={playedHolesByPlayerId}
+          lastHolePointsByPlayerId={lastHolePointsByPlayerId}
+          prevRankById={prevRankByIdRef.current}
+          roundComplete={roundComplete}
+          currentUserId={appUser?.uid}
+        />
       );
     },
 
