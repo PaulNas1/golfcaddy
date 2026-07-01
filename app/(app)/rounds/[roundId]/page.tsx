@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
@@ -20,6 +20,7 @@ import {
   subscribeRound,
   subscribeRoundLinkedPosts,
   subscribeScorecardsForRound,
+  subscribeHoleScores,
   subscribeSideClaimsForRound,
 } from "@/lib/firestore";
 import { ChevronRightIcon } from "@/components/ui/icons";
@@ -40,8 +41,18 @@ import { useGroupData } from "@/contexts/GroupDataContext";
 import { calculatePlayingHandicap } from "@/lib/scoring";
 import { normaliseGroupSettings } from "@/lib/settings";
 import { uploadFeedPostImages, validateImageFile } from "@/lib/storageUploads";
+import { buildPlayerRankings } from "@/lib/results";
+import {
+  computePlayedHoles,
+  computeMaxPlayedHoles,
+  isRoundComplete,
+  buildRankById,
+  seedZeroTotals,
+} from "@/lib/liveStandings";
 import type {
   AppUser,
+  HoleScore,
+  PlayerRanking,
   Post,
   Results,
   Round,
@@ -127,6 +138,9 @@ export default function RoundDetailPage() {
   const [members, setMembers] = useState<AppUser[]>([]);
   const [sideClaims, setSideClaims] = useState<SideClaim[]>([]);
   const [liveCards, setLiveCards] = useState<Scorecard[]>([]);
+  const [holeScoresByCardId, setHoleScoresByCardId] = useState<
+    Record<string, HoleScore[]>
+  >({});
   const [roundPosts, setRoundPosts] = useState<Post[]>([]);
   const [savingRsvp, setSavingRsvp] = useState(false);
   const [changingRsvp, setChangingRsvp] = useState(false);
@@ -242,6 +256,25 @@ export default function RoundDetailPage() {
       (err) => console.warn("Unable to subscribe to live scorecards", err)
     );
   }, [roundId, round?.status]);
+
+  useEffect(() => {
+    if (liveCards.length === 0) {
+      setHoleScoresByCardId({});
+      return;
+    }
+    const activeIds = new Set(liveCards.map((c) => c.id));
+    setHoleScoresByCardId((cur) =>
+      Object.fromEntries(Object.entries(cur).filter(([id]) => activeIds.has(id)))
+    );
+    const unsubs = liveCards.map((card) =>
+      subscribeHoleScores(
+        card.id,
+        (scores) => setHoleScoresByCardId((cur) => ({ ...cur, [card.id]: scores })),
+        (err) => console.warn(`Unable to subscribe to hole scores for ${card.id}`, err)
+      )
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [liveCards]);
 
   useEffect(() => {
     if (!roundId) return;
@@ -429,6 +462,55 @@ export default function RoundDetailPage() {
       setPostingUpdate(false);
     }
   };
+
+  const prevRankByIdRef = useRef<Record<string, number>>({});
+  const lastProgressKeyRef = useRef<number | null>(null);
+
+  const playedHolesByPlayerId = useMemo(() => {
+    const map: Record<string, number> = {};
+    liveCards.forEach((card) => {
+      map[card.playerId] = computePlayedHoles(holeScoresByCardId[card.id] ?? []);
+    });
+    return map;
+  }, [liveCards, holeScoresByCardId]);
+
+  const maxPlayedHoles = computeMaxPlayedHoles(playedHolesByPlayerId);
+  const roundComplete = isRoundComplete(playedHolesByPlayerId);
+
+  const rankings = useMemo<PlayerRanking[]>(() => {
+    if (!round) return [];
+    const seeded = seedZeroTotals(liveCards, round.format);
+    return buildPlayerRankings({
+      round,
+      scorecards: seeded,
+      holeScoresByCardId,
+      members,
+      settings: group?.settings,
+    });
+  }, [round, liveCards, holeScoresByCardId, members, group?.settings]);
+
+  const currentRankById = useMemo(() => buildRankById(rankings), [rankings]);
+
+  // Snapshot the previous-hole rank map only when the field's furthest
+  // progress advances, so movement arrows reflect "since the last hole"
+  // rather than recalculating on every single keystroke.
+  useEffect(() => {
+    if (lastProgressKeyRef.current !== maxPlayedHoles) {
+      lastProgressKeyRef.current = maxPlayedHoles;
+      prevRankByIdRef.current = currentRankById;
+    }
+  }, [maxPlayedHoles, currentRankById]);
+
+  const lastHolePointsByPlayerId = useMemo(() => {
+    const map: Record<string, number | null> = {};
+    liveCards.forEach((card) => {
+      const holes = holeScoresByCardId[card.id] ?? [];
+      const thru = computePlayedHoles(holes);
+      const lastHole = holes.find((h) => h.holeNumber === thru);
+      map[card.playerId] = lastHole?.stablefordPoints ?? null;
+    });
+    return map;
+  }, [liveCards, holeScoresByCardId]);
 
   // ─── Section renderers ─────────────────────────────────────────────────────
   //
