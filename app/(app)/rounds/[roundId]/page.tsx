@@ -258,6 +258,11 @@ export default function RoundDetailPage() {
     );
   }, [roundId, round?.status]);
 
+  const liveCardIdsKey = useMemo(
+    () => liveCards.map((c) => c.id).sort().join(","),
+    [liveCards]
+  );
+
   useEffect(() => {
     if (liveCards.length === 0) {
       setHoleScoresByCardId({});
@@ -275,7 +280,13 @@ export default function RoundDetailPage() {
       )
     );
     return () => unsubs.forEach((u) => u());
-  }, [liveCards]);
+    // Deliberately keyed on the stable set of card ids, not the `liveCards`
+    // array reference: resubscribing every per-card hole-score listener on
+    // every unrelated scorecard field update churns the same Firestore watch
+    // targets fast enough to trip an internal SDK assertion
+    // (INTERNAL ASSERTION FAILED: Unexpected state).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveCardIdsKey]);
 
   useEffect(() => {
     if (!roundId) return;
@@ -289,6 +300,55 @@ export default function RoundDetailPage() {
       }
     );
   }, [roundId]);
+
+  const prevRankByIdRef = useRef<Record<string, number>>({});
+  const lastProgressKeyRef = useRef<number | null>(null);
+
+  const playedHolesByPlayerId = useMemo(() => {
+    const map: Record<string, number> = {};
+    liveCards.forEach((card) => {
+      map[card.playerId] = computePlayedHoles(holeScoresByCardId[card.id] ?? []);
+    });
+    return map;
+  }, [liveCards, holeScoresByCardId]);
+
+  const maxPlayedHoles = computeMaxPlayedHoles(playedHolesByPlayerId);
+  const roundComplete = isRoundComplete(playedHolesByPlayerId);
+
+  const rankings = useMemo<PlayerRanking[]>(() => {
+    if (!round) return [];
+    const seeded = seedZeroTotals(liveCards, round.format);
+    return buildPlayerRankings({
+      round,
+      scorecards: seeded,
+      holeScoresByCardId,
+      members,
+      settings: group?.settings,
+    });
+  }, [round, liveCards, holeScoresByCardId, members, group?.settings]);
+
+  const currentRankById = useMemo(() => buildRankById(rankings), [rankings]);
+
+  // Snapshot the previous-hole rank map only when the field's furthest
+  // progress advances, so movement arrows reflect "since the last hole"
+  // rather than recalculating on every single keystroke.
+  useEffect(() => {
+    if (lastProgressKeyRef.current !== maxPlayedHoles) {
+      lastProgressKeyRef.current = maxPlayedHoles;
+      prevRankByIdRef.current = currentRankById;
+    }
+  }, [maxPlayedHoles, currentRankById]);
+
+  const lastHolePointsByPlayerId = useMemo(() => {
+    const map: Record<string, number | null> = {};
+    liveCards.forEach((card) => {
+      const holes = holeScoresByCardId[card.id] ?? [];
+      const thru = computePlayedHoles(holes);
+      const lastHole = holes.find((h) => h.holeNumber === thru);
+      map[card.playerId] = lastHole?.stablefordPoints ?? null;
+    });
+    return map;
+  }, [liveCards, holeScoresByCardId]);
 
   if (loading) {
     return (
@@ -463,55 +523,6 @@ export default function RoundDetailPage() {
       setPostingUpdate(false);
     }
   };
-
-  const prevRankByIdRef = useRef<Record<string, number>>({});
-  const lastProgressKeyRef = useRef<number | null>(null);
-
-  const playedHolesByPlayerId = useMemo(() => {
-    const map: Record<string, number> = {};
-    liveCards.forEach((card) => {
-      map[card.playerId] = computePlayedHoles(holeScoresByCardId[card.id] ?? []);
-    });
-    return map;
-  }, [liveCards, holeScoresByCardId]);
-
-  const maxPlayedHoles = computeMaxPlayedHoles(playedHolesByPlayerId);
-  const roundComplete = isRoundComplete(playedHolesByPlayerId);
-
-  const rankings = useMemo<PlayerRanking[]>(() => {
-    if (!round) return [];
-    const seeded = seedZeroTotals(liveCards, round.format);
-    return buildPlayerRankings({
-      round,
-      scorecards: seeded,
-      holeScoresByCardId,
-      members,
-      settings: group?.settings,
-    });
-  }, [round, liveCards, holeScoresByCardId, members, group?.settings]);
-
-  const currentRankById = useMemo(() => buildRankById(rankings), [rankings]);
-
-  // Snapshot the previous-hole rank map only when the field's furthest
-  // progress advances, so movement arrows reflect "since the last hole"
-  // rather than recalculating on every single keystroke.
-  useEffect(() => {
-    if (lastProgressKeyRef.current !== maxPlayedHoles) {
-      lastProgressKeyRef.current = maxPlayedHoles;
-      prevRankByIdRef.current = currentRankById;
-    }
-  }, [maxPlayedHoles, currentRankById]);
-
-  const lastHolePointsByPlayerId = useMemo(() => {
-    const map: Record<string, number | null> = {};
-    liveCards.forEach((card) => {
-      const holes = holeScoresByCardId[card.id] ?? [];
-      const thru = computePlayedHoles(holes);
-      const lastHole = holes.find((h) => h.holeNumber === thru);
-      map[card.playerId] = lastHole?.stablefordPoints ?? null;
-    });
-    return map;
-  }, [liveCards, holeScoresByCardId]);
 
   // ─── Section renderers ─────────────────────────────────────────────────────
   //
