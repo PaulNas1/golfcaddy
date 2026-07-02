@@ -7,6 +7,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getGroupBySlug } from "@/lib/firestore";
 import type { Group } from "@/types";
 
+function FlagGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M6 3v18" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" />
+      <path d="M7 3.4h11l-3 3.9 3 3.9H7z" fill="currentColor" />
+    </svg>
+  );
+}
+
 export default function SignInPage() {
   const { signIn, signOut, appUser, loading } = useAuth();
   const router = useRouter();
@@ -89,7 +98,7 @@ export default function SignInPage() {
 
         {/* Brand */}
         <div className="text-center mb-10">
-          <div className="text-6xl mb-3">⛳</div>
+          <FlagGlyph className="mx-auto mb-3 h-14 w-14 text-white" />
           <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
           <p className="text-green-200 mt-1 text-sm">Social golf groups</p>
         </div>
@@ -160,8 +169,8 @@ export default function SignInPage() {
                   className="h-8 w-8 rounded-lg object-cover"
                 />
               ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 text-base">
-                  ⛳
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
+                  <FlagGlyph className="h-5 w-5 text-green-700" />
                 </span>
               )}
               <span className="text-sm font-semibold text-ink-body group-hover:text-green-600 transition-colors">
@@ -252,7 +261,7 @@ export default function SignInPage() {
 function GolfCaddySplash() {
   return (
     <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center">
-      <div className="text-6xl mb-4">⛳</div>
+      <FlagGlyph className="mb-4 h-14 w-14 text-white" />
       <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
       <p className="text-green-300 mt-2 text-sm">Social golf groups</p>
       <div className="mt-8 flex gap-1.5">
