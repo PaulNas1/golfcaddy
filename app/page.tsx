@@ -54,7 +54,7 @@ export default function RootPage() {
   }, [loading, firebaseUser, appUser, router]);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href).then(() => {
+    navigator.clipboard.writeText("https://golfcaddy.club").then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
