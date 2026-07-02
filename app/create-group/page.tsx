@@ -10,6 +10,11 @@ import {
   createGroup,
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
+import { LogoLockup, LogoMark } from "@/components/marketing/Logo";
+
+const GLOW_STYLE = {
+  background: "radial-gradient(60% 55% at 50% 8%, rgba(30,138,62,0.30), transparent 68%)",
+};
 
 function toSlug(value: string) {
   return value
@@ -137,41 +142,42 @@ export default function CreateGroupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center">
-        <div className="text-6xl mb-4">⛳</div>
-        <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
-        <p className="text-green-300 mt-2 text-sm">Social golf groups</p>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-mkt-page">
+        <LogoMark
+          tileClassName="flex h-16 w-16 items-center justify-center rounded-2xl bg-mkt-header"
+          className="h-9 w-9 text-white"
+        />
+        <h1 className="mt-4 text-3xl font-bold text-mkt-text">GolfCaddy</h1>
+        <p className="mt-2 text-sm text-mkt-muted">Social golf groups</p>
         <div className="mt-8 flex gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.3s]" />
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.15s]" />
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-mkt-primary [animation-delay:-0.3s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-mkt-primary [animation-delay:-0.15s]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-mkt-primary" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-green-700 flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
+    <div className="relative flex min-h-screen flex-col bg-mkt-page">
+      <div className="pointer-events-none absolute inset-0" style={GLOW_STYLE} />
+      <Link href="/" className="absolute left-8 top-7 z-10">
+        <LogoLockup />
+      </Link>
 
-        {/* Brand */}
-        <div className="text-center mb-10">
-          <div className="text-6xl mb-3">⛳</div>
-          <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
-          <p className="text-green-200 mt-1 text-sm">Create your social golf group</p>
-        </div>
+      <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-6 pb-8 pt-24">
 
         {/* Step 1 – Group details */}
         {step === 1 && (
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-1">Group details</h2>
-            <p className="text-gray-500 text-sm mb-6">
+          <div className="w-[460px] max-w-full rounded-[22px] border border-mkt-border bg-mkt-card p-9 shadow-[0_40px_80px_-35px_rgba(0,0,0,0.5)]">
+            <h2 className="mb-1 text-[26px] font-extrabold tracking-[-0.03em] text-mkt-text">Group details</h2>
+            <p className="mb-6 text-[15px] text-mkt-muted">
               Give your social golf group a name. Members will use this to find and join your group.
             </p>
 
-            <form onSubmit={handleStep1} className="space-y-4">
+            <form onSubmit={handleStep1} className="space-y-[18px]">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">
                   Group name
                 </label>
                 <input
@@ -180,18 +186,18 @@ export default function CreateGroupPage() {
                   onChange={(e) => { setGroupName(e.target.value); setSlugError(""); }}
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                   placeholder="e.g. Four Play"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">
                   Group ID
-                  <span className="ml-1 text-xs font-normal text-gray-400">(used in invite links)</span>
+                  <span className="ml-1 text-xs font-normal text-mkt-faint">(used in invite links)</span>
                 </label>
-                <div className="flex items-center rounded-xl border border-gray-200 overflow-hidden focus-within:ring-2 focus-within:ring-green-500">
-                  <span className="px-3 py-3 bg-gray-50 text-gray-400 text-sm border-r border-gray-200 select-none">
+                <div className="flex items-center overflow-hidden rounded-xl border border-mkt-border bg-mkt-card2 focus-within:border-mkt-accent focus-within:ring-[3px] focus-within:ring-[rgba(53,193,94,0.18)]">
+                  <span className="select-none border-r border-mkt-border bg-mkt-page px-3 py-3 text-sm text-mkt-faint">
                     gc/
                   </span>
                   <input
@@ -199,17 +205,17 @@ export default function CreateGroupPage() {
                     value={slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
                     required
-                    className="flex-1 px-3 py-3 text-gray-800 text-base focus:outline-none bg-white"
+                    className="flex-1 bg-transparent px-3 py-3 text-[15px] text-mkt-text outline-none"
                     placeholder="four-play"
                   />
                 </div>
-                <p className="mt-1 text-xs text-gray-400">
+                <p className="mt-1 text-xs text-mkt-faint">
                   Lowercase letters, numbers, and hyphens only.
                 </p>
               </div>
 
               {slugError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+                <div className="rounded-xl border border-[#E4685A]/40 bg-[rgba(228,104,90,0.12)] px-4 py-3 text-sm text-[#E4685A]">
                   {slugError}
                 </div>
               )}
@@ -217,16 +223,16 @@ export default function CreateGroupPage() {
               <button
                 type="submit"
                 disabled={checkingSlug || !groupName.trim() || !slug}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
+                className="w-full rounded-xl bg-mkt-primary py-[15px] text-[15px] font-bold text-white shadow-[0_12px_28px_-12px_#22A44A] transition-[filter] hover:brightness-[1.06] disabled:opacity-60"
               >
                 {checkingSlug ? "Checking..." : "Continue"}
               </button>
             </form>
 
-            <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-              <p className="text-gray-500 text-sm">
+            <div className="mt-6 border-t border-mkt-border pt-6 text-center">
+              <p className="text-sm text-mkt-muted">
                 Already have an account?{" "}
-                <Link href="/signin" className="text-green-600 font-medium hover:underline">
+                <Link href="/signin" className="font-bold text-mkt-accent">
                   Sign in
                 </Link>
               </p>
@@ -236,84 +242,85 @@ export default function CreateGroupPage() {
 
         {/* Step 2 – Admin account */}
         {step === 2 && (
-          <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
+          <div className="w-[460px] max-w-full rounded-[22px] border border-mkt-border bg-mkt-card p-9 shadow-[0_40px_80px_-35px_rgba(0,0,0,0.5)]">
             {/* Group badge */}
             <button
               onClick={() => { setStep(1); setError(""); }}
-              className="flex items-center gap-2 mb-5 group"
+              className="group mb-5 flex items-center gap-2"
             >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100 text-base">
-                ⛳
-              </span>
-              <span className="text-sm font-semibold text-gray-700 group-hover:text-green-600 transition-colors">
+              <LogoMark
+                tileClassName="flex h-8 w-8 items-center justify-center rounded-lg bg-mkt-chip"
+                className="h-4 w-4 text-mkt-accent"
+              />
+              <span className="text-sm font-semibold text-mkt-text group-hover:text-mkt-accent transition-colors">
                 {groupName}
               </span>
-              <span className="text-xs font-mono text-gray-400 group-hover:text-green-500 transition-colors">
+              <span className="font-mono text-xs text-mkt-faint group-hover:text-mkt-accent transition-colors">
                 gc/{slug} · change
               </span>
             </button>
 
-            <h2 className="text-xl font-bold text-gray-800 mb-1">Your admin account</h2>
-            <p className="text-gray-500 text-sm mb-6">
+            <h2 className="mb-1 text-[26px] font-extrabold tracking-[-0.03em] text-mkt-text">Your admin account</h2>
+            <p className="mb-6 text-[15px] text-mkt-muted">
               You will be the group organiser and admin. You can invite members once you&rsquo;re set up.
             </p>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            <form onSubmit={handleCreate} className="space-y-[18px]">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Your name</label>
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Your name</label>
                 <input
                   type="text"
                   value={adminName}
                   onChange={(e) => setAdminName(e.target.value)}
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                   placeholder="Paul Smith"
                   autoComplete="name"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Email</label>
                 <input
                   type="email"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                   placeholder="you@example.com"
                   autoComplete="email"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Password</label>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                   placeholder="Min 8 characters"
                   autoComplete="new-password"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Confirm password</label>
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Confirm password</label>
                 <input
                   type="password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                   placeholder="••••••••"
                   autoComplete="new-password"
                 />
               </div>
 
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+                <div className="rounded-xl border border-[#E4685A]/40 bg-[rgba(228,104,90,0.12)] px-4 py-3 text-sm text-[#E4685A]">
                   {error}
                 </div>
               )}
@@ -321,16 +328,21 @@ export default function CreateGroupPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
+                className="w-full rounded-xl bg-mkt-primary py-[15px] text-[15px] font-bold text-white shadow-[0_12px_28px_-12px_#22A44A] transition-[filter] hover:brightness-[1.06] disabled:opacity-60"
               >
                 {submitting ? "Creating group..." : "Create group"}
               </button>
             </form>
 
-            <div className="mt-6 pt-6 border-t border-gray-100 text-center">
-              <p className="text-gray-500 text-sm">
+            <div className="mt-4 flex items-center justify-center gap-2 text-[13px] text-mkt-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-mkt-accent" />
+              30 days free · no credit card required
+            </div>
+
+            <div className="mt-6 border-t border-mkt-border pt-6 text-center">
+              <p className="text-sm text-mkt-muted">
                 Already have an account?{" "}
-                <Link href="/signin" className="text-green-600 font-medium hover:underline">
+                <Link href="/signin" className="font-bold text-mkt-accent">
                   Sign in
                 </Link>
               </p>

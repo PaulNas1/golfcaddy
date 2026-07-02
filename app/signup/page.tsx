@@ -5,17 +5,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getMemberInvite } from "@/lib/firestore";
+import { LogoLockup } from "@/components/marketing/Logo";
 import type { UserGender } from "@/types";
 
+const GLOW_STYLE = {
+  background: "radial-gradient(60% 55% at 50% 8%, rgba(30,138,62,0.30), transparent 68%)",
+};
+
 const DATE_INPUT_CLASSNAME =
-  "w-full rounded-xl border border-surface-overlay px-4 py-3 text-left text-base focus:outline-none focus:ring-2 focus:ring-green-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left";
+  "w-full rounded-xl border border-mkt-border bg-mkt-page px-4 py-3 text-left text-base text-mkt-text outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)] [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:text-left [&::-webkit-calendar-picker-indicator]:invert";
 
 export default function SignUpPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-green-700 flex items-center justify-center">
-          <div className="text-sm text-green-100">Loading...</div>
+        <div className="flex min-h-screen items-center justify-center bg-mkt-page">
+          <div className="text-sm text-mkt-muted">Loading...</div>
         </div>
       }
     >
@@ -117,25 +122,25 @@ function SignUpForm() {
   // ── No invite — invitation-only wall ──────────────────────────────────────
   if (!hasInvite) {
     return (
-      <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center px-6">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">⛳</div>
-          <h1 className="text-2xl font-bold text-white">GolfCaddy</h1>
-        </div>
-        <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6 text-center">
-          <div className="text-3xl mb-3">🔒</div>
-          <h2 className="text-lg font-bold text-ink-title mb-2">Invitation required</h2>
-          <p className="text-ink-muted text-sm mb-6">
+      <div className="relative flex min-h-screen flex-col items-center justify-center bg-mkt-page px-6">
+        <div className="pointer-events-none absolute inset-0" style={GLOW_STYLE} />
+        <Link href="/" className="absolute left-8 top-7 z-10">
+          <LogoLockup />
+        </Link>
+        <div className="relative z-[1] w-[420px] max-w-full rounded-[22px] border border-mkt-border bg-mkt-card p-9 text-center shadow-[0_40px_80px_-35px_rgba(0,0,0,0.5)]">
+          <div className="mb-3 text-3xl">🔒</div>
+          <h2 className="mb-2 text-lg font-bold text-mkt-text">Invitation required</h2>
+          <p className="mb-6 text-sm text-mkt-muted">
             GolfCaddy groups are private. You need an invite link from your group
             organiser to create an account.
           </p>
-          <p className="text-ink-hint text-xs mb-6">
+          <p className="mb-6 text-xs text-mkt-faint">
             Ask your group admin to send you an invite from the Members section of
             their GolfCaddy admin panel.
           </p>
           <Link
             href="/signin"
-            className="block w-full bg-green-600 text-white font-semibold py-3 rounded-xl text-sm hover:bg-green-700 transition-colors"
+            className="block w-full rounded-xl bg-mkt-primary py-3 text-sm font-bold text-white transition-[filter] hover:brightness-[1.06]"
           >
             Back to sign in
           </Link>
@@ -146,102 +151,99 @@ function SignUpForm() {
 
   // ── Valid invite — registration form ──────────────────────────────────────
   return (
-    <div className="min-h-screen bg-green-700 flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">⛳</div>
-          <h1 className="text-2xl font-bold text-white">GolfCaddy</h1>
-          <p className="text-green-200 mt-1 text-sm">
-            Request access to {resolvedGroupName}
-          </p>
-        </div>
+    <div className="relative flex min-h-screen flex-col bg-mkt-page">
+      <div className="pointer-events-none absolute inset-0" style={GLOW_STYLE} />
+      <Link href="/" className="absolute left-8 top-7 z-10">
+        <LogoLockup />
+      </Link>
 
-        <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6">
-          <h2 className="text-xl font-bold text-ink-title mb-2">Create account</h2>
-          <p className="text-ink-muted text-sm mb-6">
-            An admin will review and approve your request before you can access the app.
+      <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-6 pb-8 pt-24">
+        <div className="w-[420px] max-w-full rounded-[22px] border border-mkt-border bg-mkt-card p-9 shadow-[0_40px_80px_-35px_rgba(0,0,0,0.5)]">
+          <h1 className="mb-1.5 text-[26px] font-extrabold tracking-[-0.03em] text-mkt-text">Create your account</h1>
+          <p className="mb-6 text-[15px] text-mkt-muted">
+            Request access to {resolvedGroupName}. An admin will review and approve your request before you can access the app.
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-[18px]">
             <div>
-              <label className="block text-sm font-medium text-ink-body mb-1">Full name</label>
+              <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Full name</label>
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Paul Smith" autoComplete="name" />
+                className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
+                placeholder="Paul Ryan" autoComplete="name" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-body mb-1">Email</label>
+              <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Email</label>
               <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="you@example.com" autoComplete="email" />
+                className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
+                placeholder="you@email.com" autoComplete="email" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-body mb-1">Password</label>
+              <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Password</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="Min 8 characters" autoComplete="new-password" />
+                className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
+                placeholder="At least 8 characters" autoComplete="new-password" />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-ink-body mb-1">Confirm password</label>
+              <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">Confirm password</label>
               <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required
-                className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                 placeholder="••••••••" autoComplete="new-password" />
             </div>
 
-            <div className="rounded-2xl border border-surface-overlay bg-surface-muted p-4">
+            <div className="rounded-2xl border border-mkt-border bg-mkt-card2 p-4">
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-ink-title">Player profile</h3>
-                <p className="mt-1 text-xs text-ink-muted">Optional, but recommended so admins can assign tees properly.</p>
+                <h3 className="text-sm font-semibold text-mkt-text">Player profile</h3>
+                <p className="mt-1 text-xs text-mkt-muted">Optional, but recommended so admins can assign tees properly.</p>
               </div>
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-ink-body mb-1">Nickname</label>
+                  <label className="mb-1 block text-sm font-medium text-mkt-chipText">Nickname</label>
                   <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-mkt-border bg-mkt-page px-4 py-3 text-base text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                     placeholder="Optional nickname" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-ink-body mb-1">Mobile number</label>
+                  <label className="mb-1 block text-sm font-medium text-mkt-chipText">Mobile number</label>
                   <input type="tel" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full rounded-xl border border-mkt-border bg-mkt-page px-4 py-3 text-base text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                     placeholder="Optional mobile" autoComplete="tel" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-ink-body mb-1">Date of birth</label>
+                  <label className="mb-1 block text-sm font-medium text-mkt-chipText">Date of birth</label>
                   <input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className={DATE_INPUT_CLASSNAME} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-ink-body mb-1">Gender</label>
+                  <label className="mb-1 block text-sm font-medium text-mkt-chipText">Gender</label>
                   <select value={gender} onChange={(e) => setGender(e.target.value as UserGender | "")}
-                    className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500">
+                    className="w-full rounded-xl border border-mkt-border bg-mkt-page px-4 py-3 text-base text-mkt-text outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]">
                     <option value="">Not set</option>
                     <option value="male">Male</option>
                     <option value="female">Female</option>
                   </select>
                 </div>
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-surface-overlay bg-surface-card px-4 py-3">
-                  <span className="text-sm font-medium text-ink-body">I usually play senior tees</span>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-mkt-border bg-mkt-card px-4 py-3">
+                  <span className="text-sm font-medium text-mkt-text">I usually play senior tees</span>
                   <input type="checkbox" checked={usesSeniorTees} onChange={(e) => setUsesSeniorTees(e.target.checked)}
-                    className="h-5 w-5 rounded border-surface-overlay text-green-600" />
+                    className="h-5 w-5 rounded border-mkt-border text-mkt-primary" />
                 </label>
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-surface-overlay bg-surface-card px-4 py-3">
-                  <span className="text-sm font-medium text-ink-body">I usually play pro/back tees</span>
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-mkt-border bg-mkt-card px-4 py-3">
+                  <span className="text-sm font-medium text-mkt-text">I usually play pro/back tees</span>
                   <input type="checkbox" checked={usesProBackTees} onChange={(e) => setUsesProBackTees(e.target.checked)}
-                    className="h-5 w-5 rounded border-surface-overlay text-green-600" />
+                    className="h-5 w-5 rounded border-mkt-border text-mkt-primary" />
                 </label>
               </div>
             </div>
 
             {(inviteError || error) && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+              <div className="rounded-xl border border-[#E4685A]/40 bg-[rgba(228,104,90,0.12)] px-4 py-3 text-sm text-[#E4685A]">
                 {inviteError || error}
               </div>
             )}
             {checkingInvite && (
-              <div className="bg-surface-muted border border-surface-overlay rounded-xl px-4 py-3 text-sm text-ink-muted">
+              <div className="rounded-xl border border-mkt-border bg-mkt-card2 px-4 py-3 text-sm text-mkt-muted">
                 Verifying your invite...
               </div>
             )}
@@ -249,16 +251,23 @@ function SignUpForm() {
             <button
               type="submit"
               disabled={loading || checkingInvite || Boolean(inviteError)}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
+              className="w-full rounded-xl bg-mkt-primary py-3 text-base font-bold text-white shadow-[0_12px_28px_-12px_#22A44A] transition-[filter] hover:brightness-[1.06] disabled:opacity-60"
             >
               {loading ? "Submitting..." : checkingInvite ? "Checking invite..." : "Request access"}
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-surface-overlay text-center">
-            <p className="text-ink-muted text-sm">
+          <p className="mt-4 text-center text-[12.5px] leading-relaxed text-mkt-faint">
+            By continuing you agree to our{" "}
+            <Link href="/terms" className="text-mkt-muted underline">Terms</Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="text-mkt-muted underline">Privacy Policy</Link>.
+          </p>
+
+          <div className="mt-6 border-t border-mkt-border pt-6 text-center">
+            <p className="text-sm text-mkt-muted">
               Already have an account?{" "}
-              <Link href="/signin" className="text-green-600 font-medium hover:underline">Sign in</Link>
+              <Link href="/signin" className="font-bold text-mkt-accent">Sign in</Link>
             </p>
           </div>
         </div>
