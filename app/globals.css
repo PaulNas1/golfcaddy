@@ -311,3 +311,15 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
   --mkt-down: #E4685A;
   --mkt-strike: #F2C14E;
 }
+
+/* LIVE-pill dot pulse for the marketing page's illustrative live-standings
+ * preview. Matches the handoff's motion spec (§9: LIVE pulse 1.3s).
+ */
+@keyframes gc-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+.animate-gc-pulse {
+  animation: gc-pulse 1.3s ease-in-out infinite;
+}
