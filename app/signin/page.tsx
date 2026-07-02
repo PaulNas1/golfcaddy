@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { getGroupBySlug } from "@/lib/firestore";
+import { LogoLockup, LogoMark } from "@/components/marketing/Logo";
 import type { Group } from "@/types";
 
-function FlagGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className={className}>
-      <path d="M6 3v18" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" />
-      <path d="M7 3.4h11l-3 3.9 3 3.9H7z" fill="currentColor" />
-    </svg>
-  );
-}
+const GLOW_STYLE = {
+  background: "radial-gradient(60% 55% at 50% 8%, rgba(30,138,62,0.30), transparent 68%)",
+};
 
 export default function SignInPage() {
   const { signIn, signOut, appUser, loading } = useAuth();
@@ -93,27 +89,25 @@ export default function SignInPage() {
   }
 
   return (
-    <div className="min-h-screen bg-green-700 flex flex-col">
-      <div className="flex-1 flex flex-col items-center justify-center px-6 pt-16 pb-8">
+    <div className="relative flex min-h-screen flex-col bg-mkt-page">
+      <div className="pointer-events-none absolute inset-0" style={GLOW_STYLE} />
+      <Link href="/" className="absolute left-8 top-7 z-10">
+        <LogoLockup />
+      </Link>
 
-        {/* Brand */}
-        <div className="text-center mb-10">
-          <FlagGlyph className="mx-auto mb-3 h-14 w-14 text-white" />
-          <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
-          <p className="text-green-200 mt-1 text-sm">Social golf groups</p>
-        </div>
+      <div className="relative z-[1] flex flex-1 flex-col items-center justify-center px-6 pb-8 pt-24">
 
         {/* Step 1 – Find group */}
         {step === 1 && (
-          <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6">
-            <h2 className="text-xl font-bold text-ink-title mb-1">Find your group</h2>
-            <p className="text-ink-muted text-sm mb-6">
-              Enter your social golf group name to get started.
+          <div className="w-[420px] max-w-full rounded-[22px] border border-mkt-border bg-mkt-card p-9 shadow-[0_40px_80px_-35px_rgba(0,0,0,0.5)]">
+            <h1 className="mb-1.5 text-[26px] font-extrabold tracking-[-0.03em] text-mkt-text">Welcome back</h1>
+            <p className="mb-6 text-[15px] text-mkt-muted">
+              Sign in to your group and pick up where the round left off.
             </p>
 
-            <form onSubmit={handleGroupLookup} className="space-y-4">
+            <form onSubmit={handleGroupLookup} className="space-y-[18px]">
               <div>
-                <label className="block text-sm font-medium text-ink-body mb-1">
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">
                   Group name
                 </label>
                 <input
@@ -122,13 +116,13 @@ export default function SignInPage() {
                   onChange={(e) => setGroupInput(e.target.value)}
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="e.g. Four Play"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
+                  placeholder="e.g. FourPlay Society"
                 />
               </div>
 
               {groupError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+                <div className="rounded-xl border border-[#E4685A]/40 bg-[rgba(228,104,90,0.12)] px-4 py-3 text-sm text-[#E4685A]">
                   {groupError}
                 </div>
               )}
@@ -136,17 +130,17 @@ export default function SignInPage() {
               <button
                 type="submit"
                 disabled={lookingUp || !groupInput.trim()}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
+                className="w-full rounded-xl bg-mkt-primary py-[15px] text-[15px] font-bold text-white shadow-[0_12px_28px_-12px_#22A44A] transition-[filter] hover:brightness-[1.06] disabled:opacity-60"
               >
                 {lookingUp ? "Looking up..." : "Continue"}
               </button>
             </form>
 
-            <div className="mt-6 pt-6 border-t border-surface-overlay text-center">
-              <p className="text-ink-muted text-sm">
-                New member?{" "}
-                <Link href="/signup" className="text-green-600 font-medium hover:underline">
-                  Request access
+            <div className="mt-6 border-t border-mkt-border pt-6 text-center">
+              <p className="text-sm text-mkt-muted">
+                New to GolfCaddy?{" "}
+                <Link href="/signup" className="font-bold text-mkt-accent">
+                  Create an account
                 </Link>
               </p>
             </div>
@@ -155,11 +149,11 @@ export default function SignInPage() {
 
         {/* Step 2 – Sign in */}
         {step === 2 && foundGroup && (
-          <div className="w-full max-w-sm bg-surface-card rounded-2xl shadow-xl p-6">
+          <div className="w-[420px] max-w-full rounded-[22px] border border-mkt-border bg-mkt-card p-9 shadow-[0_40px_80px_-35px_rgba(0,0,0,0.5)]">
             {/* Group badge */}
             <button
               onClick={() => { setStep(1); setSignInError(""); }}
-              className="flex items-center gap-2 mb-5 group"
+              className="group mb-5 flex items-center gap-2"
             >
               {foundGroup.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -169,23 +163,24 @@ export default function SignInPage() {
                   className="h-8 w-8 rounded-lg object-cover"
                 />
               ) : (
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
-                  <FlagGlyph className="h-5 w-5 text-green-700" />
-                </span>
+                <LogoMark
+                  tileClassName="flex h-8 w-8 items-center justify-center rounded-lg bg-mkt-chip"
+                  className="h-4 w-4 text-mkt-accent"
+                />
               )}
-              <span className="text-sm font-semibold text-ink-body group-hover:text-green-600 transition-colors">
+              <span className="text-sm font-semibold text-mkt-text group-hover:text-mkt-accent transition-colors">
                 {foundGroup.name}
               </span>
-              <span className="text-xs text-ink-hint group-hover:text-green-500 transition-colors">
+              <span className="text-xs text-mkt-faint group-hover:text-mkt-accent transition-colors">
                 ✕ change
               </span>
             </button>
 
-            <h2 className="text-xl font-bold text-ink-title mb-6">Sign in</h2>
+            <h2 className="mb-6 text-[26px] font-extrabold tracking-[-0.03em] text-mkt-text">Sign in</h2>
 
-            <form onSubmit={handleSignIn} className="space-y-4">
+            <form onSubmit={handleSignIn} className="space-y-[18px]">
               <div>
-                <label className="block text-sm font-medium text-ink-body mb-1">
+                <label className="mb-[7px] block text-[13px] font-bold text-mkt-chipText">
                   Email
                 </label>
                 <input
@@ -194,29 +189,32 @@ export default function SignInPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   autoFocus
-                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="you@example.com"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
+                  placeholder="you@email.com"
                   autoComplete="email"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-ink-body mb-1">
-                  Password
-                </label>
+                <div className="mb-[7px] flex items-center justify-between">
+                  <label className="text-[13px] font-bold text-mkt-chipText">Password</label>
+                  <Link href="/forgot-password" className="text-[12.5px] font-semibold text-mkt-accent">
+                    Forgot?
+                  </Link>
+                </div>
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-3 rounded-xl border border-surface-overlay text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-xl border border-mkt-border bg-mkt-card2 px-[14px] py-[13px] text-[15px] text-mkt-text placeholder:text-mkt-faint outline-none focus:border-mkt-accent focus:ring-[3px] focus:ring-[rgba(53,193,94,0.18)]"
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
               </div>
 
               {signInError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
+                <div className="rounded-xl border border-[#E4685A]/40 bg-[rgba(228,104,90,0.12)] px-4 py-3 text-sm text-[#E4685A]">
                   {signInError}
                 </div>
               )}
@@ -224,35 +222,27 @@ export default function SignInPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-xl text-base transition-colors"
+                className="w-full rounded-xl bg-mkt-primary py-[15px] text-[15px] font-bold text-white shadow-[0_12px_28px_-12px_#22A44A] transition-[filter] hover:brightness-[1.06] disabled:opacity-60"
               >
                 {submitting ? "Signing in..." : "Sign in"}
               </button>
             </form>
 
-            <div className="mt-4 text-center">
-              <Link
-                href="/forgot-password"
-                className="text-green-600 text-sm hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-surface-overlay text-center">
-              <p className="text-ink-muted text-sm">
-                New member?{" "}
-                <Link href="/signup" className="text-green-600 font-medium hover:underline">
-                  Request access
+            <div className="mt-6 border-t border-mkt-border pt-6 text-center">
+              <p className="text-sm text-mkt-muted">
+                New to GolfCaddy?{" "}
+                <Link href="/signup" className="font-bold text-mkt-accent">
+                  Create an account
                 </Link>
               </p>
             </div>
           </div>
         )}
       </div>
-      <footer className="mt-6 text-center text-xs text-green-200/70 space-x-4">
-        <Link href="/terms">Terms of Use</Link>
-        <Link href="/privacy">Privacy Policy</Link>
+
+      <footer className="relative z-[1] pb-8 text-center text-xs text-mkt-faint space-x-4">
+        <Link href="/terms" className="hover:text-mkt-muted">Terms of Use</Link>
+        <Link href="/privacy" className="hover:text-mkt-muted">Privacy Policy</Link>
       </footer>
     </div>
   );
@@ -260,14 +250,17 @@ export default function SignInPage() {
 
 function GolfCaddySplash() {
   return (
-    <div className="min-h-screen bg-green-700 flex flex-col items-center justify-center">
-      <FlagGlyph className="mb-4 h-14 w-14 text-white" />
-      <h1 className="text-3xl font-bold text-white">GolfCaddy</h1>
-      <p className="text-green-300 mt-2 text-sm">Social golf groups</p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-mkt-page">
+      <LogoMark
+        tileClassName="flex h-16 w-16 items-center justify-center rounded-2xl bg-mkt-header"
+        className="h-9 w-9 text-white"
+      />
+      <h1 className="mt-4 text-3xl font-bold text-mkt-text">GolfCaddy</h1>
+      <p className="mt-2 text-sm text-mkt-muted">Social golf groups</p>
       <div className="mt-8 flex gap-1.5">
-        <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.3s]" />
-        <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce [animation-delay:-0.15s]" />
-        <span className="w-2 h-2 rounded-full bg-green-400 animate-bounce" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-mkt-primary [animation-delay:-0.3s]" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-mkt-primary [animation-delay:-0.15s]" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-mkt-primary" />
       </div>
     </div>
   );
