@@ -6,7 +6,7 @@ import type {
   Round,
   Scorecard,
 } from "@/types";
-import { getPointsForRank } from "./settings";
+import { getPointsForRank } from "./settings.ts";
 
 type BuildPlayerRankingsInput = {
   round: Round;

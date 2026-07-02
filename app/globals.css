@@ -287,3 +287,39 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
     padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
   }
 }
+
+/* ── Marketing / legal fixed-dark tokens ─────────────────────────────────
+ * Used only by the public marketing landing page and legal pages.
+ * Deliberately fixed (not theme-reactive) — see app/page.tsx header comment.
+ */
+:root {
+  --mkt-page: #0A1322;
+  --mkt-body: #060D18;
+  --mkt-card: #15233C;
+  --mkt-card2: #101B2E;
+  --mkt-border: #263449;
+  --mkt-text: #FFFFFF;
+  --mkt-muted: #8A98A8;
+  --mkt-faint: #5C6A7C;
+  --mkt-header: #1E8A3E;
+  --mkt-primary: #22A44A;
+  --mkt-accent: #35C15E;
+  --mkt-chip: #1B2A42;
+  --mkt-chipText: #A9B7C7;
+  --mkt-gold: #E7B84B;
+  --mkt-live: #FF5A47;
+  --mkt-down: #E4685A;
+  --mkt-strike: #F2C14E;
+}
+
+/* LIVE-pill dot pulse for the marketing page's illustrative live-standings
+ * preview. Matches the handoff's motion spec (§9: LIVE pulse 1.3s).
+ */
+@keyframes gc-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+.animate-gc-pulse {
+  animation: gc-pulse 1.3s ease-in-out infinite;
+}

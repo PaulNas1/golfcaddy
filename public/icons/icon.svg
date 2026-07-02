@@ -1,10 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#15803d"/>
-  <circle cx="256" cy="256" r="168" fill="#f8fafc"/>
-  <circle cx="256" cy="256" r="122" fill="#dcfce7"/>
-  <path d="M250 125h30v210h-30z" fill="#14532d"/>
-  <path d="M280 136l116 35-116 35z" fill="#22c55e"/>
-  <path d="M156 362c28-34 65-52 111-52 43 0 75 16 96 47-32 24-68 36-108 36-37 0-70-10-99-31z" fill="#16a34a"/>
-  <circle cx="256" cy="363" r="29" fill="#f8fafc"/>
-  <circle cx="256" cy="363" r="10" fill="#bbf7d0"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="GolfCaddy">
+  <rect width="24" height="24" rx="6" fill="#1E8A3E"/>
+  <path d="M8.4 4v16" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M9.1 4.3h8.2l-2.2 2.9 2.2 2.9H9.1z" fill="#fff"/>
 </svg>
