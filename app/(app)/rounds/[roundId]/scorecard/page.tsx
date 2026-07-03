@@ -941,6 +941,7 @@ export default function ScorecardPage() {
           allHoles.find((h) => h.holeNumber === activeHole) ?? allHoles[0];
         const displayScore = activeHoleData.grossScore ?? activeHoleData.par;
         const hasPoints = activeHoleData.stablefordPoints != null;
+        const activeHoleTag = getSidePrizeTag(activeHoleData);
 
         const adjustScore = (delta: number) => {
           if (heroDisabled) return;
@@ -957,9 +958,21 @@ export default function ScorecardPage() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-sm text-ink-muted">Hole</p>
-                  <p className="text-4xl font-extrabold text-ink-title font-mono leading-none mt-1">
-                    {activeHoleData.holeNumber}
-                  </p>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <p className="text-4xl font-extrabold text-ink-title font-mono leading-none">
+                      {activeHoleData.holeNumber}
+                    </p>
+                    {activeHoleTag && (
+                      <span className={`text-sm font-bold ${activeHoleTag.className}`}>
+                        {activeHoleTag.label}
+                      </span>
+                    )}
+                  </div>
+                  {activeHoleData.distanceMeters && (
+                    <p className="text-xs text-ink-hint mt-1">
+                      {activeHoleData.distanceMeters}m
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="rounded-lg bg-surface-muted px-3 py-2 text-center min-w-[3.25rem]">
@@ -1343,6 +1356,16 @@ function getFirstUnscoredHole(holes: HoleScore[]): number {
   return 18;
 }
 
+function getSidePrizeTag(
+  hole: HoleScore
+): { label: string; className: string } | null {
+  if (hole.isNTP) return { label: "NTP", className: "text-yellow-600" };
+  if (hole.isLD) return { label: "LD", className: "text-blue-600" };
+  if (hole.isT2) return { label: "T2", className: "text-emerald-600" };
+  if (hole.isT3) return { label: "T3", className: "text-fuchsia-600" };
+  return null;
+}
+
 // A hole only counts toward a nine's running total once the marker has
 // moved past it — the active hole always shows as pending ("•") in the
 // strip, matching the live-scoring hero above it.
@@ -1408,29 +1431,25 @@ function HoleStripCell({
     : hole.grossScore != null
     ? hole.stablefordPoints ?? "–"
     : "–";
-  const sidePrizeTag = hole.isNTP
-    ? "NTP"
-    : hole.isLD
-    ? "LD"
-    : hole.isT2
-    ? "T2"
-    : hole.isT3
-    ? "T3"
-    : null;
+  const tag = getSidePrizeTag(hole);
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      aria-label={`Hole ${hole.holeNumber}${sidePrizeTag ? `, ${sidePrizeTag}` : ""}`}
+      aria-label={`Hole ${hole.holeNumber}${tag ? `, ${tag.label}` : ""}`}
       className={`relative rounded-lg py-1.5 text-center transition-colors ${
         isActive
           ? "bg-brand-500 text-white"
           : "bg-surface-muted text-ink-body hover:bg-surface-overlay"
       }`}
     >
-      {sidePrizeTag && (
-        <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-amber-400" />
+      {tag && (
+        <span
+          className={`absolute -top-1.5 -right-1.5 rounded bg-surface-card px-0.5 text-[7px] font-bold leading-tight shadow-sm ${tag.className}`}
+        >
+          {tag.label}
+        </span>
       )}
       <span className="block text-[11px] font-semibold opacity-80">
         {hole.holeNumber}
