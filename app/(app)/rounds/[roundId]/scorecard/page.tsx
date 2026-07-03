@@ -79,6 +79,15 @@ export default function ScorecardPage() {
   const pendingSyncRunRef = useRef(0);
   const syncTotalsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Live scoring hero: which hole is currently in front of the marker ────
+  const [activeHole, setActiveHole] = useState(1);
+  const initializedForScorecardRef = useRef<string | null>(null);
+
+  // ── Manual Stableford points override (long-press the PTS pill) ──────────
+  const [pointsOverrideHole, setPointsOverrideHole] = useState<number | null>(null);
+  const [pointsOverrideDraft, setPointsOverrideDraft] = useState("");
+  const pointsLongPressTimerRef = useRef<number | null>(null);
+
   const confirmPendingSync = (runId: number) => {
     void waitForPendingWrites(db)
       .then(() => {
@@ -283,6 +292,43 @@ export default function ScorecardPage() {
       scorecard.markerId === appUser?.uid,
     [scorecard, round, appUser]
   );
+
+  // Jump the hero to the first unscored hole once per scorecard, so a marker
+  // resuming a card lands where they left off instead of always at hole 1.
+  useEffect(() => {
+    if (!scorecard || holes.length === 0) return;
+    if (initializedForScorecardRef.current === scorecard.id) return;
+    initializedForScorecardRef.current = scorecard.id;
+    setActiveHole(getFirstUnscoredHole(holes));
+  }, [scorecard, holes]);
+
+  const clearPointsLongPress = () => {
+    if (pointsLongPressTimerRef.current != null) {
+      window.clearTimeout(pointsLongPressTimerRef.current);
+      pointsLongPressTimerRef.current = null;
+    }
+  };
+
+  const openPointsOverride = (holeNumber: number, currentPoints: number | null) => {
+    clearPointsLongPress();
+    setPointsOverrideDraft(currentPoints != null ? String(currentPoints) : "");
+    setPointsOverrideHole(holeNumber);
+  };
+
+  const startPointsLongPress = (holeNumber: number, currentPoints: number | null) => {
+    clearPointsLongPress();
+    pointsLongPressTimerRef.current = window.setTimeout(() => {
+      openPointsOverride(holeNumber, currentPoints);
+    }, 500);
+  };
+
+  useEffect(() => clearPointsLongPress, []);
+
+  const commitPointsOverride = () => {
+    if (pointsOverrideHole == null) return;
+    handleStablefordOverride(pointsOverrideHole, pointsOverrideDraft);
+    setPointsOverrideHole(null);
+  };
 
   const markSyncPending = () => {
     pendingSyncRunRef.current += 1;
@@ -735,9 +781,21 @@ export default function ScorecardPage() {
         ← Back to round
       </button>
 
-      <h1 className="text-2xl font-bold text-ink-title">
-        Scorecard · {round.courseName}
-      </h1>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-brand-600">
+            Round {round.roundNumber} · Live scoring
+          </p>
+          <h1 className="text-2xl font-extrabold text-ink-title">
+            {round.courseName}
+          </h1>
+        </div>
+        {round.status === "live" && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-live-bg px-2.5 py-1 text-xs font-bold text-live-text">
+            ● LIVE
+          </span>
+        )}
+      </div>
 
       <div className={`rounded-2xl border px-4 py-3 text-sm ${syncStatus.tone}`}>
         <p className="font-semibold">{syncStatus.title}</p>
@@ -867,54 +925,161 @@ export default function ScorecardPage() {
         </>
       )}
 
-      {/* ── Hole grid ──────────────────────────────────────────────────────────
-          Rendered as soon as the round is available (phase 1).
-          Inputs are disabled while scorecardLoading or while canEdit is false;
-          par, stroke index, and distance are visible immediately from the
-          round's course data, giving players something useful to look at
-          while the scorecard data loads in the background.
+      {/* ── Live scoring hero ──────────────────────────────────────────────────
+          Rendered as soon as the round is available (phase 1). Editing is
+          disabled while scorecardLoading or while canEdit is false; par,
+          stroke index, and distance are visible immediately from the round's
+          course data, giving players something useful to look at while the
+          scorecard data loads in the background.
       ─────────────────────────────────────────────────────────────────────── */}
-      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
-        <h2 className="font-semibold text-ink-title mb-2">Front 9</h2>
-        <div className="grid grid-cols-5 gap-2 text-xs text-ink-muted mb-1">
-          <span>Hole</span>
-          <span>Index</span>
-          <span>Par</span>
-          <span>Strokes</span>
-          <span>Stableford</span>
-        </div>
-        {holesForNine(holes, courseLayout, 1, 9, round).map((h) => (
-          <HoleRow
-            key={h.holeNumber}
-            hole={h}
-            disabled={!canEdit || scorecardLoading}
-            saving={savingHole === h.holeNumber}
-            onStrokeChange={handleHoleChange}
-            onStablefordOverride={handleStablefordOverride}
-          />
-        ))}
-      </div>
+      {(() => {
+        const heroDisabled = !canEdit || scorecardLoading;
+        const allHoles = holesForNine(holes, courseLayout, 1, 18, round);
+        const frontNine = allHoles.slice(0, 9);
+        const backNine = allHoles.slice(9, 18);
+        const activeHoleData =
+          allHoles.find((h) => h.holeNumber === activeHole) ?? allHoles[0];
+        const displayScore = activeHoleData.grossScore ?? activeHoleData.par;
+        const hasPoints = activeHoleData.stablefordPoints != null;
 
-      <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
-        <h2 className="font-semibold text-ink-title mb-2">Back 9</h2>
-        <div className="grid grid-cols-5 gap-2 text-xs text-ink-muted mb-1">
-          <span>Hole</span>
-          <span>Index</span>
-          <span>Par</span>
-          <span>Strokes</span>
-          <span>Stableford</span>
-        </div>
-        {holesForNine(holes, courseLayout, 10, 18, round).map((h) => (
-          <HoleRow
-            key={h.holeNumber}
-            hole={h}
-            disabled={!canEdit || scorecardLoading}
-            saving={savingHole === h.holeNumber}
-            onStrokeChange={handleHoleChange}
-            onStablefordOverride={handleStablefordOverride}
-          />
-        ))}
-      </div>
+        const adjustScore = (delta: number) => {
+          if (heroDisabled) return;
+          const next = Math.max(1, displayScore + delta);
+          handleHoleChange(activeHole, String(next));
+        };
+
+        const frontTotals = computeNineTotals(frontNine, activeHole);
+        const backTotals = computeNineTotals(backNine, activeHole);
+
+        return (
+          <>
+            <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm text-ink-muted">Hole</p>
+                  <p className="text-4xl font-extrabold text-ink-title font-mono leading-none mt-1">
+                    {activeHoleData.holeNumber}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="rounded-lg bg-surface-muted px-3 py-2 text-center min-w-[3.25rem]">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-ink-hint">
+                      Par
+                    </p>
+                    <p className="text-lg font-bold text-ink-title font-mono">
+                      {activeHoleData.par}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-surface-muted px-3 py-2 text-center min-w-[3.25rem]">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-ink-hint">
+                      S.I.
+                    </p>
+                    <p className="text-lg font-bold text-ink-title font-mono">
+                      {activeHoleData.strokeIndex}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={heroDisabled}
+                    aria-label={`Points for hole ${activeHoleData.holeNumber}. Press and hold to override.`}
+                    onMouseDown={() =>
+                      !heroDisabled &&
+                      startPointsLongPress(
+                        activeHoleData.holeNumber,
+                        activeHoleData.stablefordPoints
+                      )
+                    }
+                    onMouseUp={clearPointsLongPress}
+                    onMouseLeave={clearPointsLongPress}
+                    onTouchStart={() =>
+                      !heroDisabled &&
+                      startPointsLongPress(
+                        activeHoleData.holeNumber,
+                        activeHoleData.stablefordPoints
+                      )
+                    }
+                    onTouchEnd={clearPointsLongPress}
+                    onTouchCancel={clearPointsLongPress}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (!heroDisabled) {
+                        openPointsOverride(
+                          activeHoleData.holeNumber,
+                          activeHoleData.stablefordPoints
+                        );
+                      }
+                    }}
+                    className="rounded-lg bg-brand-500 px-3 py-2 text-center min-w-[3.25rem] disabled:opacity-60"
+                  >
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-white/80">
+                      Pts
+                    </p>
+                    <p className="text-lg font-bold text-white font-mono">
+                      {hasPoints ? activeHoleData.stablefordPoints : "–"}
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-6 text-center">
+                <p className="text-sm text-ink-muted mb-3">
+                  Your gross score
+                  {savingHole === activeHoleData.holeNumber && (
+                    <span className="ml-2 text-xs text-ink-hint">Saving…</span>
+                  )}
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    type="button"
+                    disabled={heroDisabled}
+                    aria-label="Decrease gross score"
+                    onClick={() => adjustScore(-1)}
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-muted text-2xl font-bold text-ink-title disabled:opacity-50"
+                  >
+                    −
+                  </button>
+                  <span className="w-16 text-center text-5xl font-extrabold text-ink-title font-mono">
+                    {displayScore}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={heroDisabled}
+                    aria-label="Increase gross score"
+                    onClick={() => adjustScore(1)}
+                    className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-500 text-2xl font-bold text-white disabled:opacity-50"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <HoleStrip
+              label="Front Nine"
+              holes={frontNine}
+              activeHole={activeHole}
+              totals={frontTotals}
+              onSelect={setActiveHole}
+            />
+            <HoleStrip
+              label="Back Nine"
+              holes={backNine}
+              activeHole={activeHole}
+              totals={backTotals}
+              onSelect={setActiveHole}
+            />
+
+            <button
+              type="button"
+              disabled={heroDisabled}
+              onClick={() => setActiveHole((h) => Math.min(h + 1, 18))}
+              className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-surface-muted disabled:text-ink-hint text-white font-semibold py-4 rounded-2xl text-base transition-colors"
+            >
+              {activeHole >= 18 ? "Save hole" : "Save & next hole"}
+            </button>
+          </>
+        );
+      })()}
 
       {/* Submit / reopen — only shown once scorecard is loaded */}
       {!scorecardLoading && scorecard && (
@@ -1015,6 +1180,50 @@ export default function ScorecardPage() {
           </div>
         );
       })()}
+
+      {pointsOverrideHole != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-surface-card p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-ink-title">
+              Override points — Hole {pointsOverrideHole}
+            </h3>
+            <p className="mt-2 text-sm text-ink-body">
+              Manually set the Stableford points for this hole. Leave blank to
+              use the calculated value instead.
+            </p>
+            <input
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              type="number"
+              inputMode="numeric"
+              value={pointsOverrideDraft}
+              onChange={(e) => setPointsOverrideDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitPointsOverride();
+                if (e.key === "Escape") setPointsOverrideHole(null);
+              }}
+              placeholder="Points"
+              className="mt-4 w-full rounded-xl border border-surface-overlay bg-surface-muted px-4 py-3 text-center text-2xl font-bold font-mono text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setPointsOverrideHole(null)}
+                className="flex-1 rounded-xl border border-surface-overlay px-4 py-2.5 text-sm font-medium text-ink-body"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={commitPointsOverride}
+                className="flex-1 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                Save override
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1123,123 +1332,111 @@ function holesForNine(
   return result;
 }
 
+function getFirstUnscoredHole(holes: HoleScore[]): number {
+  const byNumber: Record<number, HoleScore> = {};
+  holes.forEach((h) => {
+    byNumber[h.holeNumber] = h;
+  });
+  for (let n = 1; n <= 18; n++) {
+    if (byNumber[n]?.grossScore == null) return n;
+  }
+  return 18;
+}
+
+// A hole only counts toward a nine's running total once the marker has
+// moved past it — the active hole always shows as pending ("•") in the
+// strip, matching the live-scoring hero above it.
+function computeNineTotals(holesInNine: HoleScore[], activeHole: number) {
+  const scored = holesInNine.filter(
+    (h) => h.holeNumber !== activeHole && h.grossScore != null
+  );
+  const points = scored.reduce((sum, h) => sum + (h.stablefordPoints ?? 0), 0);
+  return { points, thru: scored.length };
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function HoleRow({
-  hole,
-  disabled,
-  saving,
-  onStrokeChange,
-  onStablefordOverride,
+function HoleStrip({
+  label,
+  holes,
+  activeHole,
+  totals,
+  onSelect,
 }: {
-  hole: HoleScore;
-  disabled: boolean;
-  saving: boolean;
-  onStrokeChange: (holeNumber: number, gross: string) => void;
-  onStablefordOverride: (holeNumber: number, points: string) => void;
+  label: string;
+  holes: HoleScore[];
+  activeHole: number;
+  totals: { points: number; thru: number };
+  onSelect: (holeNumber: number) => void;
 }) {
-  const hasPoints = hole.stablefordPoints != null;
-  const isScored = hole.grossScore != null;
-  const [editingPoints, setEditingPoints] = useState(false);
-  const [pointsDraft, setPointsDraft] = useState("");
-  const pointsInputRef = useRef<HTMLInputElement | null>(null);
-
-  const openPointsEditor = () => {
-    setPointsDraft(hole.stablefordPoints != null ? String(hole.stablefordPoints) : "");
-    setEditingPoints(true);
-    // Focus after render
-    setTimeout(() => pointsInputRef.current?.focus(), 0);
-  };
-
-  const commitPoints = () => {
-    setEditingPoints(false);
-    onStablefordOverride(hole.holeNumber, pointsDraft);
-  };
-
   return (
-    <div
-      className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-surface-overlay last:border-0 rounded-lg px-1 -mx-1 ${
-        isScored ? "bg-surface-selected" : ""
-      }`}
-    >
-      <div className="text-sm font-medium text-ink-body">
-        {hole.holeNumber}
-        {hole.isNTP && <span className="ml-1 text-xs text-yellow-600">NTP</span>}
-        {hole.isLD && <span className="ml-1 text-xs text-blue-600">LD</span>}
-        {hole.isT2 && <span className="ml-1 text-xs text-emerald-600">T2</span>}
-        {hole.isT3 && <span className="ml-1 text-xs text-fuchsia-600">T3</span>}
-        {hole.distanceMeters && (
-          <div className="text-xs font-normal text-ink-hint">
-            {hole.distanceMeters}m
-          </div>
-        )}
+    <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-ink-hint">
+          {label}
+        </h2>
+        <p className="text-sm text-ink-muted">
+          Total <span className="font-bold text-brand-600">{totals.points}</span>{" "}
+          pts thru {totals.thru}
+        </p>
       </div>
-      <div className="text-xs text-ink-muted flex items-center gap-1">
-        <span>{hole.strokeIndex}</span>
-        {hole.strokesReceived > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-100 text-[9px] font-mono text-brand-700">
-            {hole.strokesReceived}
-          </span>
-        )}
-      </div>
-      <div className="text-sm font-mono text-ink-body">{hole.par}</div>
-      <div>
-        <input
-          type="number"
-          min={1}
-          inputMode="numeric"
-          disabled={disabled || saving}
-          value={hole.grossScore ?? ""}
-          onChange={(e) => onStrokeChange(hole.holeNumber, e.target.value)}
-          className="w-full px-2 py-1.5 rounded-lg border border-surface-overlay text-sm font-mono text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-surface-muted"
-        />
-      </div>
-      <div className="text-sm text-ink-title flex items-center justify-between gap-1">
-        {editingPoints && !disabled ? (
-          <div className="flex items-center gap-1 w-full">
-            <input
-              ref={pointsInputRef}
-              type="number"
-              inputMode="numeric"
-              value={pointsDraft}
-              onChange={(e) => setPointsDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitPoints();
-                if (e.key === "Escape") setEditingPoints(false);
-              }}
-              className="w-10 px-1.5 py-1 rounded-lg border border-brand-400 text-sm font-mono text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500"
-            />
-            <button
-              type="button"
-              onClick={commitPoints}
-              className="text-xs font-semibold text-brand-700 px-1.5 py-1 rounded-md bg-brand-100 hover:bg-brand-200"
-            >
-              OK
-            </button>
-          </div>
-        ) : (
-          <>
-            <span
-              className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs font-mono px-2 ${
-                hasPoints ? "bg-brand-100 text-brand-700" : "bg-surface-muted text-ink-hint"
-              }`}
-            >
-              {hasPoints ? hole.stablefordPoints : "—"}
-            </span>
-            {!disabled && (
-              <button
-                type="button"
-                aria-label={`Edit Stableford points for hole ${hole.holeNumber}`}
-                onClick={openPointsEditor}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-brand-600 hover:bg-brand-50"
-              >
-                <PencilIcon className="h-4 w-4" />
-              </button>
-            )}
-          </>
-        )}
+      <div className="grid grid-cols-9 gap-1.5">
+        {holes.map((hole) => (
+          <HoleStripCell
+            key={hole.holeNumber}
+            hole={hole}
+            isActive={hole.holeNumber === activeHole}
+            onSelect={() => onSelect(hole.holeNumber)}
+          />
+        ))}
       </div>
     </div>
+  );
+}
+
+function HoleStripCell({
+  hole,
+  isActive,
+  onSelect,
+}: {
+  hole: HoleScore;
+  isActive: boolean;
+  onSelect: () => void;
+}) {
+  const display = isActive
+    ? "•"
+    : hole.grossScore != null
+    ? hole.stablefordPoints ?? "–"
+    : "–";
+  const sidePrizeTag = hole.isNTP
+    ? "NTP"
+    : hole.isLD
+    ? "LD"
+    : hole.isT2
+    ? "T2"
+    : hole.isT3
+    ? "T3"
+    : null;
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-label={`Hole ${hole.holeNumber}${sidePrizeTag ? `, ${sidePrizeTag}` : ""}`}
+      className={`relative rounded-lg py-1.5 text-center transition-colors ${
+        isActive
+          ? "bg-brand-500 text-white"
+          : "bg-surface-muted text-ink-body hover:bg-surface-overlay"
+      }`}
+    >
+      {sidePrizeTag && (
+        <span className="absolute -top-1 -right-1 h-1.5 w-1.5 rounded-full bg-amber-400" />
+      )}
+      <span className="block text-[11px] font-semibold opacity-80">
+        {hole.holeNumber}
+      </span>
+      <span className="block text-sm font-bold font-mono">{display}</span>
+    </button>
   );
 }
 
@@ -1278,24 +1475,5 @@ function SideClaimSelect({
         ))}
       </select>
     </label>
-  );
-}
-
-function PencilIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M16.862 4.487 19.5 7.125m-1.5-4.5a2.121 2.121 0 0 1 3 3L7.5 19.125 3 20.25l1.125-4.5L18 2.625Z"
-      />
-    </svg>
   );
 }
