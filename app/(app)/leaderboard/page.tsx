@@ -270,9 +270,9 @@ export default function LeaderboardPage() {
 // ── Sub-components ──────────────────────────────────────────────────────────
 
 const PODIUM = [
-  { medal: "🥇", border: "border-amber-300",  rankBg: "bg-amber-50",  rankText: "text-amber-700"  },
-  { medal: "🥈", border: "border-zinc-300",   rankBg: "bg-zinc-50",   rankText: "text-zinc-600"   },
-  { medal: "🥉", border: "border-orange-300", rankBg: "bg-orange-50", rankText: "text-orange-700" },
+  { medal: "🥇", border: "border-medal-goldBorder",   rankBg: "bg-medal-goldBg",   rankText: "text-medal-goldText"   },
+  { medal: "🥈", border: "border-medal-silverBorder", rankBg: "bg-medal-silverBg", rankText: "text-medal-silverText" },
+  { medal: "🥉", border: "border-medal-bronzeBorder", rankBg: "bg-medal-bronzeBg", rankText: "text-medal-bronzeText" },
 ] as const;
 
 function StandingCard({
@@ -306,8 +306,12 @@ function StandingCard({
 
   return (
     <div
-      className={`bg-surface-card rounded-2xl shadow-sm border p-4 ${
-        podium ? podium.border : isCurrentUser ? "border-brand-200" : "border-surface-overlay"
+      className={`rounded-2xl shadow-sm border p-4 ${
+        podium
+          ? `bg-surface-card ${podium.border}`
+          : isCurrentUser
+          ? "bg-youRow-bg border-youRow-border"
+          : "bg-surface-card border-surface-overlay"
       }`}
     >
       <div className="flex items-center gap-3">
@@ -330,7 +334,7 @@ function StandingCard({
           <div className="flex items-center gap-1.5">
             <p className="font-semibold text-ink-title truncate">{entry.memberName}</p>
             {isCurrentUser && (
-              <span className="shrink-0 rounded-full bg-brand-100 px-1.5 py-0.5 text-xs font-semibold text-brand-700">
+              <span className="shrink-0 rounded-full bg-youRow-border/15 px-1.5 py-0.5 text-xs font-semibold text-youRow-border">
                 you
               </span>
             )}
@@ -347,7 +351,7 @@ function StandingCard({
                 <button
                   type="button"
                   onClick={() => setShowProvisionalTip((v) => !v)}
-                  className="rounded-full bg-announce-bg px-2 py-0.5 font-medium text-announce-muted underline decoration-dotted"
+                  className="rounded-full bg-provisional-bg px-2 py-0.5 font-medium text-provisional-text underline decoration-dotted"
                 >
                   Provisional ⓘ
                 </button>
@@ -360,7 +364,7 @@ function StandingCard({
               </span>
             ) : (
               <span className="rounded-full bg-surface-muted px-2 py-0.5 font-medium text-ink-muted">
-                HCP {formatHandicap(entry.currentHandicap)}
+                HCP <span className="font-mono">{formatHandicap(entry.currentHandicap)}</span>
               </span>
             )}
           </div>
@@ -369,7 +373,7 @@ function StandingCard({
         {/* Points */}
         <div className="shrink-0 text-right">
           <p className="text-lg font-bold text-brand-700">
-            {entry.totalPoints}{" "}
+            <span className="font-mono">{entry.totalPoints}</span>{" "}
             <span className="text-sm font-semibold">pts</span>
           </p>
           {entry.grossSeasonPoints !== entry.totalPoints && (
