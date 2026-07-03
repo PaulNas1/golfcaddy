@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChevronRightIcon } from "@/components/ui/icons";
+import { LogoMark } from "@/components/marketing/Logo";
 
 type GuideItem = {
   icon: string;
@@ -31,7 +32,7 @@ const ADMIN_GUIDES: GuideItem[] = [
     ],
   },
   {
-    icon: "⛳",
+    icon: "flag",
     title: "Running a round (scoring day)",
     steps: [
       "Set the round to Live from Admin → Rounds on the morning of the round.",
@@ -134,7 +135,14 @@ function GuideAccordion({ guides }: { guides: GuideItem[] }) {
             className="w-full flex items-center justify-between gap-3 px-4 py-3.5 text-left"
           >
             <div className="flex items-center gap-3">
-              <span className="text-xl">{guide.icon}</span>
+              {guide.icon === "flag" ? (
+                <LogoMark
+                  tileClassName="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-700"
+                  className="h-5 w-5 text-white"
+                />
+              ) : (
+                <span className="text-xl">{guide.icon}</span>
+              )}
               <p className="text-sm font-semibold text-ink-title">{guide.title}</p>
             </div>
             <ChevronRightIcon

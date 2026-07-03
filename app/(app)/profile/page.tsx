@@ -73,7 +73,7 @@ export default function ProfilePage() {
           ].map(({ label, value }) => (
             <div key={label} className="rounded-xl bg-brand-800/60 p-2 text-center">
               <p className="text-brand-300 text-xs">{label}</p>
-              <p className="text-white font-bold text-lg leading-tight">{value}</p>
+              <p className="text-white font-bold font-mono text-lg leading-tight">{value}</p>
             </div>
           ))}
         </div>
