@@ -16,6 +16,7 @@ import { getEffectiveSpecialHoles, getViewerHoles } from "@/lib/courseData";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
 import InstallPrompt from "@/components/InstallPrompt";
 import { ChevronRightIcon, ChevronDownIcon, PencilIcon, EyeIcon, CheckIcon, XIcon } from "@/components/ui/icons";
+import { LogoMark } from "@/components/marketing/Logo";
 import type { Post, Round, RoundRsvp } from "@/types";
 
 export default function HomePage() {
@@ -529,7 +530,7 @@ function StatPill({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-surface-card rounded-xl border border-surface-overlay px-3 py-2.5 text-center shadow-sm">
       <p className="text-xs text-ink-hint">{label}</p>
-      <p className="mt-0.5 text-xl font-bold text-ink-title">{value}</p>
+      <p className="mt-0.5 text-xl font-bold font-mono text-ink-title">{value}</p>
     </div>
   );
 }
@@ -561,7 +562,10 @@ function SeasonRecapCard({
           <p className="text-xs font-medium text-ink-action">Season {season}</p>
           <h3 className="font-bold text-ink-title text-lg">Season Wrapped 🏆</h3>
         </div>
-        <span className="text-3xl">⛳</span>
+        <LogoMark
+          tileClassName="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-700"
+          className="h-5 w-5 text-white"
+        />
       </div>
 
       {winner && (
@@ -636,7 +640,10 @@ function RoundRecapCard({
           </p>
           <h3 className="font-bold text-ink-title text-lg">Current Standings</h3>
         </div>
-        <span className="text-3xl">⛳</span>
+        <LogoMark
+          tileClassName="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-700"
+          className="h-5 w-5 text-white"
+        />
       </div>
 
       {leader && (
