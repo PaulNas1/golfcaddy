@@ -1446,7 +1446,7 @@ function HoleStripCell({
     >
       {tag && (
         <span
-          className={`absolute -top-1.5 -right-1.5 rounded bg-surface-card px-0.5 text-[7px] font-bold leading-tight shadow-sm ${tag.className}`}
+          className={`absolute top-0.5 right-0.5 rounded-sm bg-surface-card px-0.5 text-[7px] font-bold leading-tight ${tag.className}`}
         >
           {tag.label}
         </span>
