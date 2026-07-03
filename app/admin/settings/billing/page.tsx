@@ -115,8 +115,8 @@ export default function BillingPage() {
                 <span
                   className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
                     isActive
-                      ? "bg-sub-active-bg text-sub-active-text"
-                      : "bg-sub-pastdue-bg text-sub-pastdue-text"
+                      ? "bg-[var(--sub-active-bg)] text-[var(--sub-active-text)]"
+                      : "bg-[var(--sub-pastdue-bg)] text-[var(--sub-pastdue-text)]"
                   }`}
                 >
                   {isActive ? "Active" : "Past due"}
