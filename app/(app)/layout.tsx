@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData, GroupDataProvider } from "@/contexts/GroupDataContext";
 import { subscribeNotifications } from "@/lib/firestore";
 import Avatar from "@/components/ui/Avatar";
+import { LogoMark } from "@/components/marketing/Logo";
 import {
   HomeIcon,
   FlagIcon,
@@ -119,7 +120,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-dvh bg-brand-700 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-5xl mb-3">⛳</div>
+          <div className="mb-3 flex justify-center">
+            <LogoMark
+              tileClassName="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15"
+              className="h-8 w-8 text-white"
+            />
+          </div>
           <div className="flex items-center gap-2 text-brand-200 text-sm">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-300 animate-bounce [animation-delay:0ms]" />
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-300 animate-bounce [animation-delay:150ms]" />
@@ -138,7 +144,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           {group?.logoUrl ? (
             <Avatar src={group.logoUrl} name={group.name ?? "GolfCaddy"} size="xs" className="rounded-lg" />
           ) : (
-            <span className="text-xl">⛳</span>
+            <LogoMark
+              tileClassName="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15"
+              className="h-4 w-4 text-white"
+            />
           )}
           <span className="font-bold text-lg tracking-tight">
             {group?.name ?? "GolfCaddy"}
@@ -207,7 +216,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
                 type="button"
                 onClick={() => handleTabTap(href)}
                 className={`flex-1 flex flex-col items-center pt-2 pb-1 gap-0.5 transition-colors relative ${
-                  active ? "text-brand-600" : "text-ink-hint"
+                  active ? "text-brand-500" : "text-ink-hint"
                 }`}
               >
                 {active && (

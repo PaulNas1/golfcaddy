@@ -12,6 +12,10 @@ import type { Config } from "tailwindcss";
  *   text-*         Semantic text hierarchy (title / body / muted / hint)
  *   status-*       Live / upcoming / completed round states
  *   announce-*     Pinned announcement amber palette
+ *   sub-*          Subscription status badges
+ *   provisional-*  Provisional-handicap indicator (purple)
+ *   medal-*        Season ladder top-3 rank colors
+ *   youRow-*       Season ladder "you" row highlight
  */
 const config: Config = {
   content: [
@@ -27,15 +31,18 @@ const config: Config = {
       },
       colors: {
         // ── Brand greens ──────────────────────────────────────────────
+        // 500 is identical in both modes (static). 600/700 are the
+        // "primary action" / "header" shades and now differ between
+        // light and dark, so they're CSS-variable-backed — see globals.css.
         brand: {
           50:  "#f0fdf4",
           100: "#dcfce7",
           200: "#bbf7d0",
           300: "#86efac",
           400: "#4ade80",
-          500: "#22c55e",
-          600: "#16a34a", // primary action colour
-          700: "#15803d", // header / top bar
+          500: "#22A44A",
+          600: "var(--brand-600)", // primary action colour
+          700: "var(--brand-700)", // header / top bar
           800: "#166534",
           900: "#14532d",
         },
@@ -61,8 +68,8 @@ const config: Config = {
         // ── Status badges ─────────────────────────────────────────────
         // CSS-variable-driven so dark mode flips them — see globals.css
         live: {
-          bg:   "#ef4444", // red-500 — solid, fine in both modes
-          text: "#ffffff",
+          bg:   "var(--live-bg)",
+          text: "var(--live-text)",
           ring: "var(--live-ring)",
         },
         upcoming: {
@@ -81,6 +88,28 @@ const config: Config = {
           text:   "var(--announce-text)",
           label:  "var(--announce-label)",
           muted:  "var(--announce-muted)",
+        },
+        // ── Provisional handicap indicator (purple) ───────────────────
+        provisional: {
+          bg:   "var(--provisional-bg)",
+          text: "var(--provisional-text)",
+        },
+        // ── Season ladder medal ranks ──────────────────────────────────
+        medal: {
+          goldBorder:   "var(--medal-gold)",
+          goldBg:       "var(--medal-gold-bg)",
+          goldText:     "var(--medal-gold)",
+          silverBorder: "var(--medal-silver)",
+          silverBg:     "var(--medal-silver-bg)",
+          silverText:   "var(--medal-silver)",
+          bronzeBorder: "var(--medal-bronze)",
+          bronzeBg:     "var(--medal-bronze-bg)",
+          bronzeText:   "var(--medal-bronze)",
+        },
+        // ── Season ladder "you" row highlight ─────────────────────────
+        youRow: {
+          bg:     "var(--you-row-bg)",
+          border: "var(--you-row-border)",
         },
         // ── Marketing / legal (fixed dark, not theme-reactive) ────────
         mkt: {

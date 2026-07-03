@@ -1159,7 +1159,7 @@ function HoleRow({
   return (
     <div
       className={`grid grid-cols-5 gap-2 items-center py-1 border-b border-surface-overlay last:border-0 rounded-lg px-1 -mx-1 ${
-        isScored ? "bg-brand-50" : ""
+        isScored ? "bg-surface-selected" : ""
       }`}
     >
       <div className="text-sm font-medium text-ink-body">
@@ -1177,12 +1177,12 @@ function HoleRow({
       <div className="text-xs text-ink-muted flex items-center gap-1">
         <span>{hole.strokeIndex}</span>
         {hole.strokesReceived > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-100 text-[9px] text-brand-700">
+          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-100 text-[9px] font-mono text-brand-700">
             {hole.strokesReceived}
           </span>
         )}
       </div>
-      <div className="text-sm text-ink-body">{hole.par}</div>
+      <div className="text-sm font-mono text-ink-body">{hole.par}</div>
       <div>
         <input
           type="number"
@@ -1191,7 +1191,7 @@ function HoleRow({
           disabled={disabled || saving}
           value={hole.grossScore ?? ""}
           onChange={(e) => onStrokeChange(hole.holeNumber, e.target.value)}
-          className="w-full px-2 py-1.5 rounded-lg border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-surface-muted"
+          className="w-full px-2 py-1.5 rounded-lg border border-surface-overlay text-sm font-mono text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500 disabled:bg-surface-muted"
         />
       </div>
       <div className="text-sm text-ink-title flex items-center justify-between gap-1">
@@ -1207,7 +1207,7 @@ function HoleRow({
                 if (e.key === "Enter") commitPoints();
                 if (e.key === "Escape") setEditingPoints(false);
               }}
-              className="w-10 px-1.5 py-1 rounded-lg border border-brand-400 text-sm text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500"
+              className="w-10 px-1.5 py-1 rounded-lg border border-brand-400 text-sm font-mono text-ink-title focus:outline-none focus:ring-1 focus:ring-brand-500"
             />
             <button
               type="button"
@@ -1220,7 +1220,7 @@ function HoleRow({
         ) : (
           <>
             <span
-              className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs px-2 ${
+              className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs font-mono px-2 ${
                 hasPoints ? "bg-brand-100 text-brand-700" : "bg-surface-muted text-ink-hint"
               }`}
             >

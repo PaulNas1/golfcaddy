@@ -16,18 +16,21 @@
 
 :root {
   /* ── Light mode ──────────────────────────────────────── */
-  --surface-page:    #f9fafb;
-  --surface-card:    #ffffff;
-  --surface-muted:   #f3f4f6;
-  --surface-overlay: #e5e7eb;
+  --surface-page:    #F4F6F8;
+  --surface-card:    #FFFFFF;
+  --surface-muted:   #EDF0F4;
+  --surface-overlay: #E1E6EC;
   --surface-selected:        #f0fdf4;
   --surface-selected-border: #86efac;
 
-  --ink-title:  #111827;
-  --ink-body:   #374151;
-  --ink-muted:  #6b7280;
-  --ink-hint:   #9ca3af;
-  --ink-action: #15803d;
+  --ink-title:  #0E1A2B;
+  --ink-body:   #3A4657;
+  --ink-muted:  #64748B;
+  --ink-hint:   #98A4B3;
+  --ink-action: #178A3C;
+
+  --brand-600: #1E8A3E;
+  --brand-700: #166F32;
 
   --announce-bg:     #fffbeb;
   --announce-border: #fde68a;
@@ -35,38 +38,59 @@
   --announce-label:  #92400e;
   --announce-muted:  #b45309;
 
-  /* Round status badges */
-  --upcoming-bg:   #dbeafe;
-  --upcoming-text: #1d4ed8;
-  --completed-bg:  #f3f4f6;
-  --completed-text: #4b5563;
+  /* Round status badges — soft fg/bg pill pairs */
+  --upcoming-bg:   #E6EEFE;
+  --upcoming-text: #2563EB;
+  --completed-bg:  #E7EEE9;
+  --completed-text: #55705E;
+  --live-bg:       #FCE7E4;
+  --live-text:     #DC2626;
   --live-ring:     #fca5a5;
 
   /* Subscription status badges (platform-admin) */
-  --sub-exempt-bg:    #f3e8ff; --sub-exempt-text:    #7e22ce;
-  --sub-trial-bg:     #dbeafe; --sub-trial-text:     #1d4ed8;
-  --sub-active-bg:    #dcfce7; --sub-active-text:    #15803d;
-  --sub-pastdue-bg:   #fef3c7; --sub-pastdue-text:   #92400e;
-  --sub-suspended-bg: #fee2e2; --sub-suspended-text: #b91c1c;
-  --sub-none-bg:      #f3f4f6; --sub-none-text:      #6b7280;
+  --sub-exempt-bg:    var(--surface-muted); --sub-exempt-text:    var(--ink-muted);
+  --sub-trial-bg:     #FBF0DA; --sub-trial-text:     #B4780F;
+  --sub-active-bg:    #E3F3E8; --sub-active-text:    #178A3C;
+  --sub-pastdue-bg:   #FCEBDD; --sub-pastdue-text:   #C2410C;
+  --sub-suspended-bg: #FCE7E4; --sub-suspended-text: #DC2626;
+  --sub-none-bg:      var(--surface-muted); --sub-none-text:      var(--ink-muted);
+
+  /* Provisional handicap indicator — purple, distinct from announce/status */
+  --provisional-bg:   #F0E9FD;
+  --provisional-text: #7C3AED;
+
+  /* Season ladder medal ranks (top 3) */
+  --medal-gold:      #C79A2E;
+  --medal-gold-bg:   #FAF1DD;
+  --medal-silver:    #8B95A1;
+  --medal-silver-bg: #EEF0F3;
+  --medal-bronze:    #B06B3A;
+  --medal-bronze-bg: #F7E9DE;
+
+  /* "You" row highlight on the season ladder */
+  --you-row-bg:     rgba(34,164,74,.07);
+  --you-row-border: #22A44A;
 }
 
 /* System dark mode — only applies when no explicit data-theme is set */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --surface-page:    #0f172a;
-    --surface-card:    #1e293b;
-    --surface-muted:   #1a2740;
-    --surface-overlay: #334155;
+    --surface-page:    #0B1524;
+    --surface-card:    #152337;
+    --surface-muted:   #101E33;
+    --surface-overlay: #26374C;
     --surface-selected:        #14532d;
     --surface-selected-border: #22c55e;
 
-    --ink-title:  #f1f5f9;
-    --ink-body:   #cbd5e1;
-    --ink-muted:  #94a3b8;
-    --ink-hint:   #94a3b8;
-    --ink-action: #22c55e;
+    --ink-title:  #F1F6FB;
+    --ink-body:   #C4D0DE;
+    --ink-muted:  #8A98A8;
+    --ink-hint:   #5F6E80;
+    --ink-action: #35C15E;
+
+    --brand-600: #35C15E;
+    --brand-700: #1E8A3E;
 
     --announce-bg:     #1c1300;
     --announce-border: #78350f;
@@ -74,36 +98,54 @@
     --announce-label:  #fbbf24;
     --announce-muted:  #d97706;
 
-    --upcoming-bg:   #1e3a5f;
-    --upcoming-text: #93c5fd;
-    --completed-bg:  #1e293b;
-    --completed-text: #94a3b8;
+    --upcoming-bg:   rgba(107,162,255,.15);
+    --upcoming-text: #6BA2FF;
+    --completed-bg:  rgba(143,166,154,.13);
+    --completed-text: #8FA69A;
+    --live-bg:       rgba(255,90,71,.15);
+    --live-text:     #FF6B5A;
     --live-ring:     #7f1d1d;
 
-    --sub-exempt-bg:    #3b0764; --sub-exempt-text:    #d8b4fe;
-    --sub-trial-bg:     #1e3a5f; --sub-trial-text:     #93c5fd;
-    --sub-active-bg:    #0d2318; --sub-active-text:    #86efac;
-    --sub-pastdue-bg:   #1c1300; --sub-pastdue-text:   #fcd34d;
-    --sub-suspended-bg: #450a0a; --sub-suspended-text: #fca5a5;
-    --sub-none-bg:      #162032; --sub-none-text:      #94a3b8;
+    --sub-exempt-bg:    var(--surface-muted); --sub-exempt-text:    var(--ink-muted);
+    --sub-trial-bg:     rgba(232,180,90,.15); --sub-trial-text:     #E8B45A;
+    --sub-active-bg:    rgba(53,193,94,.15); --sub-active-text:    #35C15E;
+    --sub-pastdue-bg:   rgba(245,158,75,.15); --sub-pastdue-text:   #F59E4B;
+    --sub-suspended-bg: rgba(255,90,71,.15); --sub-suspended-text: #FF6B5A;
+    --sub-none-bg:      var(--surface-muted); --sub-none-text:      var(--ink-muted);
+
+    --provisional-bg:   rgba(177,138,240,.17);
+    --provisional-text: #B18AF0;
+
+    --medal-gold:      #E7B84B;
+    --medal-gold-bg:   rgba(231,184,75,.16);
+    --medal-silver:    #B7C0CC;
+    --medal-silver-bg: rgba(183,192,204,.16);
+    --medal-bronze:    #CC8A5A;
+    --medal-bronze-bg: rgba(204,138,90,.16);
+
+    --you-row-bg:     rgba(53,193,94,.11);
+    --you-row-border: #35C15E;
   }
 }
 
 /* Explicit dark override — beats system setting in both directions */
 [data-theme="dark"] {
   color-scheme: dark;
-  --surface-page:    #0f172a;
-  --surface-card:    #1e293b;
-  --surface-muted:   #1a2740;
-  --surface-overlay: #334155;
+  --surface-page:    #0B1524;
+  --surface-card:    #152337;
+  --surface-muted:   #101E33;
+  --surface-overlay: #26374C;
   --surface-selected:        #14532d;
   --surface-selected-border: #22c55e;
 
-  --ink-title:  #f1f5f9;
-  --ink-body:   #cbd5e1;
-  --ink-muted:  #94a3b8;
-  --ink-hint:   #94a3b8;
-  --ink-action: #22c55e;
+  --ink-title:  #F1F6FB;
+  --ink-body:   #C4D0DE;
+  --ink-muted:  #8A98A8;
+  --ink-hint:   #5F6E80;
+  --ink-action: #35C15E;
+
+  --brand-600: #35C15E;
+  --brand-700: #1E8A3E;
 
   --announce-bg:     #1c1300;
   --announce-border: #78350f;
@@ -111,35 +153,53 @@
   --announce-label:  #fbbf24;
   --announce-muted:  #d97706;
 
-  --upcoming-bg:   #1e3a5f;
-  --upcoming-text: #93c5fd;
-  --completed-bg:  #1e293b;
-  --completed-text: #94a3b8;
+  --upcoming-bg:   rgba(107,162,255,.15);
+  --upcoming-text: #6BA2FF;
+  --completed-bg:  rgba(143,166,154,.13);
+  --completed-text: #8FA69A;
+  --live-bg:       rgba(255,90,71,.15);
+  --live-text:     #FF6B5A;
   --live-ring:     #7f1d1d;
 
-  --sub-exempt-bg:    #3b0764; --sub-exempt-text:    #d8b4fe;
-  --sub-trial-bg:     #1e3a5f; --sub-trial-text:     #93c5fd;
-  --sub-active-bg:    #0d2318; --sub-active-text:    #86efac;
-  --sub-pastdue-bg:   #1c1300; --sub-pastdue-text:   #fcd34d;
-  --sub-suspended-bg: #450a0a; --sub-suspended-text: #fca5a5;
-  --sub-none-bg:      #162032; --sub-none-text:      #94a3b8;
+  --sub-exempt-bg:    var(--surface-muted); --sub-exempt-text:    var(--ink-muted);
+  --sub-trial-bg:     rgba(232,180,90,.15); --sub-trial-text:     #E8B45A;
+  --sub-active-bg:    rgba(53,193,94,.15); --sub-active-text:    #35C15E;
+  --sub-pastdue-bg:   rgba(245,158,75,.15); --sub-pastdue-text:   #F59E4B;
+  --sub-suspended-bg: rgba(255,90,71,.15); --sub-suspended-text: #FF6B5A;
+  --sub-none-bg:      var(--surface-muted); --sub-none-text:      var(--ink-muted);
+
+  --provisional-bg:   rgba(177,138,240,.17);
+  --provisional-text: #B18AF0;
+
+  --medal-gold:      #E7B84B;
+  --medal-gold-bg:   rgba(231,184,75,.16);
+  --medal-silver:    #B7C0CC;
+  --medal-silver-bg: rgba(183,192,204,.16);
+  --medal-bronze:    #CC8A5A;
+  --medal-bronze-bg: rgba(204,138,90,.16);
+
+  --you-row-bg:     rgba(53,193,94,.11);
+  --you-row-border: #35C15E;
 }
 
 /* Explicit light override — forces light even if system is dark */
 [data-theme="light"] {
   color-scheme: light;
-  --surface-page:    #f9fafb;
-  --surface-card:    #ffffff;
-  --surface-muted:   #f3f4f6;
-  --surface-overlay: #e5e7eb;
+  --surface-page:    #F4F6F8;
+  --surface-card:    #FFFFFF;
+  --surface-muted:   #EDF0F4;
+  --surface-overlay: #E1E6EC;
   --surface-selected:        #f0fdf4;
   --surface-selected-border: #86efac;
 
-  --ink-title:  #111827;
-  --ink-body:   #374151;
-  --ink-muted:  #6b7280;
-  --ink-hint:   #9ca3af;
-  --ink-action: #15803d;
+  --ink-title:  #0E1A2B;
+  --ink-body:   #3A4657;
+  --ink-muted:  #64748B;
+  --ink-hint:   #98A4B3;
+  --ink-action: #178A3C;
+
+  --brand-600: #1E8A3E;
+  --brand-700: #166F32;
 
   --announce-bg:     #fffbeb;
   --announce-border: #fde68a;
@@ -147,26 +207,43 @@
   --announce-label:  #92400e;
   --announce-muted:  #b45309;
 
-  --upcoming-bg:   #dbeafe;
-  --upcoming-text: #1d4ed8;
-  --completed-bg:  #f3f4f6;
-  --completed-text: #4b5563;
+  --upcoming-bg:   #E6EEFE;
+  --upcoming-text: #2563EB;
+  --completed-bg:  #E7EEE9;
+  --completed-text: #55705E;
+  --live-bg:       #FCE7E4;
+  --live-text:     #DC2626;
   --live-ring:     #fca5a5;
 
-  --sub-exempt-bg:    #f3e8ff; --sub-exempt-text:    #7e22ce;
-  --sub-trial-bg:     #dbeafe; --sub-trial-text:     #1d4ed8;
-  --sub-active-bg:    #dcfce7; --sub-active-text:    #15803d;
-  --sub-pastdue-bg:   #fef3c7; --sub-pastdue-text:   #92400e;
-  --sub-suspended-bg: #fee2e2; --sub-suspended-text: #b91c1c;
-  --sub-none-bg:      #f3f4f6; --sub-none-text:      #6b7280;
+  --sub-exempt-bg:    var(--surface-muted); --sub-exempt-text:    var(--ink-muted);
+  --sub-trial-bg:     #FBF0DA; --sub-trial-text:     #B4780F;
+  --sub-active-bg:    #E3F3E8; --sub-active-text:    #178A3C;
+  --sub-pastdue-bg:   #FCEBDD; --sub-pastdue-text:   #C2410C;
+  --sub-suspended-bg: #FCE7E4; --sub-suspended-text: #DC2626;
+  --sub-none-bg:      var(--surface-muted); --sub-none-text:      var(--ink-muted);
+
+  --provisional-bg:   #F0E9FD;
+  --provisional-text: #7C3AED;
+
+  --medal-gold:      #C79A2E;
+  --medal-gold-bg:   #FAF1DD;
+  --medal-silver:    #8B95A1;
+  --medal-silver-bg: #EEF0F3;
+  --medal-bronze:    #B06B3A;
+  --medal-bronze-bg: #F7E9DE;
+
+  --you-row-bg:     rgba(34,164,74,.07);
+  --you-row-border: #22A44A;
 }
 
 /*
  * Dark mode — brand scale corrections
  *
- * brand-50/100/200 and text-brand-600/700/800/900 are static hex values in
- * tailwind.config.ts (not CSS variables), so they don't flip automatically.
- * These rules correct every component that uses them without touching each file.
+ * brand-50/100/200/300/400/800/900 are static hex values in tailwind.config.ts
+ * (not CSS variables) — they weren't part of this refresh, so they keep the
+ * same override strategy as before. brand-600/700 are NOT corrected here
+ * anymore: they became CSS-variable-backed in tailwind.config.ts (see that
+ * file), so they flip automatically and no longer need a manual override.
  *
  * Specificity (0,3,0) beats Tailwind utilities (0,1,0) so no !important needed.
  * Hover variants (.hover\:bg-brand-50 etc.) are separate Tailwind classes and
@@ -174,8 +251,6 @@
  */
 @media (prefers-color-scheme: dark) {
   /* brand scale — text */
-  :root:not([data-theme="light"]) .text-brand-600 { color: #22c55e; }
-  :root:not([data-theme="light"]) .text-brand-700 { color: #22c55e; }
   :root:not([data-theme="light"]) .text-brand-800 { color: #4ade80; }
   :root:not([data-theme="light"]) .text-brand-900 { color: #4ade80; }
 
@@ -197,8 +272,6 @@
   :root:not([data-theme="light"]) .border-green-100 { border-color: #14532d; }
   :root:not([data-theme="light"]) .border-green-200 { border-color: #166534; }
 }
-[data-theme="dark"] .text-brand-600 { color: #22c55e; }
-[data-theme="dark"] .text-brand-700 { color: #22c55e; }
 [data-theme="dark"] .text-brand-800 { color: #4ade80; }
 [data-theme="dark"] .text-brand-900 { color: #4ade80; }
 
