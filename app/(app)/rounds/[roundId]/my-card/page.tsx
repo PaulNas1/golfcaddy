@@ -361,22 +361,30 @@ function ReadOnlyHoleRow({ hole }: { hole: HoleScore }) {
           </div>
         )}
       </div>
-      <div className="text-xs text-ink-muted flex items-center gap-1">
+      <div
+        className={`text-xs flex items-center gap-1 ${
+          isScored ? "text-ink-body font-medium" : "text-ink-muted"
+        }`}
+      >
         <span>{hole.strokeIndex}</span>
         {hole.strokesReceived > 0 && (
-          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-100 text-[9px] text-brand-700">
+          <span
+            className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-semibold ${
+              isScored ? "bg-brand-700 text-white" : "bg-brand-100 text-brand-700"
+            }`}
+          >
             {hole.strokesReceived}
           </span>
         )}
       </div>
       <div className="text-sm text-ink-body">{hole.par}</div>
-      <div className="text-sm text-ink-title">
+      <div className="text-sm font-semibold font-mono text-ink-title">
         {hole.grossScore != null ? hole.grossScore : "—"}
       </div>
       <div className="text-sm text-ink-title">
         <span
-          className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs px-2 ${
-            hasPoints ? "bg-brand-100 text-brand-700" : "bg-surface-muted text-ink-hint"
+          className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 rounded-full text-xs font-semibold font-mono px-2 ${
+            hasPoints ? "bg-brand-700 text-white" : "bg-surface-muted text-ink-hint"
           }`}
         >
           {hasPoints ? hole.stablefordPoints : "—"}

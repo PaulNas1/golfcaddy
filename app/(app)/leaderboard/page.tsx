@@ -339,13 +339,18 @@ function StandingCard({
               </span>
             )}
           </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+          <div className="mt-0.5 flex items-center gap-2 text-xs text-ink-muted">
             <span>
               {entry.roundsPlayed} round{entry.roundsPlayed === 1 ? "" : "s"}
             </span>
             {entry.lastStableford != null && (
               <span>Last {entry.lastStableford} pts</span>
             )}
+          </div>
+          {/* HCP / provisional always on its own second line — keeps every
+              row's layout identical and leaves breathing space for the
+              provisional badge. */}
+          <div className="mt-1 flex items-center text-xs text-ink-muted">
             {entry.probation ? (
               <span ref={tipRef} className="relative">
                 <button

@@ -78,15 +78,58 @@ export default function ScorecardPage() {
   const [savingClaim, setSavingClaim] = useState("");
   const pendingSyncRunRef = useRef(0);
   const syncTotalsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingTotalsRef = useRef<{
+    scorecardId: string;
+    localHoles: HoleScore[];
+    format: Round["format"];
+  } | null>(null);
 
   // ── Live scoring hero: which hole is currently in front of the marker ────
   const [activeHole, setActiveHole] = useState(1);
   const initializedForScorecardRef = useRef<string | null>(null);
 
+  // Latest holes state, readable synchronously from event handlers so rapid
+  // stepper taps never work off a stale render closure.
+  const holesRef = useRef<HoleScore[]>([]);
+  // Hole numbers with Firestore writes still in flight. The hole-scores
+  // snapshot listener must not clobber these with older server data.
+  const dirtyHolesRef = useRef<Map<number, number>>(new Map());
+
+  const applyHoles = (
+    updater: (prev: HoleScore[]) => HoleScore[]
+  ): HoleScore[] => {
+    const next = updater(holesRef.current);
+    holesRef.current = next;
+    setHoles(next);
+    return next;
+  };
+
+  const beginHoleWrite = (holeNumber: number) => {
+    dirtyHolesRef.current.set(
+      holeNumber,
+      (dirtyHolesRef.current.get(holeNumber) ?? 0) + 1
+    );
+    setSavingHole(holeNumber);
+  };
+
+  const endHoleWrite = (holeNumber: number) => {
+    const remaining = (dirtyHolesRef.current.get(holeNumber) ?? 1) - 1;
+    if (remaining <= 0) dirtyHolesRef.current.delete(holeNumber);
+    else dirtyHolesRef.current.set(holeNumber, remaining);
+    setSavingHole((current) =>
+      current === holeNumber && remaining <= 0 ? null : current
+    );
+  };
+
   // ── Manual Stableford points override (long-press the PTS pill) ──────────
   const [pointsOverrideHole, setPointsOverrideHole] = useState<number | null>(null);
   const [pointsOverrideDraft, setPointsOverrideDraft] = useState("");
   const pointsLongPressTimerRef = useRef<number | null>(null);
+
+  // Keep holesRef aligned with any plain setHoles call (initial load, etc.).
+  useEffect(() => {
+    holesRef.current = holes;
+  }, [holes]);
 
   const confirmPendingSync = (runId: number) => {
     void waitForPendingWrites(db)
@@ -276,12 +319,31 @@ export default function ScorecardPage() {
     return subscribeHoleScores(
       scorecard.id,
       (nextHoles) => {
-        if (nextHoles.length > 0) {
-          setHoles(nextHoles);
-        }
+        if (nextHoles.length === 0) return;
+        // Merge server state into local state instead of replacing it:
+        // holes with writes still in flight keep their local values so a
+        // slow network can never wipe freshly entered scores, and locally
+        // initialised holes the server hasn't seen yet are preserved.
+        applyHoles((prev) => {
+          if (prev.length === 0) return nextHoles;
+          const remoteByNumber = new Map(
+            nextHoles.map((h) => [h.holeNumber, h])
+          );
+          const merged = prev.map((local) => {
+            const remote = remoteByNumber.get(local.holeNumber);
+            if (!remote) return local;
+            return dirtyHolesRef.current.has(local.holeNumber) ? local : remote;
+          });
+          const known = new Set(prev.map((h) => h.holeNumber));
+          nextHoles.forEach((remote) => {
+            if (!known.has(remote.holeNumber)) merged.push(remote);
+          });
+          return merged.sort((a, b) => a.holeNumber - b.holeNumber);
+        });
       },
       (err) => console.warn("Unable to subscribe to hole scores", err)
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scorecard?.id]);
 
   const canEdit = useMemo(
@@ -466,23 +528,35 @@ export default function ScorecardPage() {
     }
   };
 
-  const handleHoleChange = async (holeNumber: number, gross: string) => {
+  // Recalculates locally and updates the UI synchronously, then writes to
+  // Firestore in the background. The write never blocks the next tap, and
+  // in-flight holes are protected from stale snapshot clobbering via
+  // dirtyHolesRef.
+  const handleHoleChange = (holeNumber: number, gross: string) => {
     if (!scorecard || !round || !canEdit) return;
     const grossScore = gross ? parseInt(gross, 10) : NaN;
+    const roundSpecialHoles = getEffectiveSpecialHoles(round);
+
     if (Number.isNaN(grossScore) || grossScore <= 0) {
       // allow clearing
-      const updated = holes.map((h) =>
-        h.holeNumber === holeNumber
-          ? { ...h, grossScore: null, netScore: null, stablefordPoints: null }
-          : h
+      const updated = applyHoles((prev) =>
+        prev.map((h) =>
+          h.holeNumber === holeNumber
+            ? { ...h, grossScore: null, netScore: null, stablefordPoints: null }
+            : h
+        )
       );
-      setHoles(updated);
-      await setHoleScore(scorecard.id, holeNumber, {
-        ...updated.find((h) => h.holeNumber === holeNumber)!,
+      const cleared = updated.find((h) => h.holeNumber === holeNumber);
+      if (!cleared) return;
+      beginHoleWrite(holeNumber);
+      setHoleScore(scorecard.id, holeNumber, {
+        ...cleared,
         grossScore: null,
         netScore: null,
         stablefordPoints: null,
-      });
+      })
+        .catch((err) => console.warn("Unable to save hole", err))
+        .finally(() => endHoleWrite(holeNumber));
       debouncedSyncTotals(scorecard.id, updated, round.format);
       markSyncPending();
       return;
@@ -500,43 +574,52 @@ export default function ScorecardPage() {
       strokesReceived
     );
 
-    const updated = holes.map((h) =>
-      h.holeNumber === holeNumber
-        ? {
-            ...h,
-            par: courseHole.par,
-            strokeIndex: courseHole.strokeIndex,
-            distanceMeters: courseHole.distanceMeters,
-            strokesReceived,
-            grossScore,
-            netScore,
-            stablefordPoints,
-          }
-        : h
+    // Map-or-append: when a marker resumes a card, local state may only hold
+    // the holes already saved on the server. Scoring a hole that isn't in
+    // local state yet must still update the UI instantly — previously it was
+    // a silent no-op until the server echoed the write back, which is what
+    // made points appear "holes later" on slow connections.
+    const scoredHole = {
+      holeNumber,
+      par: courseHole.par,
+      strokeIndex: courseHole.strokeIndex,
+      distanceMeters: courseHole.distanceMeters,
+      strokesReceived,
+      grossScore,
+      netScore,
+      stablefordPoints,
+      isNTP: roundSpecialHoles.ntp.includes(holeNumber),
+      isLD: roundSpecialHoles.ld === holeNumber,
+      isT2: roundSpecialHoles.t2 === holeNumber,
+      isT3: roundSpecialHoles.t3 === holeNumber,
+      savedAt: null,
+    };
+    const updated = applyHoles((prev) =>
+      prev.some((h) => h.holeNumber === holeNumber)
+        ? prev.map((h) =>
+            h.holeNumber === holeNumber ? { ...h, ...scoredHole } : h
+          )
+        : [...prev, scoredHole].sort((a, b) => a.holeNumber - b.holeNumber)
     );
-    setHoles(updated);
 
-    setSavingHole(holeNumber);
-    try {
-      const roundSpecialHoles = getEffectiveSpecialHoles(round);
-      await setHoleScore(scorecard.id, holeNumber, {
-        par: courseHole.par,
-        strokeIndex: courseHole.strokeIndex,
-        distanceMeters: courseHole.distanceMeters,
-        strokesReceived,
-        grossScore,
-        netScore,
-        stablefordPoints,
-        isNTP: roundSpecialHoles.ntp.includes(holeNumber),
-        isLD: roundSpecialHoles.ld === holeNumber,
-        isT2: roundSpecialHoles.t2 === holeNumber,
-        isT3: roundSpecialHoles.t3 === holeNumber,
-      });
-      debouncedSyncTotals(scorecard.id, updated, round.format);
-      markSyncPending();
-    } finally {
-      setSavingHole(null);
-    }
+    beginHoleWrite(holeNumber);
+    setHoleScore(scorecard.id, holeNumber, {
+      par: courseHole.par,
+      strokeIndex: courseHole.strokeIndex,
+      distanceMeters: courseHole.distanceMeters,
+      strokesReceived,
+      grossScore,
+      netScore,
+      stablefordPoints,
+      isNTP: roundSpecialHoles.ntp.includes(holeNumber),
+      isLD: roundSpecialHoles.ld === holeNumber,
+      isT2: roundSpecialHoles.t2 === holeNumber,
+      isT3: roundSpecialHoles.t3 === holeNumber,
+    })
+      .catch((err) => console.warn("Unable to save hole", err))
+      .finally(() => endHoleWrite(holeNumber));
+    debouncedSyncTotals(scorecard.id, updated, round.format);
+    markSyncPending();
   };
 
   const handleStablefordOverride = async (
@@ -548,19 +631,21 @@ export default function ScorecardPage() {
     const value =
       trimmed === "" ? null : Number.isNaN(Number(trimmed)) ? null : parseInt(trimmed, 10);
 
-    const updated = holes.map((h) =>
-      h.holeNumber === holeNumber
-        ? {
-            ...h,
-            stablefordPoints: value,
-          }
-        : h
+    const updated = applyHoles((prev) =>
+      prev.map((h) =>
+        h.holeNumber === holeNumber
+          ? {
+              ...h,
+              stablefordPoints: value,
+            }
+          : h
+      )
     );
-    setHoles(updated);
 
     const hole = updated.find((h) => h.holeNumber === holeNumber);
     if (!hole) return;
 
+    beginHoleWrite(holeNumber);
     await setHoleScore(scorecard.id, holeNumber, {
       par: hole.par,
       strokeIndex: hole.strokeIndex,
@@ -573,7 +658,9 @@ export default function ScorecardPage() {
       isLD: hole.isLD,
       isT2: hole.isT2,
       isT3: hole.isT3,
-    });
+    })
+      .catch((err) => console.warn("Unable to save points override", err))
+      .finally(() => endHoleWrite(holeNumber));
     debouncedSyncTotals(scorecard.id, updated, round.format);
     markSyncPending();
   };
@@ -598,18 +685,46 @@ export default function ScorecardPage() {
     format: Round["format"]
   ) => {
     if (syncTotalsTimerRef.current) clearTimeout(syncTotalsTimerRef.current);
+    pendingTotalsRef.current = { scorecardId, localHoles, format };
     syncTotalsTimerRef.current = setTimeout(() => {
+      pendingTotalsRef.current = null;
       syncTotals(scorecardId, localHoles, format).catch((err) =>
         console.warn("Unable to sync totals", err)
       );
     }, 1500);
   };
 
+  // If the marker navigates away before the debounce fires, flush the totals
+  // immediately so the card never drifts out of sync with its hole scores.
+  useEffect(() => {
+    return () => {
+      if (syncTotalsTimerRef.current) clearTimeout(syncTotalsTimerRef.current);
+      const pending = pendingTotalsRef.current;
+      if (pending) {
+        pendingTotalsRef.current = null;
+        syncTotals(pending.scorecardId, pending.localHoles, pending.format).catch(
+          (err) => console.warn("Unable to flush totals", err)
+        );
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSignOff = async () => {
     if (!scorecard || !round) return;
     if (round.status !== "live") {
       setError("Scoring is closed for this round.");
       return;
+    }
+    const unscored = holesRef.current.filter((h) => h.grossScore == null);
+    if (unscored.length > 0) {
+      const holeList = unscored.map((h) => h.holeNumber).join(", ");
+      const proceed = window.confirm(
+        `Hole${unscored.length === 1 ? "" : "s"} ${holeList} ${
+          unscored.length === 1 ? "has" : "have"
+        } no score saved. Submit the card anyway?`
+      );
+      if (!proceed) return;
     }
     setSigning(true);
     setError("");
@@ -945,12 +1060,18 @@ export default function ScorecardPage() {
 
         const adjustScore = (delta: number) => {
           if (heroDisabled) return;
-          const next = Math.max(1, displayScore + delta);
+          // Read the freshest value from the ref so rapid taps never work
+          // off a stale render (each tap builds on the previous one).
+          const latest = holesRef.current.find(
+            (h) => h.holeNumber === activeHole
+          );
+          const base = latest?.grossScore ?? latest?.par ?? displayScore;
+          const next = Math.max(1, base + delta);
           handleHoleChange(activeHole, String(next));
         };
 
-        const frontTotals = computeNineTotals(frontNine, activeHole);
-        const backTotals = computeNineTotals(backNine, activeHole);
+        const frontTotals = computeNineTotals(frontNine);
+        const backTotals = computeNineTotals(backNine);
 
         return (
           <>
@@ -1085,7 +1206,16 @@ export default function ScorecardPage() {
             <button
               type="button"
               disabled={heroDisabled}
-              onClick={() => setActiveHole((h) => Math.min(h + 1, 18))}
+              onClick={() => {
+                // Commit the displayed score before advancing. Without this,
+                // a player who makes par (the stepper's default) and taps
+                // "Save & next hole" would never have the hole recorded and
+                // no Stableford points would be calculated.
+                if (activeHoleData.grossScore == null) {
+                  handleHoleChange(activeHole, String(displayScore));
+                }
+                setActiveHole((h) => Math.min(h + 1, 18));
+              }}
               className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-surface-muted disabled:text-ink-hint text-white font-semibold py-4 rounded-2xl text-base transition-colors"
             >
               {activeHole >= 18 ? "Save hole" : "Save & next hole"}
@@ -1366,13 +1496,12 @@ function getSidePrizeTag(
   return null;
 }
 
-// A hole only counts toward a nine's running total once the marker has
-// moved past it — the active hole always shows as pending ("•") in the
-// strip, matching the live-scoring hero above it.
-function computeNineTotals(holesInNine: HoleScore[], activeHole: number) {
-  const scored = holesInNine.filter(
-    (h) => h.holeNumber !== activeHole && h.grossScore != null
-  );
+// Every hole with a saved gross score counts toward the nine's running
+// total — including the active hole, so points always "calculate on the
+// fly" as scores are entered. The strip only shows the pending dot ("•")
+// for an active hole that has no saved score yet.
+function computeNineTotals(holesInNine: HoleScore[]) {
+  const scored = holesInNine.filter((h) => h.grossScore != null);
   const points = scored.reduce((sum, h) => sum + (h.stablefordPoints ?? 0), 0);
   return { points, thru: scored.length };
 }
@@ -1426,11 +1555,12 @@ function HoleStripCell({
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const display = isActive
-    ? "•"
-    : hole.grossScore != null
-    ? hole.stablefordPoints ?? "–"
-    : "–";
+  const display =
+    hole.grossScore != null
+      ? hole.stablefordPoints ?? "–"
+      : isActive
+      ? "•"
+      : "–";
   const tag = getSidePrizeTag(hole);
 
   return (
