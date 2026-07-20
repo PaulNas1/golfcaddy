@@ -85,10 +85,59 @@ test("handicap uses the most recent qualifying rounds once the sample exceeds th
     effectiveAt: new Date("2026-04-10"),
   });
 
-  assert.equal(transition.nextHandicap, 36);
+  // Average of the 3 most recent qualifying rounds (37, 36, 35) is exactly
+  // 36 — the Stableford target for "played to your handicap". An official
+  // handicap should not move at all here, not jump straight to 36.
+  assert.equal(transition.nextHandicap, 34);
   assert.equal(transition.handicapStatus, "official");
   assert.equal(transition.changeType, "movement");
   assert.deepEqual(transition.calculationRoundIds, ["r4", "r3", "r2"]);
+});
+
+test("an official handicap is cut incrementally, not replaced by the average", () => {
+  // Regression test for the Round 7 bug: a player already on an official
+  // 18.1 who has a great run of qualifying rounds (best-4 average 35) must
+  // move a small, bounded amount from 18.1 — never get overwritten to 35.
+  const transition = calculateHandicapTransition({
+    currentHandicap: 18.1,
+    handicapStatus: "official",
+    roundResults: [
+      roundResult({ roundId: "r1", date: "2026-01-01", stableford: 36 }),
+      roundResult({ roundId: "r2", date: "2026-02-01", stableford: 28 }),
+      roundResult({ roundId: "r3", date: "2026-03-01", stableford: 42 }),
+      roundResult({ roundId: "r4", date: "2026-04-01", stableford: 33 }),
+      roundResult({ roundId: "r5", date: "2026-05-01", stableford: 29 }),
+      roundResult({ roundId: "r6", date: "2026-06-01", stableford: 36 }),
+      roundResult({ roundId: "r7", date: "2026-07-01", stableford: 29 }),
+    ],
+    window: 8,
+    bestX: 4,
+    effectiveAt: new Date("2026-07-01"),
+  });
+
+  // Best 4 of the 7 qualifying rounds: 42, 36, 36, 33 → average 36.75,
+  // rounded to 36.8. (36 - 36.8) * 0.2 = -0.16 → a small cut, not a
+  // replacement: 18.1 - 0.16 = 17.94, rounded to 17.9.
+  assert.equal(transition.nextHandicap, 17.9);
+  assert.equal(transition.changeType, "movement");
+});
+
+test("official handicap movement is capped so one hot streak can't swing it wildly", () => {
+  const transition = calculateHandicapTransition({
+    currentHandicap: 20,
+    handicapStatus: "official",
+    roundResults: [
+      roundResult({ roundId: "r1", date: "2026-01-01", stableford: 55 }),
+      roundResult({ roundId: "r2", date: "2026-02-01", stableford: 52 }),
+    ],
+    window: 6,
+    bestX: 6,
+    effectiveAt: new Date("2026-02-01"),
+  });
+
+  // Raw movement would be (36 - 53.5) * 0.2 = -3.5, but a single publish
+  // can cut at most 3.
+  assert.equal(transition.nextHandicap, 17);
 });
 
 test("non-qualifying rounds leave the handicap unchanged", () => {
