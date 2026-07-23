@@ -35,6 +35,7 @@ import {
 import RoundDetailsForm, {
   type RoundFormSavePayload,
 } from "@/components/admin/RoundDetailsForm";
+import RsvpRosterSection from "@/components/admin/RsvpRosterSection";
 import RoundStatusSection from "@/components/admin/RoundStatusSection";
 import CloseOutSection from "@/components/admin/CloseOutSection";
 import CourseCorrectionsSection from "@/components/admin/CourseCorrectionsSection";
@@ -602,6 +603,15 @@ export default function AdminRoundDetailPage() {
         onSave={handleSaveDetails}
         saving={saving}
         error={detailsError}
+      />
+
+      {/* RSVP roster: view and respond on behalf of players */}
+      <RsvpRosterSection
+        round={round}
+        members={members}
+        rsvps={rsvps}
+        appUser={appUser}
+        onSuccess={showSuccess}
       />
 
       {/* Round status */}
