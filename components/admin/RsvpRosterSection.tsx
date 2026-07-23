@@ -23,7 +23,6 @@ export default function RsvpRosterSection({
   appUser,
   onSuccess,
 }: Props) {
-  const [busyMemberId, setBusyMemberId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const rsvpsByMemberId = useMemo(
@@ -57,20 +56,28 @@ export default function RsvpRosterSection({
   const handleToggleStatus = async (
     member: AppUser,
     target: Exclude<RoundRsvpStatus, "pending">,
-    current: RoundRsvpStatus
+    existingRsvp: RoundRsvp | null
   ) => {
     if (!appUser || locked) return;
     // Clicking the already-selected status clears the response back to
     // pending (undo an accidental tap); otherwise set the new status.
-    const clearing = current === target;
-    setBusyMemberId(member.uid);
+    const clearing = existingRsvp?.status === target;
     setError("");
+    // The write is not awaited before updating the UI: Firestore's local
+    // cache reflects the change to this page's live subscription instantly,
+    // so the highlight flips immediately instead of waiting for the server.
     try {
       if (clearing) {
         await clearRoundRsvp(round.id, member.uid);
         onSuccess(`${member.displayName}'s RSVP cleared`);
       } else {
-        await setRoundRsvp({ round, member, status: target, respondedBy: appUser });
+        await setRoundRsvp({
+          round,
+          member,
+          status: target,
+          respondedBy: appUser,
+          existingRsvp,
+        });
         onSuccess(
           `${member.displayName} marked as ${
             target === "accepted" ? "going" : "not going"
@@ -79,14 +86,10 @@ export default function RsvpRosterSection({
       }
     } catch {
       setError("Failed to update RSVP. Please try again.");
-      setBusyMemberId(null);
       return;
     }
-    // RSVP is saved — release the buttons immediately. The player
-    // notification is a best-effort side effect that must never block
-    // or freeze the row if it is slow or fails. Only notify when setting
-    // a definitive status on someone else, not when clearing.
-    setBusyMemberId(null);
+    // The player notification is a best-effort side effect. Only notify when
+    // setting a definitive status on someone else, not when clearing.
     if (!clearing && member.uid !== appUser.uid) {
       createNotificationsForUsers({
         recipientUserIds: [member.uid],
@@ -134,7 +137,6 @@ export default function RsvpRosterSection({
       <ul className="divide-y divide-surface-overlay">
         {roster.map(({ member, rsvp }) => {
           const status: RoundRsvpStatus = rsvp?.status ?? "pending";
-          const busy = busyMemberId === member.uid;
           const setByOther =
             rsvp?.respondedById != null &&
             rsvp.respondedById !== member.uid &&
@@ -154,15 +156,11 @@ export default function RsvpRosterSection({
                   </p>
                 )}
               </div>
-              <div
-                className={`flex gap-1 shrink-0 transition-opacity ${
-                  busy ? "opacity-50" : ""
-                }`}
-              >
+              <div className="flex gap-1 shrink-0">
                 <button
                   type="button"
-                  onClick={() => handleToggleStatus(member, "accepted", status)}
-                  disabled={locked || busy}
+                  onClick={() => handleToggleStatus(member, "accepted", rsvp)}
+                  disabled={locked}
                   title={
                     status === "accepted" ? "Click again to clear" : undefined
                   }
@@ -176,8 +174,8 @@ export default function RsvpRosterSection({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleToggleStatus(member, "declined", status)}
-                  disabled={locked || busy}
+                  onClick={() => handleToggleStatus(member, "declined", rsvp)}
+                  disabled={locked}
                   title={
                     status === "declined" ? "Click again to clear" : undefined
                   }

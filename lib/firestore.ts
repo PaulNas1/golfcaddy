@@ -1245,30 +1245,55 @@ export const setRoundRsvp = async ({
   member,
   status,
   respondedBy,
+  existingRsvp,
 }: {
   round: Round;
   member: AppUser;
   status: Exclude<RoundRsvpStatus, "pending">;
   respondedBy?: AppUser;
+  // When the caller already knows the current RSVP (e.g. from a live
+  // subscription), pass it to skip a pre-read round-trip: `null` means the
+  // doc doesn't exist yet, an object means it does. Leave undefined to have
+  // this helper read the doc itself (preserves legacy callers' behaviour).
+  existingRsvp?: RoundRsvp | null;
 }) => {
   const responder = respondedBy ?? member;
   const ref = doc(db, "rounds", round.id, "rsvps", member.uid);
-  const existing = await getDoc(ref);
+  const base = {
+    roundId: round.id,
+    groupId: round.groupId,
+    memberId: member.uid,
+    memberName: member.displayName,
+    status,
+    respondedAt: serverTimestamp(),
+    respondedById: responder.uid,
+    respondedByName: responder.displayName,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (existingRsvp === undefined) {
+    // Existence unknown — read once to preserve createdAt on updates.
+    const existing = await getDoc(ref);
+    await setDoc(
+      ref,
+      {
+        ...base,
+        createdAt: existing.exists()
+          ? existing.data().createdAt ?? serverTimestamp()
+          : serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return;
+  }
+
+  // Existence known — no read needed. On an update we omit createdAt and let
+  // merge preserve the stored value; on a create we set it.
   await setDoc(
     ref,
     {
-      roundId: round.id,
-      groupId: round.groupId,
-      memberId: member.uid,
-      memberName: member.displayName,
-      status,
-      respondedAt: serverTimestamp(),
-      respondedById: responder.uid,
-      respondedByName: responder.displayName,
-      createdAt: existing.exists()
-        ? existing.data().createdAt ?? serverTimestamp()
-        : serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      ...base,
+      ...(existingRsvp === null ? { createdAt: serverTimestamp() } : {}),
     },
     { merge: true }
   );
