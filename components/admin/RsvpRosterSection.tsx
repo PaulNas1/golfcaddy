@@ -59,22 +59,6 @@ export default function RsvpRosterSection({
     setError("");
     try {
       await setRoundRsvp({ round, member, status, respondedBy: appUser });
-      if (member.uid !== appUser.uid) {
-        await createNotificationsForUsers({
-          recipientUserIds: [member.uid],
-          groupId: round.groupId,
-          type: "change_alert",
-          title:
-            status === "accepted"
-              ? "You've been marked as playing"
-              : "You've been marked as not playing",
-          body: `${appUser.displayName} set your RSVP to "${
-            status === "accepted" ? "Going" : "Not going"
-          }" for Round ${round.roundNumber} at ${round.courseName}.`,
-          deepLink: `/rounds/${round.id}`,
-          roundId: round.id,
-        });
-      }
       onSuccess(
         `${member.displayName} marked as ${
           status === "accepted" ? "going" : "not going"
@@ -82,8 +66,30 @@ export default function RsvpRosterSection({
       );
     } catch {
       setError("Failed to update RSVP. Please try again.");
-    } finally {
       setBusyMemberId(null);
+      return;
+    }
+    // RSVP is saved — release the buttons immediately. The player
+    // notification is a best-effort side effect that must never block
+    // or freeze the row if it is slow or fails.
+    setBusyMemberId(null);
+    if (member.uid !== appUser.uid) {
+      createNotificationsForUsers({
+        recipientUserIds: [member.uid],
+        groupId: round.groupId,
+        type: "change_alert",
+        title:
+          status === "accepted"
+            ? "You've been marked as playing"
+            : "You've been marked as not playing",
+        body: `${appUser.displayName} set your RSVP to "${
+          status === "accepted" ? "Going" : "Not going"
+        }" for Round ${round.roundNumber} at ${round.courseName}.`,
+        deepLink: `/rounds/${round.id}`,
+        roundId: round.id,
+      }).catch(() => {
+        /* notification is best-effort; ignore failures */
+      });
     }
   };
 
@@ -134,7 +140,11 @@ export default function RsvpRosterSection({
                   </p>
                 )}
               </div>
-              <div className="flex gap-1 shrink-0">
+              <div
+                className={`flex gap-1 shrink-0 transition-opacity ${
+                  busy ? "opacity-50" : ""
+                }`}
+              >
                 <button
                   type="button"
                   onClick={() => handleSetStatus(member, "accepted")}
@@ -145,7 +155,7 @@ export default function RsvpRosterSection({
                       : "border-surface-overlay font-medium text-ink-hint hover:bg-surface-muted"
                   }`}
                 >
-                  {busy ? "…" : "Going"}
+                  Going
                 </button>
                 <button
                   type="button"
@@ -157,7 +167,7 @@ export default function RsvpRosterSection({
                       : "border-surface-overlay font-medium text-ink-hint hover:bg-surface-muted"
                   }`}
                 >
-                  {busy ? "…" : "Not going"}
+                  Not going
                 </button>
               </div>
             </li>
