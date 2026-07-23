@@ -12,24 +12,6 @@ type Props = {
   onSuccess: (message: string) => void;
 };
 
-const STATUS_BADGES: Record<
-  RoundRsvpStatus,
-  { label: string; className: string }
-> = {
-  accepted: {
-    label: "In",
-    className: "bg-brand-50 text-brand-700 border border-brand-200",
-  },
-  declined: {
-    label: "Out",
-    className: "bg-red-50 text-red-700 border border-red-200",
-  },
-  pending: {
-    label: "Pending",
-    className: "bg-surface-muted text-ink-muted border border-surface-overlay",
-  },
-};
-
 export default function RsvpRosterSection({
   round,
   members,
@@ -132,7 +114,6 @@ export default function RsvpRosterSection({
       <ul className="divide-y divide-surface-overlay">
         {roster.map(({ member, rsvp }) => {
           const status: RoundRsvpStatus = rsvp?.status ?? "pending";
-          const badge = STATUS_BADGES[status];
           const busy = busyMemberId === member.uid;
           const setByOther =
             rsvp?.respondedById != null &&
@@ -153,32 +134,31 @@ export default function RsvpRosterSection({
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${badge.className}`}
+              <div className="flex gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleSetStatus(member, "accepted")}
+                  disabled={locked || busy || status === "accepted"}
+                  className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                    status === "accepted"
+                      ? "border-brand-500 bg-brand-50 font-semibold text-brand-700"
+                      : "border-surface-overlay font-medium text-ink-hint hover:bg-surface-muted"
+                  }`}
                 >
-                  {badge.label}
-                </span>
-                {!locked && (
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(member, "accepted")}
-                      disabled={busy || status === "accepted"}
-                      className="rounded-lg border border-brand-600 px-2.5 py-1 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50 disabled:border-surface-overlay disabled:text-ink-hint"
-                    >
-                      {busy ? "…" : "Going"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleSetStatus(member, "declined")}
-                      disabled={busy || status === "declined"}
-                      className="rounded-lg border border-surface-overlay px-2.5 py-1 text-xs font-semibold text-ink-body transition-colors hover:bg-surface-muted disabled:text-ink-hint"
-                    >
-                      {busy ? "…" : "Not going"}
-                    </button>
-                  </div>
-                )}
+                  {busy ? "…" : "Going"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetStatus(member, "declined")}
+                  disabled={locked || busy || status === "declined"}
+                  className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                    status === "declined"
+                      ? "border-red-500 bg-red-50 font-semibold text-red-700"
+                      : "border-surface-overlay font-medium text-ink-hint hover:bg-surface-muted"
+                  }`}
+                >
+                  {busy ? "…" : "Not going"}
+                </button>
               </div>
             </li>
           );
