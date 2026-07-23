@@ -1244,11 +1244,14 @@ export const setRoundRsvp = async ({
   round,
   member,
   status,
+  respondedBy,
 }: {
   round: Round;
   member: AppUser;
   status: Exclude<RoundRsvpStatus, "pending">;
+  respondedBy?: AppUser;
 }) => {
+  const responder = respondedBy ?? member;
   const ref = doc(db, "rounds", round.id, "rsvps", member.uid);
   const existing = await getDoc(ref);
   await setDoc(
@@ -1260,6 +1263,8 @@ export const setRoundRsvp = async ({
       memberName: member.displayName,
       status,
       respondedAt: serverTimestamp(),
+      respondedById: responder.uid,
+      respondedByName: responder.displayName,
       createdAt: existing.exists()
         ? existing.data().createdAt ?? serverTimestamp()
         : serverTimestamp(),

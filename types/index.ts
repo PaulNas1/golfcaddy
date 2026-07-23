@@ -265,6 +265,10 @@ export interface RoundRsvp {
   memberName: string;
   status: RoundRsvpStatus;
   respondedAt: Date | null;
+  // Who recorded the response — differs from memberId when an admin
+  // responded on the player's behalf. Absent on older documents.
+  respondedById?: string | null;
+  respondedByName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
