@@ -1,7 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createNotificationsForUsers, setRoundRsvp } from "@/lib/firestore";
+import {
+  clearRoundRsvp,
+  createNotificationsForUsers,
+  setRoundRsvp,
+} from "@/lib/firestore";
 import type { AppUser, Round, RoundRsvp, RoundRsvpStatus } from "@/types";
 
 type Props = {
@@ -50,20 +54,29 @@ export default function RsvpRosterSection({
 
   const locked = round.resultsPublished;
 
-  const handleSetStatus = async (
+  const handleToggleStatus = async (
     member: AppUser,
-    status: Exclude<RoundRsvpStatus, "pending">
+    target: Exclude<RoundRsvpStatus, "pending">,
+    current: RoundRsvpStatus
   ) => {
     if (!appUser || locked) return;
+    // Clicking the already-selected status clears the response back to
+    // pending (undo an accidental tap); otherwise set the new status.
+    const clearing = current === target;
     setBusyMemberId(member.uid);
     setError("");
     try {
-      await setRoundRsvp({ round, member, status, respondedBy: appUser });
-      onSuccess(
-        `${member.displayName} marked as ${
-          status === "accepted" ? "going" : "not going"
-        }`
-      );
+      if (clearing) {
+        await clearRoundRsvp(round.id, member.uid);
+        onSuccess(`${member.displayName}'s RSVP cleared`);
+      } else {
+        await setRoundRsvp({ round, member, status: target, respondedBy: appUser });
+        onSuccess(
+          `${member.displayName} marked as ${
+            target === "accepted" ? "going" : "not going"
+          }`
+        );
+      }
     } catch {
       setError("Failed to update RSVP. Please try again.");
       setBusyMemberId(null);
@@ -71,19 +84,20 @@ export default function RsvpRosterSection({
     }
     // RSVP is saved — release the buttons immediately. The player
     // notification is a best-effort side effect that must never block
-    // or freeze the row if it is slow or fails.
+    // or freeze the row if it is slow or fails. Only notify when setting
+    // a definitive status on someone else, not when clearing.
     setBusyMemberId(null);
-    if (member.uid !== appUser.uid) {
+    if (!clearing && member.uid !== appUser.uid) {
       createNotificationsForUsers({
         recipientUserIds: [member.uid],
         groupId: round.groupId,
         type: "change_alert",
         title:
-          status === "accepted"
+          target === "accepted"
             ? "You've been marked as playing"
             : "You've been marked as not playing",
         body: `${appUser.displayName} set your RSVP to "${
-          status === "accepted" ? "Going" : "Not going"
+          target === "accepted" ? "Going" : "Not going"
         }" for Round ${round.roundNumber} at ${round.courseName}.`,
         deepLink: `/rounds/${round.id}`,
         roundId: round.id,
@@ -147,8 +161,11 @@ export default function RsvpRosterSection({
               >
                 <button
                   type="button"
-                  onClick={() => handleSetStatus(member, "accepted")}
-                  disabled={locked || busy || status === "accepted"}
+                  onClick={() => handleToggleStatus(member, "accepted", status)}
+                  disabled={locked || busy}
+                  title={
+                    status === "accepted" ? "Click again to clear" : undefined
+                  }
                   className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                     status === "accepted"
                       ? "border-brand-500 bg-brand-50 font-semibold text-brand-700"
@@ -159,8 +176,11 @@ export default function RsvpRosterSection({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSetStatus(member, "declined")}
-                  disabled={locked || busy || status === "declined"}
+                  onClick={() => handleToggleStatus(member, "declined", status)}
+                  disabled={locked || busy}
+                  title={
+                    status === "declined" ? "Click again to clear" : undefined
+                  }
                   className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
                     status === "declined"
                       ? "border-red-500 bg-red-50 font-semibold text-red-700"
