@@ -1274,6 +1274,12 @@ export const setRoundRsvp = async ({
   );
 };
 
+// Removes a member's RSVP document entirely, returning them to the
+// un-responded ("pending") state. Used when an admin clears a response.
+export const clearRoundRsvp = async (roundId: string, memberId: string) => {
+  await deleteDoc(doc(db, "rounds", roundId, "rsvps", memberId));
+};
+
 export const notifyRoundPlayers = async ({
   round,
   activeUsers,
