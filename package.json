@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "diagnose:reset": "node --env-file=.env.local scripts/diagnose-password-reset.mjs",
     "test": "node --test --experimental-strip-types --experimental-specifier-resolution=node tests/**/*.test.ts"
   },
   "dependencies": {
