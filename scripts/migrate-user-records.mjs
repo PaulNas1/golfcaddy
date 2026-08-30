@@ -159,7 +159,8 @@ console.log(`\nScoping to group: ${groupId}\n`);
 
 /** Every write is queued here first so the dry run can show the whole plan. */
 const plan = [];
-const add = (label, apply) => plan.push({ label, apply });
+/** `weight` is how many Firestore writes the step performs, for batching. */
+const add = (label, apply, weight = 1) => plan.push({ label, apply, weight });
 const tally = new Map();
 const note = (label) => tally.set(label, (tally.get(label) ?? 0) + 1);
 
@@ -191,17 +192,54 @@ if (oldMember.exists) {
   );
 }
 
-// 2/3. scorecards — as player, and as marker of someone else's card.
-for (const keyField of ["playerId", "markerId"]) {
-  const snap = await db
-    .collection("scorecards")
-    .where(keyField, "==", oldUid)
-    .get();
-  for (const d of snap.docs) {
-    add(`scorecards/${d.id}.${keyField}`, (batch) =>
-      batch.update(d.ref, { [keyField]: destUid, updatedAt: stamp() })
-    );
-    note(`scorecards.${keyField}`);
+// 2/3. scorecards — as player, and as marker of someone else's card. Both
+//      roles are handled in one pass: a card can be both, and two passes
+//      would have the second one updating a doc the first had deleted.
+{
+  const [asPlayer, asMarker] = await Promise.all([
+    db.collection("scorecards").where("playerId", "==", oldUid).get(),
+    db.collection("scorecards").where("markerId", "==", oldUid).get(),
+  ]);
+
+  const cards = new Map();
+  for (const d of [...asPlayer.docs, ...asMarker.docs]) cards.set(d.id, d);
+
+  for (const d of cards.values()) {
+    const data = d.data();
+    const patch = {};
+    if (data.playerId === oldUid) patch.playerId = destUid;
+    if (data.markerId === oldUid) patch.markerId = destUid;
+
+    // lib/historicalImportFirestore.ts writes scorecards/{roundId}_{playerId}
+    // with a deterministic id. Rewriting only the field would leave the card
+    // under the old uid's id, so re-importing that round would create a
+    // SECOND card for the same player instead of overwriting this one.
+    const legacyId = data.roundId ? `${data.roundId}_${oldUid}` : null;
+
+    if (legacyId && d.id === legacyId) {
+      const newId = `${data.roundId}_${destUid}`;
+      const holeScores = await d.ref.collection("holeScores").get();
+      const target = db.collection("scorecards").doc(newId);
+
+      add(
+        `scorecards/${newId} (from ${d.id}, ${holeScores.size} holeScores)`,
+        (batch) => {
+          batch.set(target, { ...data, ...patch, updatedAt: stamp() });
+          for (const h of holeScores.docs) {
+            batch.set(target.collection("holeScores").doc(h.id), h.data());
+            batch.delete(h.ref);
+          }
+          batch.delete(d.ref);
+        },
+        2 + holeScores.size * 2
+      );
+      note("scorecards (id rewrite)");
+    } else {
+      add(`scorecards/${d.id} (${Object.keys(patch).join(", ")})`, (batch) =>
+        batch.update(d.ref, { ...patch, updatedAt: stamp() })
+      );
+      note("scorecards");
+    }
   }
 }
 
@@ -223,7 +261,7 @@ for (const keyField of ["playerId", "markerId"]) {
         updatedAt: stamp(),
       });
       batch.delete(d.ref);
-    });
+    }, 2);
     note("seasonStandings");
   }
 }
@@ -256,7 +294,7 @@ for (const keyField of ["playerId", "markerId"]) {
           updatedAt: stamp(),
         });
       }
-    });
+    }, 2);
     note("handicapHistory");
   }
 }
@@ -342,7 +380,7 @@ for (const keyField of ["playerId", "markerId"]) {
           updatedAt: stamp(),
         });
         batch.delete(rsvp.ref);
-      });
+      }, 2);
       note("rsvps");
     }
 
@@ -459,7 +497,8 @@ if (tally.size === 0) {
 for (const [label, count] of [...tally.entries()].sort()) {
   console.log(`  ${label.padEnd(24)} ${count}`);
 }
-console.log(`\n  ${plan.length} write operations total.`);
+const totalWrites = plan.reduce((sum, step) => sum + step.weight, 0);
+console.log(`\n  ${plan.length} steps, ${totalWrites} Firestore writes.`);
 
 if (!commit) {
   console.log("\nDetail:");
@@ -476,21 +515,35 @@ if (!commit) {
 
 console.log("\nApplying...");
 
-const CHUNK = 200;
+// Firestore caps a batch at 500 writes, and one step can perform many.
+const MAX_WRITES_PER_BATCH = 400;
 let written = 0;
 
-for (let i = 0; i < plan.length; i += CHUNK) {
-  const slice = plan.slice(i, i + CHUNK);
+const chunks = [];
+let current = [];
+let currentWeight = 0;
+for (const step of plan) {
+  if (currentWeight + step.weight > MAX_WRITES_PER_BATCH && current.length) {
+    chunks.push(current);
+    current = [];
+    currentWeight = 0;
+  }
+  current.push(step);
+  currentWeight += step.weight;
+}
+if (current.length) chunks.push(current);
+
+for (const slice of chunks) {
   const batch = db.batch();
   for (const step of slice) step.apply(batch);
   try {
     await batch.commit();
     written += slice.length;
-    console.log(`  committed ${written}/${plan.length}`);
+    console.log(`  committed ${written}/${plan.length} steps`);
   } catch (error) {
-    console.error(`\n  Batch failed at operation ${i}: ${error.message}`);
+    console.error(`\n  Batch failed after ${written} steps: ${error.message}`);
     console.error(
-      `  ${written} operations were already committed. Re-run the dry run to\n` +
+      `  ${written} steps were already committed. Re-run the dry run to\n` +
         "  see what remains — the migration is safe to run again, since each\n" +
         "  step only matches records still pointing at the old uid."
     );
@@ -498,7 +551,7 @@ for (let i = 0; i < plan.length; i += CHUNK) {
   }
 }
 
-console.log(`\nDone. ${written} operations committed.`);
+console.log(`\nDone. ${written} steps committed.`);
 console.log(
   `\nThe old Auth account (${oldUser.email}) is untouched and still enabled.\n` +
     "Verify the destination account looks right in the app, then disable or\n" +
