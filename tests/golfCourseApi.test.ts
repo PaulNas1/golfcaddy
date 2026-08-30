@@ -5,6 +5,7 @@ import {
   GolfCourseApiError,
   classifyHttpStatus,
   describeFailure,
+  describePayloadShape,
   toGolfCourseApiFailure,
 } from "../lib/golfCourseApiError.ts";
 
@@ -94,4 +95,18 @@ test("reads as a sentence for every subject and failure", () => {
       assert.doesNotMatch(message, / are /, message);
     }
   }
+});
+
+test("names the shape of an unexpected provider body", () => {
+  // A provider that answers 200 with the wrong shape is the one failure that
+  // still counts against the daily quota, so the log has to say what arrived.
+  assert.equal(
+    describePayloadShape({ data: [], meta: {} }),
+    "object with keys [data, meta]"
+  );
+  assert.equal(describePayloadShape({ courses: [] }), "object with keys [courses]");
+  assert.equal(describePayloadShape([1, 2, 3]), "array of 3");
+  assert.equal(describePayloadShape({}), "empty object");
+  assert.equal(describePayloadShape(null), "null");
+  assert.equal(describePayloadShape("<!doctype html>"), "string");
 });

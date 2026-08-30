@@ -5,6 +5,7 @@ import type { SeededCourse } from "@/lib/courseData";
 import {
   GolfCourseApiError,
   classifyHttpStatus,
+  describePayloadShape,
   toGolfCourseApiFailure,
 } from "@/lib/golfCourseApiError";
 import { normalizeGolfCourseApiKey } from "@/lib/golfCourseApiKey";
@@ -230,8 +231,37 @@ export async function searchGolfCourseApiCourses(query: string) {
     `/v1/search?search_query=${encodeURIComponent(query)}`,
     SEARCH_CACHE_SECONDS
   );
+  const courses = payload?.courses;
 
-  return (payload.courses ?? []).map(normalizeCourse);
+  // A 200 carrying a body we do not recognise used to throw a bare TypeError
+  // out of .map below, which the route then reported as a provider outage.
+  // Name the shape we actually got so the log says the contract changed.
+  if (courses != null && !Array.isArray(courses)) {
+    throw new GolfCourseApiError(
+      "bad_response",
+      `GolfCourseAPI search returned an unexpected body: ${describePayloadShape(
+        payload
+      )}`
+    );
+  }
+
+  // A body with no `courses` key at all is ambiguous — it could be an honest
+  // "no matches" — so it still returns empty, but leave the shape in the log so
+  // a silent "no results" is traceable rather than a dead end.
+  if (courses === undefined) {
+    console.warn(
+      `GolfCourseAPI search returned no courses key: ${describePayloadShape(
+        payload
+      )}`
+    );
+  }
+
+  return (courses ?? [])
+    .filter(
+      (course): course is GolfCourseApiCourse =>
+        Boolean(course) && typeof course === "object"
+    )
+    .map(normalizeCourse);
 }
 
 export async function getGolfCourseApiCourse(id: number) {
@@ -242,6 +272,17 @@ export async function getGolfCourseApiCourse(id: number) {
       `/v1/courses/${id}`,
       COURSE_CACHE_SECONDS
     );
+
+    // Without this a changed or wrapped body normalises into a nameless course
+    // with no tees, which reads to an admin as "no 18-hole tee data".
+    if (!course || typeof course !== "object" || course.id === undefined) {
+      throw new GolfCourseApiError(
+        "bad_response",
+        `GolfCourseAPI course ${id} returned an unexpected body: ${describePayloadShape(
+          course
+        )}`
+      );
+    }
 
     return normalizeCourse(course);
   } catch (error) {
