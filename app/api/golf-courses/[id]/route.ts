@@ -3,6 +3,10 @@ import {
   getGolfCourseApiCourse,
   isGolfCourseApiConfigured,
 } from "@/lib/golfCourseApi";
+import {
+  describeFailure,
+  toGolfCourseApiFailure,
+} from "@/lib/golfCourseApiError";
 
 export const dynamic = "force-dynamic";
 
@@ -23,22 +27,41 @@ export async function GET(
     return NextResponse.json({
       configured: false,
       course: null,
+      reason: "not_configured",
       error: "GolfCourseAPI key is not configured.",
     });
   }
 
   try {
     const course = await getGolfCourseApiCourse(id);
+
+    if (!course) {
+      const { status, message } = describeFailure(
+        "not_found",
+        "Golf course lookup"
+      );
+
+      return NextResponse.json(
+        { configured: true, course: null, reason: "not_found", error: message },
+        { status }
+      );
+    }
+
     return NextResponse.json({ configured: true, course });
   } catch (error) {
-    console.error("GolfCourseAPI course lookup failed", error);
+    const failure = toGolfCourseApiFailure(error);
+    const { status, message } = describeFailure(failure, "Golf course lookup");
+
+    console.error(`GolfCourseAPI course lookup failed (${failure})`, error);
+
     return NextResponse.json(
       {
         configured: true,
         course: null,
-        error: "Golf course details are unavailable right now.",
+        reason: failure,
+        error: message,
       },
-      { status: 502 }
+      { status }
     );
   }
 }

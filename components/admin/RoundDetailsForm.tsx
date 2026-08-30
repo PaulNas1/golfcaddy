@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import TeeTimesEditor, { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
 import {
+  type GolfCourseDetailResult,
   getGolfCourseCatalogueCourse,
   searchGolfCourseCatalogue,
 } from "@/lib/courseCatalogueClient";
@@ -332,12 +333,19 @@ export default function RoundDetailsForm({
     setApiCourseLoading(true);
 
     const timeout = window.setTimeout(async () => {
-      const result = await searchGolfCourseCatalogue(query);
-      if (cancelled) return;
+      try {
+        const result = await searchGolfCourseCatalogue(query);
+        if (cancelled) return;
 
-      setApiCourses(result.courses.slice(0, 6));
-      setApiCourseError(result.error ?? "");
-      setApiCourseLoading(false);
+        setApiCourses(result.courses.slice(0, 6));
+        setApiCourseError(result.error ?? "");
+      } catch {
+        // Nothing here should reject, but an unhandled one would strand the
+        // "Searching..." line on screen forever.
+        if (!cancelled) setApiCourseError("Golf course search failed.");
+      } finally {
+        if (!cancelled) setApiCourseLoading(false);
+      }
     }, 600);
 
     return () => {
@@ -379,8 +387,16 @@ export default function RoundDetailsForm({
     if (course.apiId && course.teeSets.length === 0) {
       setApiCourseLoading(true);
       setApiCourseError("");
-      const result = await getGolfCourseCatalogueCourse(course.apiId);
-      setApiCourseLoading(false);
+
+      let result: GolfCourseDetailResult;
+      try {
+        result = await getGolfCourseCatalogueCourse(course.apiId);
+      } catch {
+        setApiCourseError("Could not load tee data for that course.");
+        return;
+      } finally {
+        setApiCourseLoading(false);
+      }
 
       if (result.course) {
         courseToApply = result.course;

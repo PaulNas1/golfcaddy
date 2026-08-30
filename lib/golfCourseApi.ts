@@ -2,11 +2,18 @@ import "server-only";
 
 import type { CourseHole, CourseTeeSet, HoleType } from "@/types";
 import type { SeededCourse } from "@/lib/courseData";
+import {
+  GolfCourseApiError,
+  classifyHttpStatus,
+  toGolfCourseApiFailure,
+} from "@/lib/golfCourseApiError";
+import { normalizeGolfCourseApiKey } from "@/lib/golfCourseApiKey";
 
 const GOLF_COURSE_API_BASE_URL = "https://api.golfcourseapi.com";
 const GOLF_COURSE_API_DOCS_URL = "https://api.golfcourseapi.com/docs/api/";
 const SEARCH_CACHE_SECONDS = 60 * 60 * 24;
 const COURSE_CACHE_SECONDS = 60 * 60 * 24 * 7;
+const REQUEST_TIMEOUT_MS = 8000;
 
 type GolfCourseApiHole = {
   par?: number;
@@ -48,7 +55,7 @@ type GolfCourseApiSearchResponse = {
 };
 
 function getApiKey() {
-  return process.env.GOLFCOURSE_API_KEY ?? "";
+  return normalizeGolfCourseApiKey(process.env.GOLFCOURSE_API_KEY);
 }
 
 export function isGolfCourseApiConfigured() {
@@ -164,19 +171,56 @@ async function golfCourseApiFetch<T>(
   path: string,
   cacheSeconds: number
 ): Promise<T> {
-  const response = await fetch(`${GOLF_COURSE_API_BASE_URL}${path}`, {
-    headers: {
-      Authorization: `Key ${getApiKey()}`,
-      Accept: "application/json",
-    },
-    next: { revalidate: cacheSeconds },
-  });
+  let response: Response;
 
-  if (!response.ok) {
-    throw new Error(`GolfCourseAPI returned HTTP ${response.status}`);
+  try {
+    response = await fetch(`${GOLF_COURSE_API_BASE_URL}${path}`, {
+      headers: {
+        Authorization: `Key ${getApiKey()}`,
+        Accept: "application/json",
+      },
+      // Without a timeout a slow provider stalls the route until the host kills
+      // it, which reaches the browser as an HTML gateway page instead of our
+      // JSON error shape. Next drops the signal when it revalidates in the
+      // background, so this does not disable the data cache.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      next: { revalidate: cacheSeconds },
+    });
+  } catch (error) {
+    throw new GolfCourseApiError(
+      toGolfCourseApiFailure(error),
+      `GolfCourseAPI request to ${path} failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    );
   }
 
-  return response.json() as Promise<T>;
+  if (!response.ok) {
+    // The body normally explains the rejection ("invalid key", quota reached).
+    // Keep a slice of it so the server log says why, not just that it failed.
+    const detail = await response
+      .text()
+      .then((body) => body.trim().slice(0, 200))
+      .catch(() => "");
+
+    throw new GolfCourseApiError(
+      classifyHttpStatus(response.status),
+      `GolfCourseAPI returned HTTP ${response.status} for ${path}${
+        detail ? `: ${detail}` : ""
+      }`,
+      response.status
+    );
+  }
+
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new GolfCourseApiError(
+      "bad_response",
+      `GolfCourseAPI returned a non-JSON body for ${path}`,
+      response.status
+    );
+  }
 }
 
 export async function searchGolfCourseApiCourses(query: string) {
@@ -193,10 +237,19 @@ export async function searchGolfCourseApiCourses(query: string) {
 export async function getGolfCourseApiCourse(id: number) {
   if (!isGolfCourseApiConfigured()) return null;
 
-  const course = await golfCourseApiFetch<GolfCourseApiCourse>(
-    `/v1/courses/${id}`,
-    COURSE_CACHE_SECONDS
-  );
+  try {
+    const course = await golfCourseApiFetch<GolfCourseApiCourse>(
+      `/v1/courses/${id}`,
+      COURSE_CACHE_SECONDS
+    );
 
-  return normalizeCourse(course);
+    return normalizeCourse(course);
+  } catch (error) {
+    // An id the provider does not know is a real answer, not an outage.
+    if (error instanceof GolfCourseApiError && error.failure === "not_found") {
+      return null;
+    }
+
+    throw error;
+  }
 }
