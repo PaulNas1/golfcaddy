@@ -24,8 +24,7 @@
  * The reset link it prints is a live credential — treat it like a password.
  */
 
-import { getApps, initializeApp, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+import { initAdmin, projectId, field as line } from "./admin-app.mjs";
 
 const target = process.argv[2]?.trim().toLowerCase();
 
@@ -34,37 +33,11 @@ if (!target) {
   process.exit(1);
 }
 
-const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-if (
-  !process.env.FIREBASE_ADMIN_PROJECT_ID ||
-  !process.env.FIREBASE_ADMIN_CLIENT_EMAIL ||
-  !privateKey
-) {
-  console.error(
-    "Missing Firebase Admin credentials. Set FIREBASE_ADMIN_PROJECT_ID,\n" +
-      "FIREBASE_ADMIN_CLIENT_EMAIL and FIREBASE_ADMIN_PRIVATE_KEY in .env.local."
-  );
-  process.exit(1);
-}
-
-const app =
-  getApps()[0] ??
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey,
-    }),
-  });
-
-const auth = getAuth(app);
-
-const line = (label, value) => console.log(`  ${label.padEnd(22)} ${value}`);
+const { auth } = initAdmin();
 
 // ─── Step 1: does the account exist, and is it usable? ───────────────────────
 
-console.log(`\nProject: ${process.env.FIREBASE_ADMIN_PROJECT_ID}`);
+console.log(`\nProject: ${projectId()}`);
 console.log(`Looking up: ${target}\n`);
 
 let user = null;
