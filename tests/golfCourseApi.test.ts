@@ -81,6 +81,7 @@ test("reads as a sentence for every subject and failure", () => {
     "forbidden",
     "rate_limited",
     "not_found",
+    "endpoint_missing",
     "timeout",
     "upstream",
     "bad_response",
@@ -95,6 +96,18 @@ test("reads as a sentence for every subject and failure", () => {
       assert.doesNotMatch(message, / are /, message);
     }
   }
+});
+
+test("separates a missing endpoint from an empty search result", () => {
+  // /v1/search answers 200 with an empty list when nothing matches, so "no
+  // match" and "that path is gone" must never share a message.
+  const missing = describeFailure("endpoint_missing", "Golf course search");
+  const noMatch = describeFailure("not_found", "Golf course search");
+
+  assert.notEqual(missing.message, noMatch.message);
+  assert.match(missing.message, /API path may have changed/);
+  assert.equal(missing.status, 502);
+  assert.equal(noMatch.status, 404);
 });
 
 test("names the shape of an unexpected provider body", () => {

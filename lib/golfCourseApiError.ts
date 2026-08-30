@@ -6,6 +6,7 @@ export type GolfCourseApiFailure =
   | "forbidden"
   | "rate_limited"
   | "not_found"
+  | "endpoint_missing"
   | "timeout"
   | "upstream"
   | "bad_response";
@@ -57,6 +58,7 @@ const FAILURE_HTTP_STATUS: Record<GolfCourseApiFailure, number> = {
   forbidden: 503,
   rate_limited: 429,
   not_found: 404,
+  endpoint_missing: 502,
   timeout: 504,
   upstream: 502,
   bad_response: 502,
@@ -67,6 +69,8 @@ const FAILURE_MESSAGE: Record<GolfCourseApiFailure, string> = {
   forbidden: "was blocked — check the API key plan and any network egress rules",
   rate_limited: "is busy right now — try again in a moment",
   not_found: "returned no match",
+  endpoint_missing:
+    "could not be reached — the provider's API path may have changed",
   timeout: "timed out — try again in a moment",
   upstream: "is unavailable right now",
   bad_response: "returned an unexpected response",

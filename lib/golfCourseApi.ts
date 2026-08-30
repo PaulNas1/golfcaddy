@@ -227,10 +227,29 @@ async function golfCourseApiFetch<T>(
 export async function searchGolfCourseApiCourses(query: string) {
   if (!isGolfCourseApiConfigured()) return [];
 
-  const payload = await golfCourseApiFetch<GolfCourseApiSearchResponse>(
-    `/v1/search?search_query=${encodeURIComponent(query)}`,
-    SEARCH_CACHE_SECONDS
-  );
+  const path = `/v1/search?search_query=${encodeURIComponent(query)}`;
+
+  let payload: GolfCourseApiSearchResponse;
+  try {
+    payload = await golfCourseApiFetch<GolfCourseApiSearchResponse>(
+      path,
+      SEARCH_CACHE_SECONDS
+    );
+  } catch (error) {
+    // A search that matches nothing answers 200 with an empty list, so a 404
+    // here is the endpoint itself being gone — never an empty result. Reporting
+    // it as "no match" would send an admin hunting for better search terms.
+    if (error instanceof GolfCourseApiError && error.failure === "not_found") {
+      throw new GolfCourseApiError(
+        "endpoint_missing",
+        `GolfCourseAPI has no ${path} endpoint`,
+        404
+      );
+    }
+
+    throw error;
+  }
+
   const courses = payload?.courses;
 
   // A 200 carrying a body we do not recognise used to throw a bare TypeError
