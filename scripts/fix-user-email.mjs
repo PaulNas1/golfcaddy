@@ -20,6 +20,17 @@
  *
  * Add --send-reset to also mint a password reset link for the new address.
  *
+ * Records and stats are NOT at risk. Every collection keys the player by the
+ * Auth uid (members.userId, scorecards.playerId/markerId, seasonStandings and
+ * handicapHistory .memberId, rsvps.memberId, posts.authorId, and the embedded
+ * results.rankings[].playerId). Nothing in the app stores or queries by email,
+ * and firestore.rules never reads it. Changing the email leaves the uid
+ * untouched, so every record stays attached — this script counts them before
+ * and after so you can see that for yourself.
+ *
+ * What WOULD orphan the records is deleting the account and recreating it with
+ * the correct address: that mints a new uid, and nothing would follow it.
+ *
  * Only ever point an account at an address you have confirmed belongs to that
  * person — repointing an account is a full account takeover.
  */
@@ -122,6 +133,9 @@ if (snap.exists) {
   console.log(`  users/${user.uid}  (no document — skipping Firestore)`);
 }
 console.log("\n  Changing the Auth email resets emailVerified to false.");
+console.log("  The uid does not change, so records stay attached:\n");
+
+const before = await auditRecords(user.uid);
 
 if (!commit) {
   console.log("\nDry run — nothing was written. Re-run with --commit to apply.\n");
@@ -167,4 +181,57 @@ if (sendReset) {
   }
 }
 
+// ─── Confirm nothing was orphaned ────────────────────────────────────────────
+
+console.log("\nRe-checking records against the same uid:\n");
+const after = await auditRecords(user.uid);
+
+const drifted = Object.keys(before).filter((key) => before[key] !== after[key]);
+if (drifted.length) {
+  console.error(
+    "  Counts changed: " +
+      drifted.map((k) => `${k} ${before[k]} -> ${after[k]}`).join(", ")
+  );
+  console.error("  Investigate before letting the user back in.");
+} else {
+  console.log("  Unchanged — every record is still attached to this account.");
+}
+
 console.log("\nDone. Ask the user to sign in with the corrected address.\n");
+
+/**
+ * Counts the documents attached to a uid across every collection that
+ * references a player. All of these key by uid, never by email, which is why
+ * changing the address is safe. Single-field equality queries use Firestore's
+ * automatic indexes, so this needs no index setup.
+ */
+async function auditRecords(uid) {
+  const targets = [
+    ["members", "userId"],
+    ["scorecards", "playerId"],
+    ["scorecards", "markerId"],
+    ["seasonStandings", "memberId"],
+    ["handicapHistory", "memberId"],
+    ["posts", "authorId"],
+  ];
+
+  const counts = {};
+
+  for (const [collectionName, keyField] of targets) {
+    const label = `${collectionName}.${keyField}`;
+    try {
+      const snap = await db
+        .collection(collectionName)
+        .where(keyField, "==", uid)
+        .count()
+        .get();
+      counts[label] = snap.data().count;
+      field(label, counts[label]);
+    } catch (error) {
+      counts[label] = null;
+      field(label, `(could not read: ${error.code ?? error.message})`);
+    }
+  }
+
+  return counts;
+}
