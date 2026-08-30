@@ -8,6 +8,7 @@ import {
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   User as FirebaseUser,
+  type ActionCodeSettings,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import {
@@ -176,8 +177,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   };
 
+  // Send the reset email with a continue URL so the user lands back on
+  // GolfCaddy after choosing a new password instead of a Firebase-branded page
+  // on a domain they don't recognise. Firebase rejects continue URLs whose
+  // domain isn't listed under Auth -> Settings -> Authorized domains, so fall
+  // back to the default link rather than failing the send outright.
   const resetPassword = async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
+    const settings: ActionCodeSettings = {
+      url: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://golfcaddy.club"}/signin`,
+      handleCodeInApp: false,
+    };
+
+    try {
+      await sendPasswordResetEmail(auth, email, settings);
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (
+        code !== "auth/unauthorized-continue-uri" &&
+        code !== "auth/invalid-continue-uri"
+      ) {
+        throw error;
+      }
+      console.warn(
+        `[auth] ${settings.url} is not an authorized domain in Firebase Auth. ` +
+          "Add it under Authentication -> Settings -> Authorized domains. " +
+          "Falling back to the default Firebase reset link."
+      );
+      await sendPasswordResetEmail(auth, email);
+    }
   };
 
   const isAdmin = appUser?.role === "admin";

@@ -3,11 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
+import { parseFirebaseAuthError } from "@/lib/authErrors";
 
 export default function ForgotPasswordPage() {
   const { resetPassword } = useAuth();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -15,14 +16,36 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    // Mobile keyboards routinely autofill a trailing space and capitalise the
+    // first letter. Firebase stores emails lowercased, so normalise here the
+    // same way sign-in does.
+    const address = email.trim().toLowerCase();
     try {
-      await resetPassword(email);
-      setSent(true);
-    } catch {
-      setError("Could not send reset email. Check the address and try again.");
+      await resetPassword(address);
+      setSentTo(address);
+    } catch (err) {
+      // Firebase only ever fails this call for a real reason (bad address,
+      // rate limit, misconfigured project). Log it — without this there is no
+      // way to tell a delivery problem from a rejected request.
+      console.error("[forgot-password] reset email failed", err);
+      // With email enumeration protection on (the Firebase default) an unknown
+      // address resolves successfully instead of throwing. Show the same
+      // neutral screen when it's off so the flow doesn't leak which addresses
+      // have accounts — and doesn't read as a bug to the person resetting.
+      if ((err as { code?: string } | null)?.code === "auth/user-not-found") {
+        setSentTo(address);
+      } else {
+        setError(parseFirebaseAuthError(err));
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const tryAnotherAddress = () => {
+    setSentTo(null);
+    setEmail("");
+    setError("");
   };
 
   return (
@@ -33,12 +56,23 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-6">
-        {sent ? (
+        {sentTo ? (
           <div className="text-center">
             <div className="text-4xl mb-3">📧</div>
-            <h2 className="text-lg font-bold text-gray-800 mb-2">Email sent</h2>
+            <h2 className="text-lg font-bold text-gray-800 mb-2">Check your email</h2>
+            {/*
+              Firebase's email enumeration protection makes this call succeed
+              whether or not an account exists, so we can't honestly promise a
+              message is on its way to this address.
+            */}
+            <p className="text-gray-500 text-sm mb-4">
+              If an account exists for{" "}
+              <span className="font-semibold text-gray-700 break-all">{sentTo}</span>, a
+              reset link is on its way.
+            </p>
             <p className="text-gray-500 text-sm mb-6">
-              Check your inbox for a link to reset your password.
+              It can take a few minutes. If it hasn&apos;t arrived, check your junk or spam
+              folder — and make sure that&apos;s the address you signed up with.
             </p>
             <Link
               href="/signin"
@@ -46,6 +80,13 @@ export default function ForgotPasswordPage() {
             >
               Back to sign in
             </Link>
+            <button
+              type="button"
+              onClick={tryAnotherAddress}
+              className="mt-3 w-full text-green-600 text-sm hover:underline"
+            >
+              Try a different email
+            </button>
           </div>
         ) : (
           <>
@@ -61,6 +102,10 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 text-gray-800 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
                   placeholder="you@example.com"
                 />
