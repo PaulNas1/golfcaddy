@@ -146,6 +146,44 @@ function normalizeTeeSet(
   };
 }
 
+// A tee set is dropped whenever its holes array is not exactly 18 long, and
+// that is silent by design. When it removes every tee, say why: a changed tee
+// or hole shape otherwise reaches an admin as "no 18-hole tee data" with no
+// other clue, and the request looks perfectly successful from the outside.
+function warnIfAllTeesDropped(course: GolfCourseApiCourse, kept: number) {
+  const tees = course.tees as unknown;
+  if (kept > 0 || !tees) return;
+
+  if (typeof tees !== "object" || Array.isArray(tees)) {
+    console.warn(
+      `GolfCourseAPI course ${course.id}: unexpected tees shape ${describePayloadShape(
+        tees
+      )}`
+    );
+    return;
+  }
+
+  const grouped = tees as {
+    male?: GolfCourseApiTeeBox[];
+    female?: GolfCourseApiTeeBox[];
+  };
+  const raw = [...(grouped.male ?? []), ...(grouped.female ?? [])];
+
+  if (raw.length === 0) {
+    console.warn(
+      `GolfCourseAPI course ${course.id}: tees carried no male/female entries — ${describePayloadShape(
+        tees
+      )}`
+    );
+    return;
+  }
+
+  const holeCounts = raw.map((tee) => tee.holes?.length ?? 0).join(", ");
+  console.warn(
+    `GolfCourseAPI course ${course.id}: dropped all ${raw.length} tee sets; hole counts were [${holeCounts}], 18 required`
+  );
+}
+
 function normalizeCourse(course: GolfCourseApiCourse): SeededCourse {
   const maleTees =
     course.tees?.male
@@ -156,6 +194,9 @@ function normalizeCourse(course: GolfCourseApiCourse): SeededCourse {
       ?.map((tee) => normalizeTeeSet(course, tee, "women"))
       .filter((tee): tee is CourseTeeSet => Boolean(tee)) ?? [];
   const name = getCourseName(course);
+  const teeSets = [...maleTees, ...femaleTees];
+
+  warnIfAllTeesDropped(course, teeSets.length);
 
   return {
     id: `golfcourseapi-${course.id}`,
@@ -166,7 +207,7 @@ function normalizeCourse(course: GolfCourseApiCourse): SeededCourse {
     aliases: [course.club_name, course.course_name].filter(
       (value): value is string => Boolean(value)
     ),
-    teeSets: [...maleTees, ...femaleTees],
+    teeSets,
   };
 }
 
