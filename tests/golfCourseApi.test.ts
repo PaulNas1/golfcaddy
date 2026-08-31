@@ -2,6 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeGolfCourseApiKey } from "../lib/golfCourseApiKey.ts";
 import {
+  extractGolfCourseApiId,
+  isGolfCourseApiId,
+} from "../lib/golfCourseApiId.ts";
+import {
   GolfCourseApiError,
   classifyHttpStatus,
   describeFailure,
@@ -122,4 +126,35 @@ test("names the shape of an unexpected provider body", () => {
   assert.equal(describePayloadShape({}), "empty object");
   assert.equal(describePayloadShape(null), "null");
   assert.equal(describePayloadShape("<!doctype html>"), "string");
+});
+
+test("accepts the provider's alphanumeric course ids", () => {
+  // The provider moved from integer ids to alphanumeric ones. Coercing an id
+  // with Number() turned every real course into NaN, so the detail route
+  // rejected it with a 400 before the request ever left the app.
+  assert.equal(isGolfCourseApiId("j7rt0gct"), true);
+  assert.equal(isGolfCourseApiId("34"), true);
+  assert.equal(isGolfCourseApiId("some_course-id"), true);
+
+  assert.equal(isGolfCourseApiId(""), false);
+  assert.equal(isGolfCourseApiId(undefined), false);
+  assert.equal(isGolfCourseApiId("../../admin"), false);
+  assert.equal(isGolfCourseApiId("a/b"), false);
+  assert.equal(isGolfCourseApiId("a?b=1"), false);
+  assert.equal(isGolfCourseApiId("x".repeat(65)), false);
+});
+
+test("recovers an api id from ids stored on a saved round", () => {
+  assert.equal(extractGolfCourseApiId("golfcourseapi-j7rt0gct", null), "j7rt0gct");
+  assert.equal(
+    extractGolfCourseApiId(null, "golfcourseapi-j7rt0gct-men-blue"),
+    "j7rt0gct"
+  );
+
+  // Rounds saved before the provider changed format still hold numeric ids.
+  assert.equal(extractGolfCourseApiId("golfcourseapi-34", null), "34");
+  assert.equal(extractGolfCourseApiId(null, "golfcourseapi-34-women-red"), "34");
+
+  assert.equal(extractGolfCourseApiId("custom-course", null), null);
+  assert.equal(extractGolfCourseApiId(null, null), null);
 });

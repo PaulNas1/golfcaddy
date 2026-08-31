@@ -34,7 +34,9 @@ type GolfCourseApiTeeBox = {
 };
 
 type GolfCourseApiCourse = {
-  id: number;
+  // The provider moved from integer ids to alphanumeric ones ("j7rt0gct").
+  // Accept both: rounds saved before the change still carry numeric ids.
+  id: string | number;
   club_name?: string;
   course_name?: string;
   location?: {
@@ -157,7 +159,7 @@ function normalizeCourse(course: GolfCourseApiCourse): SeededCourse {
 
   return {
     id: `golfcourseapi-${course.id}`,
-    apiId: course.id,
+    apiId: String(course.id),
     catalogueSource: "golfcourseapi",
     name,
     location: getCourseLocation(course),
@@ -283,12 +285,12 @@ export async function searchGolfCourseApiCourses(query: string) {
     .map(normalizeCourse);
 }
 
-export async function getGolfCourseApiCourse(id: number) {
+export async function getGolfCourseApiCourse(id: string) {
   if (!isGolfCourseApiConfigured()) return null;
 
   try {
     const course = await golfCourseApiFetch<GolfCourseApiCourse>(
-      `/v1/courses/${id}`,
+      `/v1/courses/${encodeURIComponent(id)}`,
       COURSE_CACHE_SECONDS
     );
 

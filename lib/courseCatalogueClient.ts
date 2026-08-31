@@ -62,9 +62,11 @@ export async function searchGolfCourseCatalogue(
 }
 
 export async function getGolfCourseCatalogueCourse(
-  id: number
+  id: string
 ): Promise<GolfCourseDetailResult> {
-  const { ok, payload } = await requestCatalogue(`/api/golf-courses/${id}`);
+  const { ok, payload } = await requestCatalogue(
+    `/api/golf-courses/${encodeURIComponent(id)}`
+  );
 
   if (!ok || !payload) {
     return {

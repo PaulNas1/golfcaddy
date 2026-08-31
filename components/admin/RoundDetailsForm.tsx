@@ -7,6 +7,7 @@ import {
   getGolfCourseCatalogueCourse,
   searchGolfCourseCatalogue,
 } from "@/lib/courseCatalogueClient";
+import { extractGolfCourseApiId } from "@/lib/golfCourseApiId";
 import { getCourseCorrection } from "@/lib/firestore";
 import {
   type SeededCourse,
@@ -55,19 +56,6 @@ function needsTeeReview(member: AppUser): boolean {
     member.usesSeniorTees === true ||
     member.usesProBackTees === true
   );
-}
-
-function extractApiId(
-  courseId: string | null | undefined,
-  teeSetId: string | null | undefined
-): number | null {
-  const courseMatch = courseId?.match(/^golfcourseapi-(\d+)$/);
-  if (courseMatch) return Number(courseMatch[1]);
-
-  const teeSetMatch = teeSetId?.match(/^golfcourseapi-(\d+)-/);
-  if (teeSetMatch) return Number(teeSetMatch[1]);
-
-  return null;
 }
 
 const DATE_INPUT_CLASSNAME =
@@ -260,7 +248,10 @@ export default function RoundDetailsForm({
     const existingTeeSets = getRoundTeeSets(existingRound);
     if (existingTeeSets.length > 1) return;
 
-    const apiId = extractApiId(existingRound.courseId, existingRound.teeSetId);
+    const apiId = extractGolfCourseApiId(
+      existingRound.courseId,
+      existingRound.teeSetId
+    );
     if (!apiId) return;
 
     let cancelled = false;

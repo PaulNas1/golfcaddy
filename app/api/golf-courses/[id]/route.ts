@@ -7,6 +7,7 @@ import {
   describeFailure,
   toGolfCourseApiFailure,
 } from "@/lib/golfCourseApiError";
+import { isGolfCourseApiId } from "@/lib/golfCourseApiId";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +15,9 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
-  const id = Number(params.id);
+  const id = params.id?.trim() ?? "";
 
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isGolfCourseApiId(id)) {
     return NextResponse.json(
       { configured: isGolfCourseApiConfigured(), course: null },
       { status: 400 }

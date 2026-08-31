@@ -10,7 +10,7 @@ import type {
 
 export type SeededCourse = {
   id: string;
-  apiId?: number;
+  apiId?: string;
   catalogueSource?: "golfcourseapi";
   name: string;
   location: string;
