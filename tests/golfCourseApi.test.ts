@@ -13,6 +13,7 @@ import {
 } from "../lib/golfCourseApiError.ts";
 import {
   describePayloadShape,
+  toGolfCourseApiTeeBoxes,
   unwrapGolfCourseApiCourse,
 } from "../lib/golfCourseApiPayload.ts";
 
@@ -175,4 +176,27 @@ test("unwraps the course endpoint's wrapped payload", () => {
   assert.equal(unwrapGolfCourseApiCourse(null), null);
   assert.equal(unwrapGolfCourseApiCourse("nope"), null);
   assert.equal(unwrapGolfCourseApiCourse([course]), null);
+});
+
+test("reads tee lists in every shape the provider sends", () => {
+  // `tees.male.map is not a function` in production: the value is not always an
+  // array, and the TypeError took the whole search down rather than costing one
+  // course its tee data.
+  const tee = { tee_name: "Blue", holes: [] };
+
+  assert.deepEqual(toGolfCourseApiTeeBoxes([tee]), [tee]);
+  assert.deepEqual(toGolfCourseApiTeeBoxes(tee), [tee], "a single tee box");
+  assert.deepEqual(
+    toGolfCourseApiTeeBoxes({ blue: tee, white: tee }),
+    [tee, tee],
+    "a map keyed by tee name"
+  );
+
+  // Courses with no tee data at all carry an empty object, not an error.
+  assert.deepEqual(toGolfCourseApiTeeBoxes({}), []);
+
+  assert.equal(toGolfCourseApiTeeBoxes(null), null);
+  assert.equal(toGolfCourseApiTeeBoxes(undefined), null);
+  assert.equal(toGolfCourseApiTeeBoxes("Blue"), null);
+  assert.equal(toGolfCourseApiTeeBoxes(3), null);
 });

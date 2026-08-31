@@ -26,3 +26,18 @@ export function unwrapGolfCourseApiCourse(payload: unknown): unknown {
 
   return payload;
 }
+
+// tees.male / tees.female are not reliably arrays: some courses carry a single
+// tee box, some a map keyed by tee name, some an empty object. Calling .map on
+// those threw a TypeError that took the whole search down with it. Returns null
+// only when the value is not a list of tee boxes in any recognisable form.
+export function toGolfCourseApiTeeBoxes(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return null;
+
+  // One tee box rather than a list of them.
+  if ("holes" in value || "tee_name" in value) return [value];
+
+  // A map keyed by tee name. An empty object legitimately yields no tees.
+  return Object.values(value);
+}

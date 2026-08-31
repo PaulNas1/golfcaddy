@@ -9,6 +9,7 @@ import {
 } from "@/lib/golfCourseApiError";
 import {
   describePayloadShape,
+  toGolfCourseApiTeeBoxes,
   unwrapGolfCourseApiCourse,
 } from "@/lib/golfCourseApiPayload";
 import { normalizeGolfCourseApiKey } from "@/lib/golfCourseApiKey";
@@ -112,7 +113,9 @@ function normalizeTeeSet(
   tee: GolfCourseApiTeeBox,
   gender: CourseTeeSet["gender"]
 ): CourseTeeSet | null {
-  const rawHoles = tee.holes ?? [];
+  if (!tee || typeof tee !== "object") return null;
+
+  const rawHoles = Array.isArray(tee.holes) ? tee.holes : [];
   if (rawHoles.length !== 18) return null;
 
   const holes: CourseHole[] = rawHoles.map((hole, index) => {
@@ -149,57 +152,61 @@ function normalizeTeeSet(
   };
 }
 
-// A tee set is dropped whenever its holes array is not exactly 18 long, and
-// that is silent by design. When it removes every tee, say why: a changed tee
-// or hole shape otherwise reaches an admin as "no 18-hole tee data" with no
-// other clue, and the request looks perfectly successful from the outside.
-function warnIfAllTeesDropped(course: GolfCourseApiCourse, kept: number) {
-  const tees = course.tees as unknown;
-  if (kept > 0 || !tees) return;
+function normalizeTeeList(
+  course: GolfCourseApiCourse,
+  value: unknown,
+  gender: CourseTeeSet["gender"]
+): CourseTeeSet[] {
+  if (value == null) return [];
 
-  if (typeof tees !== "object" || Array.isArray(tees)) {
+  const teeBoxes = toGolfCourseApiTeeBoxes(value) as
+    | GolfCourseApiTeeBox[]
+    | null;
+
+  if (!teeBoxes) {
     console.warn(
-      `GolfCourseAPI course ${course.id}: unexpected tees shape ${describePayloadShape(
-        tees
-      )}`
+      `GolfCourseAPI course ${course.id}: ${gender} tees are ${describePayloadShape(
+        value
+      )}, expected a list`
     );
-    return;
+    return [];
   }
 
-  const grouped = tees as {
-    male?: GolfCourseApiTeeBox[];
-    female?: GolfCourseApiTeeBox[];
-  };
-  const raw = [...(grouped.male ?? []), ...(grouped.female ?? [])];
-
-  if (raw.length === 0) {
+  if (!Array.isArray(value)) {
     console.warn(
-      `GolfCourseAPI course ${course.id}: tees carried no male/female entries — ${describePayloadShape(
-        tees
-      )}`
+      `GolfCourseAPI course ${course.id}: ${gender} tees arrived as ${describePayloadShape(
+        value
+      )}, read as ${teeBoxes.length} tee set(s)`
     );
-    return;
   }
 
-  const holeCounts = raw.map((tee) => tee.holes?.length ?? 0).join(", ");
-  console.warn(
-    `GolfCourseAPI course ${course.id}: dropped all ${raw.length} tee sets; hole counts were [${holeCounts}], 18 required`
-  );
+  const teeSets = teeBoxes
+    .map((tee) => normalizeTeeSet(course, tee, gender))
+    .filter((tee): tee is CourseTeeSet => Boolean(tee));
+
+  // A tee set is dropped whenever its holes array is not exactly 18 long, and
+  // that is silent by design. When it removes every one, say which hole counts
+  // were rejected — otherwise this reaches an admin as "no 18-hole tee data"
+  // while the request itself looks completely successful.
+  if (teeBoxes.length > 0 && teeSets.length === 0) {
+    const holeCounts = teeBoxes
+      .map((tee) => (Array.isArray(tee?.holes) ? tee.holes.length : 0))
+      .join(", ");
+
+    console.warn(
+      `GolfCourseAPI course ${course.id}: dropped all ${teeBoxes.length} ${gender} tee sets; hole counts were [${holeCounts}], 18 required`
+    );
+  }
+
+  return teeSets;
 }
 
 function normalizeCourse(course: GolfCourseApiCourse): SeededCourse {
-  const maleTees =
-    course.tees?.male
-      ?.map((tee) => normalizeTeeSet(course, tee, "men"))
-      .filter((tee): tee is CourseTeeSet => Boolean(tee)) ?? [];
-  const femaleTees =
-    course.tees?.female
-      ?.map((tee) => normalizeTeeSet(course, tee, "women"))
-      .filter((tee): tee is CourseTeeSet => Boolean(tee)) ?? [];
+  const tees = course.tees as { male?: unknown; female?: unknown } | undefined;
+  const maleTees = normalizeTeeList(course, tees?.male, "men");
+  const femaleTees = normalizeTeeList(course, tees?.female, "women");
   const name = getCourseName(course);
   const teeSets = [...maleTees, ...femaleTees];
-
-  warnIfAllTeesDropped(course, teeSets.length);
 
   return {
     id: `golfcourseapi-${course.id}`,
