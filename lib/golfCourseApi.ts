@@ -5,9 +5,12 @@ import type { SeededCourse } from "@/lib/courseData";
 import {
   GolfCourseApiError,
   classifyHttpStatus,
-  describePayloadShape,
   toGolfCourseApiFailure,
 } from "@/lib/golfCourseApiError";
+import {
+  describePayloadShape,
+  unwrapGolfCourseApiCourse,
+} from "@/lib/golfCourseApiPayload";
 import { normalizeGolfCourseApiKey } from "@/lib/golfCourseApiKey";
 
 const GOLF_COURSE_API_BASE_URL = "https://api.golfcourseapi.com";
@@ -330,18 +333,17 @@ export async function getGolfCourseApiCourse(id: string) {
   if (!isGolfCourseApiConfigured()) return null;
 
   try {
-    const course = await golfCourseApiFetch<GolfCourseApiCourse>(
+    const payload = await golfCourseApiFetch<unknown>(
       `/v1/courses/${encodeURIComponent(id)}`,
       COURSE_CACHE_SECONDS
     );
+    const course = unwrapGolfCourseApiCourse(payload) as GolfCourseApiCourse | null;
 
-    // Without this a changed or wrapped body normalises into a nameless course
-    // with no tees, which reads to an admin as "no 18-hole tee data".
-    if (!course || typeof course !== "object" || course.id === undefined) {
+    if (!course || course.id === undefined) {
       throw new GolfCourseApiError(
         "bad_response",
         `GolfCourseAPI course ${id} returned an unexpected body: ${describePayloadShape(
-          course
+          payload
         )}`
       );
     }

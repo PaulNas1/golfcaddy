@@ -9,9 +9,12 @@ import {
   GolfCourseApiError,
   classifyHttpStatus,
   describeFailure,
-  describePayloadShape,
   toGolfCourseApiFailure,
 } from "../lib/golfCourseApiError.ts";
+import {
+  describePayloadShape,
+  unwrapGolfCourseApiCourse,
+} from "../lib/golfCourseApiPayload.ts";
 
 test("normalizes keys that are padded or quoted when pasted", () => {
   assert.equal(normalizeGolfCourseApiKey("abc123"), "abc123");
@@ -157,4 +160,19 @@ test("recovers an api id from ids stored on a saved round", () => {
 
   assert.equal(extractGolfCourseApiId("custom-course", null), null);
   assert.equal(extractGolfCourseApiId(null, null), null);
+});
+
+test("unwraps the course endpoint's wrapped payload", () => {
+  // /v1/courses/{id} answers { "course": {...} } while /v1/search answers
+  // { "courses": [...] } with the courses bare. Reading the wrapped body as a
+  // course gave one with no id and no tees, which reached the admin as "that
+  // course does not include 18-hole tee data".
+  const course = { id: "j7rt0gct", club_name: "Cimarron Golf Resort" };
+
+  assert.deepEqual(unwrapGolfCourseApiCourse({ course }), course);
+  assert.deepEqual(unwrapGolfCourseApiCourse(course), course);
+
+  assert.equal(unwrapGolfCourseApiCourse(null), null);
+  assert.equal(unwrapGolfCourseApiCourse("nope"), null);
+  assert.equal(unwrapGolfCourseApiCourse([course]), null);
 });

@@ -76,18 +76,6 @@ const FAILURE_MESSAGE: Record<GolfCourseApiFailure, string> = {
   bad_response: "returned an unexpected response",
 };
 
-// Names the shape of a body we did not expect. A 200 carrying the wrong shape
-// throws deep inside normalisation, where the message says nothing useful, so
-// failure messages carry this instead.
-export function describePayloadShape(payload: unknown) {
-  if (payload === null) return "null";
-  if (Array.isArray(payload)) return `array of ${payload.length}`;
-  if (typeof payload !== "object") return typeof payload;
-
-  const keys = Object.keys(payload as object);
-  return keys.length ? `object with keys [${keys.join(", ")}]` : "empty object";
-}
-
 // `subject` is a singular noun phrase naming what failed, e.g. "Golf course
 // search", so that it agrees with the verbs above.
 export function describeFailure(
