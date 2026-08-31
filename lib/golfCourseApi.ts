@@ -159,6 +159,11 @@ function normalizeTeeList(
 ): CourseTeeSet[] {
   if (value == null) return [];
 
+  // Search results carry a tee *count* here rather than the tee sets; the real
+  // ones come from /v1/courses/{id}. That is normal, so it must not warn — a
+  // search returns dozens of courses and the noise would bury real findings.
+  if (typeof value === "number") return [];
+
   const teeBoxes = toGolfCourseApiTeeBoxes(value) as
     | GolfCourseApiTeeBox[]
     | null;

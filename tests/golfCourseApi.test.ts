@@ -198,5 +198,8 @@ test("reads tee lists in every shape the provider sends", () => {
   assert.equal(toGolfCourseApiTeeBoxes(null), null);
   assert.equal(toGolfCourseApiTeeBoxes(undefined), null);
   assert.equal(toGolfCourseApiTeeBoxes("Blue"), null);
+
+  // Search results put a tee *count* here; the caller handles that before
+  // reaching this, so it is still "not a list of tee boxes".
   assert.equal(toGolfCourseApiTeeBoxes(3), null);
 });
