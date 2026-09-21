@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { format } from "date-fns";
 import { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
@@ -100,7 +101,7 @@ function buildSideWinnerMap(claims: SideClaim[]) {
 
 export default function AdminRoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
-  const { appUser } = useAuth();
+  const { appUser, isAdmin } = useAuth();
 
   // Shared data
   const [round, setRound] = useState<Round | null>(null);
@@ -661,6 +662,23 @@ export default function AdminRoundDetailPage() {
           onScorecardsChange={setScorecards}
           onUpdateSideWinner={updateSideWinner}
         />
+      )}
+
+      {/* Rebuild scoring from the gross scores already entered */}
+      {isAdmin && scorecards.length > 0 && (
+        <div className="rounded-2xl border border-surface-overlay bg-surface-muted p-4">
+          <p className="text-xs font-semibold text-ink-body">Reconcile scoring</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            If handicaps were wrong when the cards were started, rebuild strokes
+            and points from the gross scores already entered. Dry run first.
+          </p>
+          <Link
+            href={`/admin/rounds/${round.id}/reconcile`}
+            className="mt-2 inline-block text-xs font-semibold text-brand-700 hover:text-brand-800"
+          >
+            Open reconcile →
+          </Link>
+        </div>
       )}
 
       {/* Quick info read-out */}

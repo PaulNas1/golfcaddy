@@ -3465,6 +3465,76 @@ export const markAllNotificationsRead = async (notificationIds: string[]) => {
   });
   await batch.commit();
 };
+// ─── Round reconciliation writes ────────────────────────────────────────────
+
+/**
+ * Apply a recomputed round: corrected playing handicap on each card, and the
+ * strokes, net and points that follow from it on every hole.
+ *
+ * Gross scores are deliberately not in the payload — this rewrites what was
+ * *derived* from a wrong handicap, never what a player actually hit.
+ */
+export const applyRoundReconciliation = async ({
+  cards,
+  adminUid,
+}: {
+  cards: Array<{
+    scorecardId: string;
+    handicapAtTime: number;
+    totalGross: number | null;
+    totalStableford: number | null;
+    holes: Array<{
+      holeNumber: number;
+      strokesReceived: number;
+      netScore: number | null;
+      stablefordPoints: number | null;
+    }>;
+  }>;
+  adminUid: string;
+}): Promise<{ cardsWritten: number; holesWritten: number }> => {
+  const writer = createBatchedWriter();
+  let holesWritten = 0;
+
+  for (const card of cards) {
+    await writer.queue((batch) =>
+      batch.update(doc(db, "scorecards", card.scorecardId), {
+        handicapAtTime: card.handicapAtTime,
+        totalGross: card.totalGross,
+        totalStableford: card.totalStableford,
+        adminEdited: true,
+        adminEditedBy: adminUid,
+        adminEditedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    for (const hole of card.holes) {
+      await writer.queue((batch) =>
+        batch.set(
+          doc(
+            db,
+            "scorecards",
+            card.scorecardId,
+            "holeScores",
+            String(hole.holeNumber)
+          ),
+          {
+            strokesReceived: hole.strokesReceived,
+            netScore: hole.netScore,
+            stablefordPoints: hole.stablefordPoints,
+            savedAt: serverTimestamp(),
+          },
+          { merge: true }
+        )
+      );
+      holesWritten += 1;
+    }
+  }
+
+  await writer.commit();
+  return { cardsWritten: cards.length, holesWritten };
+};
+
 // ─── Destructive-action counts (Brief 3 §3) ─────────────────────────────────
 //
 // "Clear feed" and "Factory reset" are irreversible. A confirmation that says
