@@ -499,7 +499,9 @@ export default function CloseOutSection({
       {!round.resultsPublished && (
         <div className="border-t border-surface-overlay pt-3 space-y-2">
           {publishError && (
-            <p className="text-xs font-medium text-red-600">{publishError}</p>
+            <p className="whitespace-pre-line text-xs font-medium text-red-600">
+              {publishError}
+            </p>
           )}
           <p className="text-xs text-ink-muted">
             Publishing saves official results, awards ladder points, locks all
@@ -620,7 +622,7 @@ export default function CloseOutSection({
               </p>
 
               {publishError && (
-                <p className="text-xs font-medium text-red-600">
+                <p className="whitespace-pre-line text-xs font-medium text-red-600">
                   {publishError}
                 </p>
               )}

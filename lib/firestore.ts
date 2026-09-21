@@ -59,9 +59,11 @@ import type {
   SnapshotTee,
   TeeHole,
 } from "@/types";
+import { DocIdProblems } from "./docIds";
 import {
   buildSeasonStandings,
   calculateHandicapTransition,
+  collectSidePrizeWinners,
   getAverageStableford,
   getBestStableford,
   getSeasonStandingId,
@@ -2137,6 +2139,56 @@ export const publishRoundResultsWithStage3 = async ({
       getGroup(round.groupId),
     ]);
   const groupSettings = normaliseGroupSettings(group?.settings);
+
+  // Every id below is read out of stored data. One bad value used to surface
+  // as "n.split is not a function" from deep inside the SDK, which named
+  // neither the record nor the field. Check them all up front and report them
+  // together, so a broken season is one fix rather than one attempt per record.
+  const idProblems = new DocIdProblems();
+  idProblems.check(round.id, `Round ${round.roundNumber} has no id`);
+  idProblems.check(round.groupId, `Round ${round.roundNumber} has no group`);
+  scorecards.forEach((card, position) => {
+    idProblems.check(card.id, `Scorecard ${position + 1} of this round has no id`);
+    idProblems.check(
+      card.playerId,
+      `Scorecard ${position + 1} of this round has no player`
+    );
+  });
+  results.rankings.forEach((ranking) => {
+    idProblems.check(
+      ranking.playerId,
+      `${ranking.playerName || "A player"} on this round's ladder has no player id`
+    );
+  });
+  seasonResults
+    .filter((seasonResult) => seasonResult.roundId !== round.id)
+    .forEach((seasonResult) => {
+      const label = `Season ${round.season} results record "${seasonResult.id}"`;
+      idProblems.check(seasonResult.roundId, `${label} has no round`);
+      seasonResult.rankings.forEach((ranking) => {
+        idProblems.check(
+          ranking.playerId,
+          `${label} lists ${ranking.playerName || "a player"} with no player id`
+        );
+      });
+      // A side-prize winner becomes a member id too, so a broken one is just
+      // as fatal as a broken ranking.
+      collectSidePrizeWinners(seasonResult.sideResults).forEach(
+        ({ prize, winnerId }) =>
+          idProblems.check(
+            winnerId,
+            `${label} has a ${prize.toUpperCase()} winner whose player id`
+          )
+      );
+    });
+  collectSidePrizeWinners(results.sideResults).forEach(({ prize, winnerId }) =>
+    idProblems.check(
+      winnerId,
+      `This round's ${prize.toUpperCase()} winner's player id`
+    )
+  );
+  idProblems.throwIfAny("Cannot publish these results");
+
   const membersById = new Map(groupMembers.map((member) => [member.id, member]));
   const previousRoundsPlayedByMember = new Map<string, number>();
 
@@ -2196,6 +2248,15 @@ export const publishRoundResultsWithStage3 = async ({
     updatedAt: publishedAt,
     settings: groupSettings,
   });
+  const standingProblems = new DocIdProblems();
+  standings.forEach((standing) =>
+    standingProblems.check(
+      standing.memberId,
+      `${standing.memberName || "A player"} in the season ${round.season} ladder has no member id`
+    )
+  );
+  standingProblems.throwIfAny("Cannot publish these results");
+
   const usersById = new Map(activeUsers.map((user) => [user.uid, user]));
   const batch = writeBatch(db);
   const author = publishedBy ?? activeUsers.find((user) => user.role === "admin");

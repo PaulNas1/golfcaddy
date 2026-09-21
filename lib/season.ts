@@ -13,16 +13,60 @@ import {
   calculateInitialHandicap as calculateInitialHandicapCore,
   calculateNextHandicap as calculateNextHandicapCore,
   getRecentStablefordAverage as getRecentStablefordAverageCore,
-} from "./handicapEngine";
-import { normaliseGroupSettings } from "./settings";
+} from "./handicapEngine.ts";
+import { normaliseGroupSettings } from "./settings.ts";
 export { DEFAULT_HANDICAP_WINDOW };
-export type { HandicapTransition } from "./handicapEngine";
+export type { HandicapTransition } from "./handicapEngine.ts";
 
 export const getSeasonStandingId = (
   groupId: string,
   season: number,
   memberId: string
 ) => `${groupId}_${season}_${memberId}`;
+
+// ─── Side prize winners ─────────────────────────────────────────────────────
+//
+// `ntp` is a list and `ld`/`t2`/`t3` are single objects, but older records
+// predate that split and a hand-edited one can be any shape at all. Reading
+// them through here means a legacy document cannot stop a season aggregating
+// with "forEach is not a function", and gives the publish guard one place to
+// find every winner id that is about to become a document path.
+
+export type SidePrizeKey = "ntp" | "ld" | "t2" | "t3";
+
+export type SidePrizeWinner = {
+  prize: SidePrizeKey;
+  /** Unknown on purpose: validating it is the caller's job. */
+  winnerId: unknown;
+  winnerName: string | null;
+};
+
+const SIDE_PRIZE_KEYS: SidePrizeKey[] = ["ntp", "ld", "t2", "t3"];
+
+function asRecords(value: unknown): Record<string, unknown>[] {
+  const entries = Array.isArray(value) ? value : [value];
+  return entries.filter(
+    (entry): entry is Record<string, unknown> =>
+      typeof entry === "object" && entry !== null
+  );
+}
+
+export function collectSidePrizeWinners(sideResults: unknown): SidePrizeWinner[] {
+  if (typeof sideResults !== "object" || sideResults === null) return [];
+  const source = sideResults as Record<string, unknown>;
+
+  return SIDE_PRIZE_KEYS.flatMap((prize) =>
+    asRecords(source[prize])
+      // No winner is the normal case for a prize nobody won, not a problem.
+      .filter((entry) => entry.winnerId != null)
+      .map((entry) => ({
+        prize,
+        winnerId: entry.winnerId,
+        winnerName:
+          typeof entry.winnerName === "string" ? entry.winnerName : null,
+      }))
+  );
+}
 
 type BuildSeasonStandingsInput = {
   groupId: string;
@@ -105,34 +149,19 @@ export function buildSeasonStandings({
       });
     });
 
-    result.sideResults.ntp.forEach((sideResult) => {
-      if (!sideResult.winnerId) return;
-      getAccumulator(
-        sideResult.winnerId,
-        sideResult.winnerName ?? "Player"
-      ).ntpWinsSeason += 1;
-    });
-
-    if (result.sideResults.ld.winnerId) {
-      getAccumulator(
-        result.sideResults.ld.winnerId,
-        result.sideResults.ld.winnerName ?? "Player"
-      ).ldWinsSeason += 1;
-    }
-
-    if (result.sideResults.t2.winnerId) {
-      getAccumulator(
-        result.sideResults.t2.winnerId,
-        result.sideResults.t2.winnerName ?? "Player"
-      ).t2WinsSeason += 1;
-    }
-
-    if (result.sideResults.t3.winnerId) {
-      getAccumulator(
-        result.sideResults.t3.winnerId,
-        result.sideResults.t3.winnerName ?? "Player"
-      ).t3WinsSeason += 1;
-    }
+    collectSidePrizeWinners(result.sideResults).forEach(
+      ({ prize, winnerId, winnerName }) => {
+        // A winner id that is not a usable string cannot be credited to
+        // anyone. Publishing refuses outright rather than write a ladder that
+        // is quietly missing a win; the rebuild paths carry on without it.
+        if (typeof winnerId !== "string" || winnerId.trim() === "") return;
+        const standing = getAccumulator(winnerId, winnerName ?? "Player");
+        if (prize === "ntp") standing.ntpWinsSeason += 1;
+        else if (prize === "ld") standing.ldWinsSeason += 1;
+        else if (prize === "t2") standing.t2WinsSeason += 1;
+        else standing.t3WinsSeason += 1;
+      }
+    );
   });
 
   const standingsWithSeasonPoints = Array.from(accumulators.values()).map(
