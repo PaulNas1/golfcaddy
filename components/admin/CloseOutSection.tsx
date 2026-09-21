@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { sidePrizeLabel } from "@/lib/sidePrizes";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { describeWriteError } from "@/components/admin/courses/writeError";
 import Link from "next/link";
 import {
   createRound,
@@ -116,6 +117,15 @@ export default function CloseOutSection({
   onUpdateSideWinner,
 }: Props) {
   const router = useRouter();
+
+  // What actually gates publishing: a card needs a total, not a submission.
+  // Saying "waiting for players to submit" when the real blocker is a missing
+  // total sends an admin chasing the wrong thing.
+  const cardsWithTotal = scorecards.filter((card) =>
+    round.format === "stableford"
+      ? card.totalStableford != null
+      : card.totalGross != null
+  ).length;
 
   // Publish state
   const [publishing, setPublishing] = useState(false);
@@ -261,8 +271,8 @@ export default function CloseOutSection({
         }))
       );
       openRebookForm();
-    } catch {
-      setPublishError("Failed to publish results. Please try again.");
+    } catch (caught) {
+      setPublishError(describeWriteError(caught, "results"));
     } finally {
       setPublishing(false);
     }
@@ -354,10 +364,10 @@ export default function CloseOutSection({
           {!round.resultsPublished && (
             <p className="mt-0.5 text-xs text-ink-muted">
               {scorecards.length === 0
-                ? "Waiting for players to submit scorecards."
-                : `${
+                ? "No scorecards yet."
+                : `${cardsWithTotal} of ${scorecards.length} scorecards have a total · ${
                     scorecards.filter((c) => c.status !== "in_progress").length
-                  } of ${scorecards.length} scorecards submitted`}
+                  } submitted`}
             </p>
           )}
           {round.resultsPublished && round.resultsPublishedAt && (
@@ -493,8 +503,18 @@ export default function CloseOutSection({
           )}
           <p className="text-xs text-ink-muted">
             Publishing saves official results, awards ladder points, locks all
-            cards, and marks the round as Completed.
+            cards, and marks the round as Completed. Cards still in progress are
+            included as long as they have a total — submission is not required.
           </p>
+          {rankings.length === 0 && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {scorecards.length === 0
+                ? "Nothing to publish — this round has no scorecards."
+                : `Nothing to publish — none of the ${scorecards.length} scorecards has a ${
+                    round.format === "stableford" ? "Stableford" : "gross"
+                  } total. Hole scores alone are not enough; run Reconcile scoring to rebuild the totals from them.`}
+            </p>
+          )}
           <button
             type="button"
             onClick={handlePublish}
