@@ -340,6 +340,14 @@ export default function ReconcileRoundPage() {
             ))}
           </div>
 
+          {changedCount === 0 && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {result.rows.length === 0
+                ? "This round has no scorecards, so there is nothing to rebuild. Scores entered outside the app do not create cards — that would also be why publishing is blocked."
+                : "Nothing to change. Every card already holds exactly these handicaps, strokes and points, so the handicaps supplied are the ones already in use. Paste the corrected indexes to see a difference."}
+            </p>
+          )}
+
           <button
             type="button"
             onClick={apply}
