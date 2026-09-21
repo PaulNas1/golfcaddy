@@ -84,8 +84,7 @@ export type RoundFormSavePayload = {
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 type RoundDetailsFormProps = {
-  existingRound?: Round | null;
-  activeSeason?: number | null;
+  existingRound: Round;
   members: AppUser[];
   assignableMembers?: AppUser[];
   playersSummary?: string;
@@ -97,17 +96,15 @@ type RoundDetailsFormProps = {
   /** R3 — true once the round is played, or has scorecards. Set by the parent. */
   courseLocked?: boolean;
   courseLockReason?: string | null;
-  onSave: (payload: RoundFormSavePayload, notifyPlayers: boolean) => Promise<void>;
+  onSave: (payload: RoundFormSavePayload) => Promise<void>;
   saving: boolean;
   error?: string;
-  initialRoundNumber?: string;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function RoundDetailsForm({
   existingRound,
-  activeSeason,
   members,
   assignableMembers,
   playersSummary,
@@ -121,14 +118,12 @@ export default function RoundDetailsForm({
   onSave,
   saving,
   error,
-  initialRoundNumber,
 }: RoundDetailsFormProps) {
   const { appUser } = useAuth();
 
   // ─── Core form state ────────────────────────────────────────────────────────
-  const [courseId, setCourseId] = useState(existingRound?.courseId ?? "");
-  const [teeSetId, setTeeSetId] = useState(existingRound?.teeSetId ?? "");
-  const [courseName, setCourseName] = useState(existingRound?.courseName ?? "");
+  const [courseId, setCourseId] = useState(existingRound.courseId);
+  const [teeSetId, setTeeSetId] = useState(existingRound.teeSetId ?? "");
 
   const [date, setDate] = useState(() => {
     if (existingRound) {
@@ -142,23 +137,23 @@ export default function RoundDetailsForm({
   });
 
   const [roundNumber, setRoundNumber] = useState(
-    existingRound ? String(existingRound.roundNumber) : (initialRoundNumber ?? "1")
+    String(existingRound.roundNumber)
   );
 
   const [scoringFormat, setScoringFormat] = useState<ScoringFormat>(
-    existingRound?.format ?? "stableford"
+    existingRound.format
   );
 
-  const [notes, setNotes] = useState(existingRound?.notes ?? "");
+  const [notes, setNotes] = useState(existingRound.notes ?? "");
 
   const [ldHole, setLdHole] = useState(
-    existingRound?.specialHoles.ld ? String(existingRound.specialHoles.ld) : ""
+    existingRound.specialHoles.ld ? String(existingRound.specialHoles.ld) : ""
   );
   const [t2Hole, setT2Hole] = useState(
-    existingRound?.specialHoles.t2 ? String(existingRound.specialHoles.t2) : ""
+    existingRound.specialHoles.t2 ? String(existingRound.specialHoles.t2) : ""
   );
   const [t3Hole, setT3Hole] = useState(
-    existingRound?.specialHoles.t3 ? String(existingRound.specialHoles.t3) : ""
+    existingRound.specialHoles.t3 ? String(existingRound.specialHoles.t3) : ""
   );
 
   // ─── Course catalogue state ─────────────────────────────────────────────────
@@ -272,7 +267,7 @@ export default function RoundDetailsForm({
   // re-snapshotted, otherwise read straight out of the frozen snapshot.
   const activeTeeSets = useMemo<CourseTeeSet[]>(() => {
     if (pendingSnapshot) return snapshotToTeeSets(pendingSnapshot);
-    if (existingRound?.courseSnapshot) {
+    if (existingRound.courseSnapshot) {
       return snapshotToTeeSets(existingRound.courseSnapshot);
     }
     return existingRound ? getRoundTeeSets(existingRound) : [];
@@ -284,7 +279,7 @@ export default function RoundDetailsForm({
 
   const holeOptions =
     selectedTeeSet?.holes ??
-    (existingRound?.courseHoles?.length ? existingRound.courseHoles : []);
+    (existingRound.courseHoles.length ? existingRound.courseHoles : []);
 
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
 
@@ -308,14 +303,12 @@ export default function RoundDetailsForm({
     if (!existingRound) return;
     setCourseId(existingRound.courseId);
     setTeeSetId(existingRound.teeSetId ?? "");
-    setCourseName(existingRound.courseName);
-  }, [existingRound?.courseId, existingRound?.teeSetId, existingRound?.courseName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [existingRound.courseId, existingRound.teeSetId, existingRound.courseName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Course handlers ─────────────────────────────────────────────────────────
   const handleCourseChange = (nextCourseId: string) => {
     setCourseId(nextCourseId);
     setTeeSetId("");
-    setCourseName(courses.find((course) => course.id === nextCourseId)?.name ?? "");
     setLdHole("");
     setT2Hole("");
     setT3Hole("");
@@ -430,7 +423,7 @@ export default function RoundDetailsForm({
   const computePayload = (): RoundFormSavePayload => {
     const ntpHoles = selectedTeeSet
       ? getParThreeHoles(selectedTeeSet)
-      : (existingRound?.specialHoles.ntp ?? []);
+      : existingRound.specialHoles.ntp;
 
     const specialHoles: SpecialHoles = {
       ntp: ntpHoles,
@@ -473,17 +466,17 @@ export default function RoundDetailsForm({
           ...legacyRoundFieldsFromSnapshot(pendingSnapshot, teeSetId || null),
         }
       : {
-          courseId: existingRound?.courseId ?? courseId,
-          courseName: existingRound?.courseName ?? courseName.trim(),
-          courseSnapshot: existingRound?.courseSnapshot ?? null,
-          teeSetId: existingRound?.teeSetId ?? null,
-          teeSetName: existingRound?.teeSetName ?? null,
-          coursePar: existingRound?.coursePar ?? null,
-          courseRating: existingRound?.courseRating ?? null,
-          slopeRating: existingRound?.slopeRating ?? null,
-          courseHoles: existingRound?.courseHoles ?? [],
-          availableTeeSets: existingRound?.availableTeeSets ?? [],
-          courseSource: existingRound?.courseSource ?? null,
+          courseId: existingRound.courseId,
+          courseName: existingRound.courseName,
+          courseSnapshot: existingRound.courseSnapshot,
+          teeSetId: existingRound.teeSetId,
+          teeSetName: existingRound.teeSetName,
+          coursePar: existingRound.coursePar,
+          courseRating: existingRound.courseRating,
+          slopeRating: existingRound.slopeRating,
+          courseHoles: existingRound.courseHoles,
+          availableTeeSets: existingRound.availableTeeSets,
+          courseSource: existingRound.courseSource,
         };
 
     return {
@@ -498,13 +491,11 @@ export default function RoundDetailsForm({
   };
 
   // ─── Save handler ────────────────────────────────────────────────────────────
-  const courseReady = !!existingRound || (!!courseId && !!teeSetId);
-
-  const handleSave = async (notifyPlayers: boolean) => {
-    if (!courseReady || !date) return;
+  const handleSave = async () => {
+    if (!date) return;
     const parsed = parseInt(roundNumber, 10);
     if (!parsed || parsed <= 0) return;
-    await onSave(computePayload(), notifyPlayers);
+    await onSave(computePayload());
   };
 
   // ─── Render ──────────────────────────────────────────────────────────────────
@@ -735,22 +726,8 @@ export default function RoundDetailsForm({
         <CourseCardPreview
           holes={holeOptions}
           distanceUnit={appUser?.distanceUnit ?? "meters"}
-          teeSetName={selectedTeeSet?.name ?? existingRound?.teeSetName ?? undefined}
+          teeSetName={selectedTeeSet?.name ?? existingRound.teeSetName ?? undefined}
         />
-      )}
-
-      {/* Create mode: active season banner */}
-      {!existingRound && activeSeason != null && (
-        <div className="rounded-xl border border-green-100 bg-brand-50 px-3 py-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-brand-700">
-            Active season
-          </p>
-          <p className="mt-1 text-base font-semibold text-ink-title">{activeSeason}</p>
-          <p className="mt-1 text-xs text-ink-body">
-            This round will count toward Season {activeSeason}. If you are creating a new-year
-            round for a new ladder, change the active season in Admin Settings first.
-          </p>
-        </div>
       )}
 
       {/* Date */}
@@ -776,11 +753,6 @@ export default function RoundDetailsForm({
           required
           className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
         />
-        {!existingRound && (
-          <p className="text-xs text-ink-hint mt-1">
-            Auto-set to the next round in the current season. Adjust if needed.
-          </p>
-        )}
       </div>
 
       {/* Scoring format */}
@@ -887,25 +859,16 @@ export default function RoundDetailsForm({
         </div>
       )}
 
-      {/* Save buttons */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <button
-          type="button"
-          onClick={() => handleSave(false)}
-          disabled={saving}
-          className="w-full rounded-xl border border-brand-200 bg-surface-card py-2.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50 disabled:text-brand-300"
-        >
-          {saving ? "Saving..." : "Save"}
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSave(true)}
-          disabled={saving}
-          className="w-full bg-brand-600 hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
-        >
-          {saving ? "Saving..." : "Save & Notify Players"}
-        </button>
-      </div>
+      {/* Save */}
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {saving ? "Saving..." : "Save changes"}
+      </button>
+
     </div>
   );
 }

@@ -1,8 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { formatShortMemberName, getTeeTimeGroupLabel } from "@/lib/teeTimes";
+import { useEffect, useMemo, useState } from "react";
+import { formatShortMemberName } from "@/lib/teeTimes";
 import type { AppUser } from "@/types";
+
+// ─── Groups (Brief 2 §4) ────────────────────────────────────────────────────
+//
+// One name per object. A slot was previously "tee time 1", "Group 1" and
+// "Active slot: 07:00" within about 100px of each other; it is now a **Group**,
+// numbered, with its time as the subtitle, everywhere.
+//
+// The instruction text that used to sit inside the slot — where player chips
+// belong, and which persisted even when the slot was already selected — is
+// gone. A group shows an empty state or chips, never both.
+//
+// Removing a player is an × on their chip. The old press-and-hold gesture
+// needed a written sentence to be discoverable at all, which is the tell that
+// it was the wrong control.
 
 export type TeeTimeDraftValue = {
   time: string;
@@ -42,234 +56,182 @@ export default function TeeTimesEditor({
   onAddGuest,
   onRemoveGuest,
 }: TeeTimesEditorProps) {
-  const [activeTeeTimeIndex, setActiveTeeTimeIndex] = useState<number | null>(0);
-  const [pendingRemoval, setPendingRemoval] = useState<{
-    teeTimeIndex: number;
-    member: AppUser;
-  } | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(0);
   const [guestInputIndex, setGuestInputIndex] = useState<number | null>(null);
   const [guestInputValue, setGuestInputValue] = useState("");
-  const longPressTimerRef = useRef<number | null>(null);
   const availableMembers = assignableMembers ?? members;
-
-  const clearLongPressTimer = () => {
-    if (longPressTimerRef.current != null) {
-      window.clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  };
-
-  const openRemovalPrompt = (teeTimeIndex: number, member: AppUser) => {
-    clearLongPressTimer();
-    setPendingRemoval({ teeTimeIndex, member });
-  };
-
-  const confirmGuest = (teeTimeIndex: number) => {
-    const trimmed = guestInputValue.trim();
-    if (trimmed) onAddGuest(teeTimeIndex, trimmed);
-    setGuestInputIndex(null);
-    setGuestInputValue("");
-  };
-
-  const startLongPress = (teeTimeIndex: number, member: AppUser) => {
-    clearLongPressTimer();
-    longPressTimerRef.current = window.setTimeout(() => {
-      openRemovalPrompt(teeTimeIndex, member);
-    }, 500);
-  };
 
   useEffect(() => {
     if (teeTimes.length === 0) {
-      setActiveTeeTimeIndex(null);
+      setActiveIndex(null);
       return;
     }
-
-    setActiveTeeTimeIndex((current) =>
+    setActiveIndex((current) =>
       current == null ? current : Math.min(current, teeTimes.length - 1)
     );
   }, [teeTimes.length]);
 
-  useEffect(() => clearLongPressTimer, []);
+  const confirmGuest = (index: number) => {
+    const trimmed = guestInputValue.trim();
+    if (trimmed) onAddGuest(index, trimmed);
+    setGuestInputIndex(null);
+    setGuestInputValue("");
+  };
 
-  const assignedPlayerIndexById = useMemo(() => {
-    const playerIndexMap = new Map<string, number>();
-
-    teeTimes.forEach((teeTime, teeTimeIndex) => {
-      teeTime.playerIds.forEach((playerId) => {
-        playerIndexMap.set(playerId, teeTimeIndex);
-      });
+  const groupIndexByPlayerId = useMemo(() => {
+    const map = new Map<string, number>();
+    teeTimes.forEach((teeTime, index) => {
+      teeTime.playerIds.forEach((playerId) => map.set(playerId, index));
     });
-
-    return playerIndexMap;
+    return map;
   }, [teeTimes]);
 
-  const activeTeeTime =
-    activeTeeTimeIndex == null ? null : teeTimes[activeTeeTimeIndex] ?? null;
+  const activeGroup = activeIndex == null ? null : teeTimes[activeIndex] ?? null;
 
   return (
-    <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-ink-title">Tee Times</h2>
+    <div className="space-y-3 rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-semibold text-ink-title">Groups</h2>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onRandomise}
-            className="flex items-center gap-1 rounded-lg border border-surface-overlay px-2.5 py-1.5 text-xs font-medium text-ink-muted hover:border-ink-muted transition-colors"
+            className="rounded-lg border border-surface-overlay px-2.5 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-ink-muted"
           >
             ⇄ Randomise
           </button>
           <button
             type="button"
             onClick={onAddTeeTime}
-            className="flex items-center gap-0.5 rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-brand-500 transition-colors"
+            className="rounded-lg bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-500"
           >
-            + Add tee time
+            + Add group
           </button>
         </div>
       </div>
-      <p className="text-xs text-ink-hint">
-        Click a tee slot, then assign players from the list below. Players can
-        only belong to one tee time at a time.
-      </p>
-      <p className="text-xs text-ink-hint">
-        Press and hold a player chip in a tee slot to remove them without
-        changing their RSVP.
-      </p>
+
       {playersSummary && (
         <p className="text-xs text-ink-action">{playersSummary}</p>
       )}
 
       <div className="space-y-3">
         {teeTimes.map((teeTime, index) => {
-          const isActive = index === activeTeeTimeIndex;
-          const groupLabel = getTeeTimeGroupLabel(
-            teeTime.playerIds,
-            teeTime.guestNames,
-            members
-          );
-          const groupCount = teeTime.playerIds.length + teeTime.guestNames.length;
+          const isActive = index === activeIndex;
+          const playerCount = teeTime.playerIds.length + teeTime.guestNames.length;
+          const isEmpty = playerCount === 0;
 
           return (
-            <button
+            <div
               key={index}
-              type="button"
-              onClick={() =>
-                setActiveTeeTimeIndex((current) =>
-                  current === index ? null : index
-                )
-              }
-              className={`w-full rounded-xl border p-3 text-left transition-colors ${
+              className={`rounded-xl border p-3 transition-colors ${
                 isActive
                   ? "border-surface-selectedBorder bg-surface-selected"
-                  : "border-surface-overlay bg-surface-muted hover:border-surface-overlay"
+                  : "border-surface-overlay bg-surface-muted"
               }`}
             >
-              <div className="space-y-2">
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="time"
-                    value={teeTime.time}
-                    onChange={(event) =>
-                      onUpdateTeeTimeTime(index, event.target.value)
-                    }
-                    onClick={(event) => event.stopPropagation()}
-                    className="w-32 px-3 py-2.5 rounded-xl border border-surface-overlay bg-surface-card text-ink-title text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  />
-                  <div
-                    className={`flex-1 min-w-0 rounded-xl border px-3 py-2.5 text-sm ${
-                      isActive
-                        ? "border-surface-selectedBorder bg-surface-card text-ink-title"
-                        : "border-surface-overlay bg-surface-card text-ink-title"
-                    }`}
-                  >
-                    {groupLabel || "Tap this tee time, then choose players below"}
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-3">
-                  <span className="rounded-full bg-surface-card px-3 py-1 text-xs font-medium text-ink-muted">
-                    {groupCount} player{groupCount === 1 ? "" : "s"}
+              {/* Identity: Group N, with the time as its subtitle */}
+              <div className="flex items-start justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveIndex((current) => (current === index ? null : index))
+                  }
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <span className="block text-sm font-semibold text-ink-title">
+                    Group {index + 1}
+                    {isActive && (
+                      <span className="ml-2 rounded-full bg-brand-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-800">
+                        Selected
+                      </span>
+                    )}
                   </span>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setGuestInputIndex(index);
-                      setGuestInputValue("");
-                    }}
-                    className="text-ink-muted text-xs hover:text-ink-action transition-colors"
-                  >
-                    Add guest
-                  </button>
-                  {teeTimes.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveTeeTime(index);
-                      }}
-                      className="text-red-500 text-xs hover:underline"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
+                  <span className="block text-xs text-ink-muted">
+                    {playerCount} player{playerCount === 1 ? "" : "s"}
+                  </span>
+                </button>
+
+                <input
+                  type="time"
+                  value={teeTime.time}
+                  onChange={(event) => onUpdateTeeTimeTime(index, event.target.value)}
+                  aria-label={`Group ${index + 1} tee time`}
+                  className="w-28 shrink-0 rounded-xl border border-surface-overlay bg-surface-card px-2 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
               </div>
 
-              {(teeTime.guestNames.length > 0 || teeTime.playerIds.length > 0) && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {teeTime.playerIds.map((playerId) => {
-                    const member = members.find((item) => item.uid === playerId);
-                    if (!member) return null;
-
-                    return (
-                      <button
-                        key={playerId}
-                        type="button"
-                        onClick={(event) => event.stopPropagation()}
-                        onMouseDown={(event) => {
-                          event.stopPropagation();
-                          startLongPress(index, member);
-                        }}
-                        onMouseUp={clearLongPressTimer}
-                        onMouseLeave={clearLongPressTimer}
-                        onTouchStart={(event) => {
-                          event.stopPropagation();
-                          startLongPress(index, member);
-                        }}
-                        onTouchEnd={clearLongPressTimer}
-                        onTouchCancel={clearLongPressTimer}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          openRemovalPrompt(index, member);
-                        }}
-                        className="rounded-lg border border-brand-200 dark:border-brand-700 bg-surface-card px-2.5 py-1 text-xs font-medium text-ink-action"
+              {/* Members: an empty state OR chips — never both */}
+              <div className="mt-2">
+                {isEmpty ? (
+                  <p className="rounded-lg border border-dashed border-surface-overlay px-3 py-2 text-xs text-ink-hint">
+                    {isActive ? "Pick players below" : "Empty"}
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {teeTime.playerIds.map((playerId) => {
+                      const member = members.find((item) => item.uid === playerId);
+                      if (!member) return null;
+                      return (
+                        <span
+                          key={playerId}
+                          className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-surface-card px-2 py-1 text-xs font-medium text-ink-action dark:border-brand-700"
+                        >
+                          {formatShortMemberName(member, members)}
+                          <button
+                            type="button"
+                            onClick={() => onRemovePlayer(index, member)}
+                            aria-label={`Remove ${member.displayName} from Group ${index + 1}`}
+                            className="text-ink-muted transition-colors hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      );
+                    })}
+                    {teeTime.guestNames.map((guestName) => (
+                      <span
+                        key={guestName}
+                        className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
                       >
-                        {formatShortMemberName(member, members)}
-                      </button>
-                    );
-                  })}
-                  {teeTime.guestNames.map((guestName) => (
-                    <button
-                      key={guestName}
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onRemoveGuest(index, guestName);
-                      }}
-                      className="rounded-lg border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300 px-2.5 py-1 text-xs font-medium"
-                    >
-                      {guestName} ×
-                    </button>
-                  ))}
-                </div>
-              )}
+                        {guestName}
+                        <button
+                          type="button"
+                          onClick={() => onRemoveGuest(index, guestName)}
+                          aria-label={`Remove guest ${guestName} from Group ${index + 1}`}
+                          className="transition-colors hover:text-red-500"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-2 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGuestInputIndex(index);
+                    setGuestInputValue("");
+                  }}
+                  className="text-xs text-ink-muted transition-colors hover:text-ink-action"
+                >
+                  Add guest
+                </button>
+                {teeTimes.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTeeTime(index)}
+                    className="text-xs text-red-500 hover:underline"
+                  >
+                    Remove group
+                  </button>
+                )}
+              </div>
 
               {guestInputIndex === index && (
-                <div
-                  className="mt-2 space-y-2"
-                  onClick={(event) => event.stopPropagation()}
-                >
+                <div className="mt-2 space-y-2">
                   <input
                     // eslint-disable-next-line jsx-a11y/no-autofocus
                     autoFocus
@@ -298,8 +260,7 @@ export default function TeeTimesEditor({
                     </button>
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
+                      onClick={() => {
                         setGuestInputIndex(null);
                         setGuestInputValue("");
                       }}
@@ -310,110 +271,59 @@ export default function TeeTimesEditor({
                   </div>
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>
 
+      {/* Player picker — targets whichever group is selected */}
       <div className="rounded-xl border border-surface-overlay bg-surface-muted p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-ink-title">
-              {activeTeeTime && activeTeeTimeIndex != null
-                ? `Assign players to tee time ${activeTeeTimeIndex + 1}`
-                : "Assigned players"}
-            </p>
-            <p className="text-xs text-ink-muted">
-              {activeTeeTime?.time
-                ? `Active slot: ${activeTeeTime.time}`
-                : activeTeeTimeIndex != null
-                ? `Active slot: Group ${activeTeeTimeIndex + 1}`
-                : "Tap a tee time above to assign or move players."}
-            </p>
-          </div>
-          {activeTeeTime && (
-            <span className="rounded-full bg-surface-card px-3 py-1 text-xs font-medium text-ink-muted">
-              {activeTeeTime.playerIds.length} player
-              {activeTeeTime.playerIds.length === 1 ? "" : "s"}
+        <p className="text-sm font-semibold text-ink-title">
+          {activeIndex == null
+            ? "Select a group above"
+            : `Add to Group ${activeIndex + 1}`}
+          {activeGroup?.time ? (
+            <span className="ml-1 font-normal text-ink-muted">
+              · {activeGroup.time}
             </span>
-          )}
-        </div>
+          ) : null}
+        </p>
 
         <div className="mt-3 flex flex-wrap gap-2">
           {availableMembers.length === 0 && (
             <p className="text-xs text-ink-hint">{emptyPlayersMessage}</p>
           )}
           {availableMembers.map((member) => {
-            const assignedIndex = assignedPlayerIndexById.get(member.uid);
-            const isAssignedToActive = assignedIndex === activeTeeTimeIndex;
+            const assignedIndex = groupIndexByPlayerId.get(member.uid);
             const isAssigned = assignedIndex !== undefined;
-            const assignedLabel =
-              assignedIndex !== undefined
-                ? teeTimes[assignedIndex]?.time || `Group ${assignedIndex + 1}`
-                : null;
+            const isInActiveGroup = assignedIndex === activeIndex;
 
             return (
               <button
                 key={member.uid}
                 type="button"
                 onClick={() => {
-                  if (activeTeeTimeIndex == null) return;
-                  onAssignPlayer(activeTeeTimeIndex, member);
+                  if (activeIndex == null) return;
+                  onAssignPlayer(activeIndex, member);
                 }}
-                disabled={activeTeeTimeIndex == null}
+                disabled={activeIndex == null}
                 className={`rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                  activeTeeTimeIndex != null && isAssignedToActive
+                  activeIndex != null && isInActiveGroup
                     ? "border-brand-600 bg-brand-600 text-white"
                     : isAssigned
                     ? "border-surface-selectedBorder bg-surface-selected text-ink-action"
-                    : activeTeeTimeIndex != null
+                    : activeIndex != null
                     ? "border-surface-overlay bg-surface-card text-ink-body hover:border-surface-selectedBorder hover:text-ink-action"
                     : "border-surface-overlay bg-surface-card text-ink-hint"
                 }`}
               >
                 {formatShortMemberName(member, members)}
-                {assignedLabel ? ` · ${assignedLabel}` : ""}
+                {isAssigned ? ` · Group ${assignedIndex! + 1}` : ""}
               </button>
             );
           })}
         </div>
       </div>
-
-      {pendingRemoval && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-surface-card p-5 shadow-xl">
-            <h3 className="text-base font-semibold text-ink-title">
-              Remove player from tee slot?
-            </h3>
-            <p className="mt-2 text-sm text-ink-body">
-              {formatShortMemberName(pendingRemoval.member, members)} will be
-              removed from this tee time only. Their RSVP will stay as Going.
-            </p>
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setPendingRemoval(null)}
-                className="rounded-xl border border-surface-overlay px-4 py-2 text-sm font-medium text-ink-body"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  onRemovePlayer(
-                    pendingRemoval.teeTimeIndex,
-                    pendingRemoval.member
-                  );
-                  setPendingRemoval(null);
-                }}
-                className="rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white"
-              >
-                Remove player
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

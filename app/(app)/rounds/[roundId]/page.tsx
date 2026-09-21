@@ -692,9 +692,9 @@ export default function RoundDetailPage() {
       if (round.teeTimes.length === 0) return null;
       return (
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
-          <h2 className="font-semibold text-ink-title mb-3">Tee Times</h2>
+          <h2 className="font-semibold text-ink-title mb-3">Groups</h2>
           <div className="divide-y divide-surface-overlay">
-            {round.teeTimes.map((teeTime) => {
+            {round.teeTimes.map((teeTime, groupIndex) => {
               const isMyGroup = appUser?.uid != null && teeTime.playerIds?.includes(appUser.uid);
               return (
                 <div
@@ -705,7 +705,10 @@ export default function RoundDetailPage() {
                 >
                   <div className="flex items-center gap-2">
                     <span className={`font-semibold ${isMyGroup ? "text-brand-700" : "text-ink-title"}`}>
-                      {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
+                      Group {groupIndex + 1}
+                      <span className="ml-1.5 font-normal text-ink-muted">
+                        {teeTime.time ? formatTeeTime(teeTime.time) : "TBC"}
+                      </span>
                     </span>
                     {isMyGroup && (
                       <span className="rounded-full bg-brand-100 px-1.5 py-0.5 text-xs font-semibold text-brand-700">

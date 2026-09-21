@@ -32,6 +32,7 @@ import {
 import RoundDetailsForm, {
   type RoundFormSavePayload,
 } from "@/components/admin/RoundDetailsForm";
+import NotifyPlayersSection from "@/components/admin/NotifyPlayersSection";
 import RsvpRosterSection from "@/components/admin/RsvpRosterSection";
 import RoundStatusSection from "@/components/admin/RoundStatusSection";
 import CloseOutSection from "@/components/admin/CloseOutSection";
@@ -367,10 +368,34 @@ export default function AdminRoundDetailPage() {
     }
   };
 
-  const handleSaveDetails = async (
-    payload: RoundFormSavePayload,
-    notifyPlayers: boolean
-  ) => {
+  /**
+   * Brief 2 — notifying players is a separate, deliberate act, not a variant
+   * of save. It opens RSVPs, creates a pending RSVP for anyone without one,
+   * and sends a notification to every active member.
+   */
+  const handleNotifyPlayers = async () => {
+    if (!round) return;
+    setSaving(true);
+    try {
+      await notifyRoundPlayers({
+        round,
+        activeUsers: members,
+        mode: round.rsvpOpen ? "updated" : "created",
+      });
+      const refreshed = await getRound(round.id);
+      if (refreshed) setRound(refreshed);
+      setSuccess(
+        `Notified ${members.length} player${members.length === 1 ? "" : "s"}`
+      );
+      setTimeout(() => setSuccess(""), 3000);
+    } catch {
+      setDetailsError("Failed to notify players.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDetails = async (payload: RoundFormSavePayload) => {
     if (!round) return;
     setSaving(true);
     setDetailsError("");
@@ -389,8 +414,6 @@ export default function AdminRoundDetailPage() {
         ...round,
         ...payload,
         playerTeeAssignments: savedPlayerTeeAssignments,
-        rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
-        rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
       };
 
       const teeTimesChanged =
@@ -443,17 +466,7 @@ export default function AdminRoundDetailPage() {
         ...roundFields,
         ...coursePatch,
         playerTeeAssignments: savedPlayerTeeAssignments,
-        rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
-        rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
       });
-
-      if (notifyPlayers) {
-        await notifyRoundPlayers({
-          round: updatedRound,
-          activeUsers: members,
-          mode: round.rsvpOpen ? "updated" : "created",
-        });
-      }
 
       if (alertRecipientIds.length > 0 && teeTimesChanged) {
         await createNotificationsForUsers({
@@ -483,11 +496,7 @@ export default function AdminRoundDetailPage() {
 
       setRound(updatedRound);
       setPlayerTeeAssignments(savedPlayerTeeAssignments);
-      setSuccess(
-        notifyPlayers
-          ? "Round details saved and players notified"
-          : "Round details updated"
-      );
+      setSuccess("Round details updated");
       setTimeout(() => setSuccess(""), 3000);
     } catch {
       setDetailsError("Failed to save round details. Please try again.");
@@ -597,8 +606,8 @@ export default function AdminRoundDetailPage() {
         playersSummary={`Showing accepted players only: ${acceptedMembers.length}`}
         emptyPlayersMessage={
           round.rsvpOpen
-            ? "No accepted players yet. Tee-time groups can be filled after players RSVP."
-            : "No RSVP'd players yet. Use Save & Notify Players first, then assign tee times after members respond."
+            ? "No accepted players yet. Groups can be filled once players RSVP."
+            : "No RSVP'd players yet. Use Notify players above, then fill groups once members respond."
         }
         teeTimes={teeTimes}
         onTeeTimes={setTeeTimes}
@@ -609,6 +618,14 @@ export default function AdminRoundDetailPage() {
         onSave={handleSaveDetails}
         saving={saving}
         error={detailsError}
+      />
+
+      {/* Notify players — a deliberate act, not a variant of save */}
+      <NotifyPlayersSection
+        round={round}
+        recipientCount={members.length}
+        onNotify={handleNotifyPlayers}
+        busy={saving}
       />
 
       {/* RSVP roster: view and respond on behalf of players */}
