@@ -19,6 +19,7 @@ import {
   validateStrokeIndexNotSequential,
 } from "@/lib/courseValidation";
 import { genderLabel } from "@/components/admin/courses/TeeIssueList";
+import { describeWriteError } from "@/components/admin/courses/writeError";
 import type { Course, CourseTee } from "@/types";
 
 const INPUT_CLASSNAME =
@@ -87,7 +88,11 @@ export default function CourseEditorPage() {
   };
 
   const handleSaveCourse = async () => {
-    if (!appUser?.groupId || !name.trim()) return;
+    if (!appUser?.groupId) return;
+    if (!name.trim()) {
+      setError("Enter a course name before saving.");
+      return;
+    }
     setSaving(true);
     setError("");
 
@@ -118,8 +123,8 @@ export default function CourseEditorPage() {
           : current
       );
       flash("Course saved.");
-    } catch {
-      setError("Failed to save the course.");
+    } catch (caught) {
+      setError(describeWriteError(caught, "course"));
     } finally {
       setSaving(false);
     }
@@ -144,8 +149,8 @@ export default function CourseEditorPage() {
       await setCourseArchived(appUser.groupId, courseId, nextArchived);
       setCourse({ ...course, archived: nextArchived });
       flash(nextArchived ? "Course archived." : "Course restored.");
-    } catch {
-      setError("Failed to update the course.");
+    } catch (caught) {
+      setError(describeWriteError(caught, "course"));
     } finally {
       setSaving(false);
     }
@@ -164,8 +169,8 @@ export default function CourseEditorPage() {
         holes: tee.holes.map((hole) => ({ ...hole })),
       });
       router.push(`/admin/courses/${courseId}/tees/${newId}`);
-    } catch {
-      setError("Failed to duplicate the tee.");
+    } catch (caught) {
+      setError(describeWriteError(caught, "tee"));
       setSaving(false);
     }
   };
@@ -182,8 +187,8 @@ export default function CourseEditorPage() {
       await deleteCourseTee(appUser.groupId, courseId, tee.id);
       await loadTees();
       flash("Tee deleted.");
-    } catch {
-      setError("Failed to delete the tee.");
+    } catch (caught) {
+      setError(describeWriteError(caught, "tee"));
     } finally {
       setSaving(false);
     }
@@ -238,7 +243,7 @@ export default function CourseEditorPage() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Gardiners Run"
+            placeholder="e.g. Gardiners Run"
             className={INPUT_CLASSNAME}
           />
         </div>
@@ -252,7 +257,7 @@ export default function CourseEditorPage() {
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="Lilydale, VIC"
+            placeholder="e.g. Lilydale, VIC"
             className={INPUT_CLASSNAME}
           />
         </div>
@@ -280,8 +285,8 @@ export default function CourseEditorPage() {
         <button
           type="button"
           onClick={handleSaveCourse}
-          disabled={saving || !name.trim() || (!isNew && !dirty)}
-          className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-400"
+          disabled={saving || (!isNew && !dirty)}
+          className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving…" : isNew ? "Create course" : "Save course"}
         </button>

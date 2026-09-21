@@ -19,6 +19,7 @@ import {
   warningIssues,
 } from "@/lib/courseValidation";
 import { TeeIssueList } from "@/components/admin/courses/TeeIssueList";
+import { describeWriteError } from "@/components/admin/courses/writeError";
 import type { Course, TeeGender, TeeHole } from "@/types";
 
 const INPUT_CLASSNAME =
@@ -177,7 +178,11 @@ export default function TeeEditorPage() {
   };
 
   const handleSave = async () => {
-    if (!appUser?.groupId || blocked || !name.trim()) return;
+    if (!appUser?.groupId || blocked) return;
+    if (!name.trim()) {
+      setError("Give this tee a name before saving.");
+      return;
+    }
 
     if (warnings.length > 0) {
       const confirmed = window.confirm(
@@ -206,8 +211,8 @@ export default function TeeEditorPage() {
         await updateCourseTee(appUser.groupId, courseId, teeId, payload);
       }
       router.push(`/admin/courses/${courseId}`);
-    } catch {
-      setError("Failed to save the tee.");
+    } catch (caught) {
+      setError(describeWriteError(caught, "tee"));
       setSaving(false);
     }
   };
@@ -247,7 +252,7 @@ export default function TeeEditorPage() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Men's White"
+            placeholder="e.g. Men's White"
             className={INPUT_CLASSNAME}
           />
         </div>
@@ -438,8 +443,8 @@ export default function TeeEditorPage() {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || blocked || !name.trim()}
-          className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-400"
+          disabled={saving || blocked}
+          className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save tee"}
         </button>

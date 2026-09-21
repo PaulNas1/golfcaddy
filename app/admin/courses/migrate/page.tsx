@@ -296,7 +296,7 @@ export default function CourseMigrationPage() {
           type="button"
           onClick={runPass1}
           disabled={busy}
-          className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-400"
+          className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Run Pass 1 report
         </button>
@@ -443,7 +443,7 @@ export default function CourseMigrationPage() {
               }
             }}
             disabled={busy}
-            className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-brand-400"
+            className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Freeze
           </button>

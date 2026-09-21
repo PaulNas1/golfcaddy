@@ -901,7 +901,7 @@ export default function RoundDetailsForm({
           type="button"
           onClick={() => handleSave(true)}
           disabled={saving}
-          className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          className="w-full bg-brand-600 hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
         >
           {saving ? "Saving..." : "Save & Notify Players"}
         </button>
