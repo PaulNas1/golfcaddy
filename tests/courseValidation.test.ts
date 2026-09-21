@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   blankHoles,
   isBlocked,
-  parsePastedTee,
   teeTotals,
   validateMetres,
   validatePar,
@@ -213,99 +212,4 @@ test("teeTotals splits Out / In / Total", () => {
 
 test("teeTotals has no In on a 9-hole course", () => {
   assert.equal(teeTotals(blankHoles(9)).in, null);
-});
-
-// ─── Paste import ───────────────────────────────────────────────────────────
-
-test("paste parses 18 tab-separated par/index/metres rows", () => {
-  const pasted = PARS.map(
-    (par, position) => `${par}\t${RINGWOOD_INDEX[position]}\t${METRES[position]}`
-  ).join("\n");
-
-  const result = parsePastedTee(pasted, 18);
-  assert.deepEqual(result.errors, []);
-  assert.equal(result.rowCount, 18);
-  assert.equal(result.skippedHeader, false);
-  assert.deepEqual(result.holes, holes());
-});
-
-test("paste skips a header row", () => {
-  const pasted = [
-    "Par\tIndex\tMetres",
-    ...PARS.map(
-      (par, position) => `${par}\t${RINGWOOD_INDEX[position]}\t${METRES[position]}`
-    ),
-  ].join("\n");
-
-  const result = parsePastedTee(pasted, 18);
-  assert.equal(result.skippedHeader, true);
-  assert.deepEqual(result.errors, []);
-  assert.deepEqual(result.holes, holes());
-});
-
-test("paste drops a leading hole-number column", () => {
-  const pasted = PARS.map(
-    (par, position) =>
-      `${position + 1}\t${par}\t${RINGWOOD_INDEX[position]}\t${METRES[position]}`
-  ).join("\n");
-
-  const result = parsePastedTee(pasted, 18);
-  assert.equal(result.droppedHoleColumn, true);
-  assert.deepEqual(result.errors, []);
-  assert.deepEqual(result.holes, holes());
-});
-
-test("paste accepts commas and spaces, and a metres suffix", () => {
-  const pasted = PARS.map(
-    (par, position) =>
-      `${par}, ${RINGWOOD_INDEX[position]}, ${METRES[position]}m`
-  ).join("\n");
-
-  const result = parsePastedTee(pasted, 18);
-  assert.deepEqual(result.errors, []);
-  assert.deepEqual(result.holes, holes());
-});
-
-test("paste accepts two columns and leaves distances for V4 to flag", () => {
-  const pasted = PARS.map(
-    (par, position) => `${par}\t${RINGWOOD_INDEX[position]}`
-  ).join("\n");
-
-  const result = parsePastedTee(pasted, 18);
-  assert.deepEqual(result.errors, []);
-  assert.ok(result.holes.every((hole) => hole.metres === 0));
-  assert.ok(validateMetres(result.holes).length > 0);
-});
-
-test("an unreadable row blanks its own hole and never shifts the others", () => {
-  const rows = PARS.map(
-    (par, position) => `${par}\t${RINGWOOD_INDEX[position]}\t${METRES[position]}`
-  );
-  rows[4] = "rain delay";
-
-  const result = parsePastedTee(rows.join("\n"), 18);
-  assert.equal(result.errors.length, 1);
-  assert.match(result.errors[0], /Row 5/);
-
-  // Hole 5 is blank — and blocked by V1 — but hole 6 onwards is untouched.
-  assert.equal(result.holes[4].index, 0);
-  assert.equal(result.holes[5].index, RINGWOOD_INDEX[5]);
-  assert.equal(result.holes[17].index, RINGWOOD_INDEX[17]);
-  assert.ok(isBlocked(validateStrokeIndex(result.holes, 18)));
-});
-
-test("paste reports the wrong row count", () => {
-  const pasted = PARS.slice(0, 9)
-    .map((par, position) => `${par}\t${RINGWOOD_INDEX[position]}\t${METRES[position]}`)
-    .join("\n");
-
-  const result = parsePastedTee(pasted, 18);
-  assert.ok(result.errors.some((error) => /Pasted 9 rows but this course plays 18 holes/.test(error)));
-});
-
-test("paste of nothing yields a blank card and no errors", () => {
-  const result = parsePastedTee("   \n\n  ", 18);
-  assert.deepEqual(result.errors, []);
-  assert.equal(result.rowCount, 0);
-  assert.equal(result.holes.length, 18);
 });

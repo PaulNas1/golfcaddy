@@ -84,8 +84,8 @@ export default function AdminCoursesPage() {
         <div className="rounded-2xl border border-surface-overlay bg-surface-card p-6 text-center shadow-sm">
           <p className="text-sm font-semibold text-ink-title">No courses yet</p>
           <p className="mt-1 text-sm text-ink-muted">
-            Add your first course, then type its scorecard into a tee — or paste
-            it straight off the card.
+            Add your first course, then enter its scorecard into a tee: par,
+            stroke index and distance for every hole.
           </p>
           <Link
             href="/admin/courses/new"

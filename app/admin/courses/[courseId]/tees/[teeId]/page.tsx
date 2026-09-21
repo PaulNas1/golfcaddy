@@ -13,7 +13,6 @@ import {
 import {
   blankHoles,
   isBlocked,
-  parsePastedTee,
   teeTotals,
   validateTee,
   warningIssues,
@@ -75,10 +74,6 @@ export default function TeeEditorPage() {
   const [courseRating, setCourseRating] = useState("");
   const [slope, setSlope] = useState("");
   const [rows, setRows] = useState<RowDraft[]>([]);
-
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [pasteText, setPasteText] = useState("");
-  const [pasteFeedback, setPasteFeedback] = useState<string[]>([]);
 
   const holeCount = course?.holeCount ?? 18;
 
@@ -153,28 +148,6 @@ export default function TeeEditorPage() {
         index === position ? { ...row, [field]: value } : row
       )
     );
-  };
-
-  const handlePaste = () => {
-    const result = parsePastedTee(pasteText, holeCount);
-    const feedback: string[] = [];
-
-    if (result.rowCount === 0) {
-      setPasteFeedback(["Nothing to read — paste 18 rows of par, index, metres."]);
-      return;
-    }
-    if (result.skippedHeader) feedback.push("Skipped a header row.");
-    if (result.droppedHoleColumn) {
-      feedback.push("Ignored a leading hole-number column.");
-    }
-    feedback.push(
-      `Read ${result.rowCount} ${result.rowCount === 1 ? "row" : "rows"}.`
-    );
-    feedback.push(...result.errors);
-
-    setRows(toDrafts(result.holes));
-    setPasteFeedback(feedback);
-    setPasteText("");
   };
 
   const handleSave = async () => {
@@ -308,57 +281,6 @@ export default function TeeEditorPage() {
             />
           </div>
         </div>
-      </div>
-
-      {/* ── Paste import ──────────────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-ink-title">Paste from a scorecard</h2>
-            <p className="mt-1 text-xs text-ink-muted">
-              {holeCount} rows of <code>par index metres</code>, separated by
-              tabs, commas or spaces. A header row is skipped automatically.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setPasteOpen((current) => !current)}
-            className="shrink-0 rounded-lg border border-surface-overlay bg-surface-muted px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-surface-overlay"
-            aria-expanded={pasteOpen}
-          >
-            {pasteOpen ? "Hide" : "Paste"}
-          </button>
-        </div>
-
-        {pasteOpen && (
-          <div className="mt-3 space-y-2">
-            <textarea
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              rows={6}
-              placeholder={"4\t15\t343\n4\t1\t372\n3\t8\t155\n…"}
-              className="w-full rounded-xl border border-surface-overlay bg-surface-card px-3 py-2.5 font-mono text-xs text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-            <button
-              type="button"
-              onClick={handlePaste}
-              disabled={!pasteText.trim()}
-              className="w-full rounded-xl border border-brand-200 bg-surface-card py-2 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50 disabled:text-brand-300"
-            >
-              Fill the table
-            </button>
-          </div>
-        )}
-
-        {pasteFeedback.length > 0 && (
-          <ul className="mt-2 space-y-1">
-            {pasteFeedback.map((line) => (
-              <li key={line} className="text-xs text-ink-muted">
-                {line}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       {/* ── The table ─────────────────────────────────────────────────────── */}
