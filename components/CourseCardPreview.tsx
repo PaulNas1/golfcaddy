@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CourseHole, DistanceUnit } from "@/types";
 
 type SpecialHoles = {
@@ -100,6 +100,35 @@ function TotalRow({ holes, unit }: { holes: CourseHole[]; unit: DistanceUnit }) 
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+export interface CourseCardTee {
+  id: string;
+  name: string;
+  holes: CourseHole[];
+}
+
+/**
+ * The card for one tee.
+ *
+ * Pass `tees` (admin) to make it switchable: a round's snapshot holds every
+ * tee on the course, and players can be assigned to any of them, so an admin
+ * checking a women's assignment needs to be able to read the women's card.
+ * Without `tees` it renders exactly one card, which is what the player-facing
+ * screens want — they already resolve the viewer's own tee.
+ */
 export function CourseCardPreview({
   holes,
   distanceUnit = "meters",
@@ -107,6 +136,8 @@ export function CourseCardPreview({
   note,
   teeSetName,
   defaultOpen = false,
+  tees,
+  activeTeeId,
 }: {
   holes: CourseHole[];
   distanceUnit?: DistanceUnit;
@@ -114,17 +145,65 @@ export function CourseCardPreview({
   note?: string;
   teeSetName?: string;
   defaultOpen?: boolean;
+  tees?: CourseCardTee[];
+  activeTeeId?: string | null;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [selectedTeeId, setSelectedTeeId] = useState(activeTeeId ?? "");
 
-  if (holes.length !== 18) return null;
+  // Follow the round's default tee when it changes underneath us.
+  useEffect(() => {
+    setSelectedTeeId(activeTeeId ?? "");
+  }, [activeTeeId]);
 
-  const front9 = holes.slice(0, 9);
-  const back9 = holes.slice(9, 18);
-  const totalPar = holes.reduce((s, h) => s + h.par, 0);
+  const canSwitch = (tees?.length ?? 0) > 1;
+  const selectedTee =
+    tees?.find((tee) => tee.id === selectedTeeId) ?? tees?.[0] ?? null;
+  const shownHoles = canSwitch && selectedTee ? selectedTee.holes : holes;
+  const shownTeeName = canSwitch && selectedTee ? selectedTee.name : teeSetName;
+
+  if (shownHoles.length !== 18) return null;
+
+  const front9 = shownHoles.slice(0, 9);
+  const back9 = shownHoles.slice(9, 18);
+  const totalPar = shownHoles.reduce((s, h) => s + h.par, 0);
 
   return (
     <div className="rounded-2xl border border-surface-overlay bg-surface-card shadow-sm overflow-hidden">
+      {canSwitch ? (
+        // A select cannot live inside the toggle button, so the header splits:
+        // the tee picker is its own control, the toggle keeps the right side.
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="shrink-0 text-sm font-semibold text-ink-title">
+              Course Card
+            </span>
+            <select
+              value={selectedTee?.id ?? ""}
+              onChange={(event) => {
+                setSelectedTeeId(event.target.value);
+                setOpen(true);
+              }}
+              aria-label="Course card tee"
+              className="min-w-0 flex-1 rounded-lg border border-surface-overlay bg-surface-card px-2 py-1 text-xs text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              {tees!.map((tee) => (
+                <option key={tee.id} value={tee.id}>
+                  {tee.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen((o) => !o)}
+            className="flex shrink-0 items-center gap-1 text-xs text-ink-hint"
+          >
+            {open ? "Hide" : `Par ${totalPar} · view`}
+            <ChevronIcon open={open} />
+          </button>
+        </div>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -132,8 +211,8 @@ export function CourseCardPreview({
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <span className="shrink-0 font-semibold text-ink-title text-sm">Course Card</span>
-          {teeSetName && (
-            <span className="truncate text-xs text-ink-hint">{teeSetName}</span>
+          {shownTeeName && (
+            <span className="truncate text-xs text-ink-hint">{shownTeeName}</span>
           )}
         </div>
         <span className="shrink-0 text-ink-hint text-xs flex items-center gap-1">
@@ -149,6 +228,7 @@ export function CourseCardPreview({
           </svg>
         </span>
       </button>
+      )}
 
       {open && (
         <div className="border-t border-surface-overlay">
@@ -196,7 +276,7 @@ export function CourseCardPreview({
               </tbody>
               <tbody>
                 <SubtotalRow label="In" holes={back9} unit={distanceUnit} />
-                <TotalRow holes={holes} unit={distanceUnit} />
+                <TotalRow holes={shownHoles} unit={distanceUnit} />
               </tbody>
             </table>
           </div>

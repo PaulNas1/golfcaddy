@@ -729,6 +729,14 @@ export default function RoundDetailsForm({
           holes={holeOptions}
           distanceUnit={appUser?.distanceUnit ?? "meters"}
           teeSetName={selectedTeeSet?.name ?? existingRound.teeSetName ?? undefined}
+          // Every tee on the round, so a women's assignment can be checked
+          // against the women's card rather than taken on trust.
+          tees={activeTeeSets.map((teeSet) => ({
+            id: teeSet.id,
+            name: teeSet.name,
+            holes: teeSet.holes,
+          }))}
+          activeTeeId={teeSetId || null}
         />
       )}
 
