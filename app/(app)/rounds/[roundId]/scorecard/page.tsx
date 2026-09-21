@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { sidePrizeLabel } from "@/lib/sidePrizes";
 import { useParams, useRouter } from "next/navigation";
 import { waitForPendingWrites } from "firebase/firestore";
 import {
@@ -1292,7 +1293,7 @@ export default function ScorecardPage() {
             ))}
             {specialHoles.ld && (
               <SideClaimSelect
-                label={`Longest Drive - Hole ${specialHoles.ld}`}
+                label={sidePrizeLabel("ld", specialHoles.ld)}
                 claim={getClaim("ld", specialHoles.ld)}
                 members={members}
                 disabled={round.status !== "live"}
@@ -1302,7 +1303,7 @@ export default function ScorecardPage() {
             )}
             {specialHoles.t2 && (
               <SideClaimSelect
-                label={`T2 - Hole ${specialHoles.t2}`}
+                label={sidePrizeLabel("t2", specialHoles.t2)}
                 claim={getClaim("t2", specialHoles.t2)}
                 members={members}
                 disabled={round.status !== "live"}
@@ -1312,7 +1313,7 @@ export default function ScorecardPage() {
             )}
             {specialHoles.t3 && (
               <SideClaimSelect
-                label={`T3 - Hole ${specialHoles.t3}`}
+                label={sidePrizeLabel("t3", specialHoles.t3)}
                 claim={getClaim("t3", specialHoles.t3)}
                 members={members}
                 disabled={round.status !== "live"}

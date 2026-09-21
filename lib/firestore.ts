@@ -3465,6 +3465,61 @@ export const markAllNotificationsRead = async (notificationIds: string[]) => {
   });
   await batch.commit();
 };
+// ─── Destructive-action counts (Brief 3 §3) ─────────────────────────────────
+//
+// "Clear feed" and "Factory reset" are irreversible. A confirmation that says
+// what will be destroyed, in records, is the difference between a considered
+// decision and a guess.
+
+export interface GroupContentCounts {
+  posts: number;
+  photos: number;
+  notifications: number;
+  rounds: number;
+  results: number;
+  scorecards: number;
+  members: number;
+  invites: number;
+}
+
+export const getGroupContentCounts = async (
+  groupId: string
+): Promise<GroupContentCounts> => {
+  const byGroup = (name: string) =>
+    getDocs(query(collection(db, name), where("groupId", "==", groupId)));
+
+  const [
+    posts,
+    photos,
+    notifications,
+    rounds,
+    results,
+    scorecards,
+    members,
+    invites,
+  ] = await Promise.all([
+    byGroup("posts"),
+    byGroup("photos"),
+    byGroup("notifications"),
+    byGroup("rounds"),
+    byGroup("results"),
+    byGroup("scorecards"),
+    byGroup("members"),
+    byGroup("memberInvites"),
+  ]);
+
+  return {
+    posts: posts.size,
+    photos: photos.size,
+    notifications: notifications.size,
+    rounds: rounds.size,
+    results: results.size,
+    scorecards: scorecards.size,
+    members: members.size,
+    invites: invites.size,
+  };
+};
+
 // ─── Course catalogue (Brief 1) ──────────────────────────────────────────────
 //
 // `groups/{groupId}/courses/{courseId}` and its `tees` subcollection. Each

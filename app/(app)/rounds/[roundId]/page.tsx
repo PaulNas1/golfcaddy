@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { sidePrizeLabel } from "@/lib/sidePrizes";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
@@ -751,7 +752,7 @@ export default function RoundDetailPage() {
             ))}
             {specialHoles.ld && (
               <SideClaimSelect
-                label={`Longest Drive - Hole ${specialHoles.ld}`}
+                label={sidePrizeLabel("ld", specialHoles.ld)}
                 claim={getClaim("ld", specialHoles.ld)}
                 members={members}
                 disabled={round.status !== "live" || round.resultsPublished}
@@ -761,7 +762,7 @@ export default function RoundDetailPage() {
             )}
             {specialHoles.t2 && (
               <SideClaimSelect
-                label={`T2 - Hole ${specialHoles.t2}`}
+                label={sidePrizeLabel("t2", specialHoles.t2)}
                 claim={getClaim("t2", specialHoles.t2)}
                 members={members}
                 disabled={round.status !== "live" || round.resultsPublished}
@@ -771,7 +772,7 @@ export default function RoundDetailPage() {
             )}
             {specialHoles.t3 && (
               <SideClaimSelect
-                label={`T3 - Hole ${specialHoles.t3}`}
+                label={sidePrizeLabel("t3", specialHoles.t3)}
                 claim={getClaim("t3", specialHoles.t3)}
                 members={members}
                 disabled={round.status !== "live" || round.resultsPublished}
@@ -1225,9 +1226,9 @@ function SideResultsList({ results }: { results: Results }) {
       label: `NTP - Hole ${result.holeNumber}`,
       result,
     })),
-    { label: `Longest Drive - Hole ${results.sideResults.ld.holeNumber}`, result: results.sideResults.ld },
-    { label: `T2 - Hole ${results.sideResults.t2.holeNumber}`, result: results.sideResults.t2 },
-    { label: `T3 - Hole ${results.sideResults.t3.holeNumber}`, result: results.sideResults.t3 },
+    { label: sidePrizeLabel("ld", results.sideResults.ld.holeNumber), result: results.sideResults.ld },
+    { label: sidePrizeLabel("t2", results.sideResults.t2.holeNumber), result: results.sideResults.t2 },
+    { label: sidePrizeLabel("t3", results.sideResults.t3.holeNumber), result: results.sideResults.t3 },
   ].filter(({ result }) => result.holeNumber > 0);
 
   if (sideResults.length === 0) return null;

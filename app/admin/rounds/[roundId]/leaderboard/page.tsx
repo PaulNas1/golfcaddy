@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { sidePrizeLabel } from "@/lib/sidePrizes";
 import { useParams, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
@@ -571,7 +572,7 @@ export default function AdminRoundLeaderboardPage() {
           ))}
           {specialHoles?.ld && (
             <WinnerSelect
-              label={`Longest Drive - Hole ${specialHoles.ld}`}
+              label={sidePrizeLabel("ld", specialHoles.ld)}
               value={sideWinnerIds.ld ?? ""}
               options={playerOptions}
               onChange={(winnerId) =>
@@ -581,7 +582,7 @@ export default function AdminRoundLeaderboardPage() {
           )}
           {specialHoles?.t2 && (
             <WinnerSelect
-              label={`T2 - Hole ${specialHoles.t2}`}
+              label={sidePrizeLabel("t2", specialHoles.t2)}
               value={sideWinnerIds.t2 ?? ""}
               options={playerOptions}
               onChange={(winnerId) =>
@@ -591,7 +592,7 @@ export default function AdminRoundLeaderboardPage() {
           )}
           {specialHoles?.t3 && (
             <WinnerSelect
-              label={`T3 - Hole ${specialHoles.t3}`}
+              label={sidePrizeLabel("t3", specialHoles.t3)}
               value={sideWinnerIds.t3 ?? ""}
               options={playerOptions}
               onChange={(winnerId) =>

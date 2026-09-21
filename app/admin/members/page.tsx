@@ -31,6 +31,44 @@ import type {
   UserStatus,
 } from "@/types";
 
+function CollapsibleSection({
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-surface-overlay bg-surface-card px-4 py-3 text-left shadow-sm transition-colors hover:bg-surface-muted"
+      >
+        <span className="font-semibold text-ink-title">
+          {title}
+          {subtitle && (
+            <span className="ml-2 text-xs font-normal text-ink-muted">
+              {subtitle}
+            </span>
+          )}
+        </span>
+        <span className="text-xs font-semibold text-brand-700">
+          {open ? "Close" : "Open"}
+        </span>
+      </button>
+      {open && <div className="mt-2">{children}</div>}
+    </div>
+  );
+}
+
 export default function AdminMembersPage() {
   const { appUser } = useAuth();
   const activeMenuRef = useRef<HTMLDivElement | null>(null);
@@ -63,6 +101,8 @@ export default function AdminMembersPage() {
   const [selectedActiveUser, setSelectedActiveUser] = useState<AppUser | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [placeholdersOpen, setPlaceholdersOpen] = useState(false);
   const [placeholders, setPlaceholders] = useState<Member[]>([]);
   const [placeholderName, setPlaceholderName] = useState("");
   const [placeholderHcp, setPlaceholderHcp] = useState("");
@@ -482,6 +522,196 @@ export default function AdminMembersPage() {
         </div>
       )}
 
+      {/* Active members */}
+      <div>
+        <h2 className="font-semibold text-ink-body mb-3">
+          Active Members ({active.length})
+        </h2>
+        <p className="text-xs text-ink-muted mb-3">
+          {activeSectionDescription}
+        </p>
+        <input
+          type="search"
+          value={activeSearch}
+          onChange={(event) => setActiveSearch(event.target.value)}
+          placeholder="Search players"
+          className="mb-3 w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+        {loading ? (
+          <div className="animate-pulse space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-surface-muted rounded-xl h-14" />
+            ))}
+          </div>
+        ) : activeMembers.length === 0 ? (
+          <div className="bg-surface-muted rounded-2xl p-6 text-center text-ink-hint text-sm">
+            {activeSearch.trim() ? "No players matched your search" : "No active members"}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activeMembers.map((user) => (
+              <div
+                key={user.uid}
+                className="cursor-pointer rounded-xl border border-surface-overlay bg-surface-card px-4 py-3 transition-colors hover:bg-surface-muted"
+                onClick={() => setSelectedActiveUser(user)}
+              >
+                <div className="grid grid-cols-[auto,minmax(0,1fr),72px,36px,36px] items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-bold text-brand-700">
+                    {user.displayName.charAt(0).toUpperCase()}
+                  </div>
+                  <MemberListName name={user.displayName} />
+
+                  {editingHandicapFor !== user.uid ? (
+                    <span className="w-[72px] whitespace-nowrap rounded-lg bg-surface-muted px-2.5 py-1 text-center text-xs font-semibold text-ink-body">
+                      HCP {members[user.uid]?.currentHandicap ?? "—"}
+                    </span>
+                  ) : (
+                    <span className="w-[72px] text-center text-xs font-medium text-brand-700">
+                      Editing
+                    </span>
+                  )}
+
+                  {editingHandicapFor !== user.uid && (
+                    <button
+                      type="button"
+                      aria-label={`Edit handicap for ${user.displayName}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        startHandicapEdit(user);
+                      }}
+                      className="rounded-lg border border-green-100 bg-surface-card p-2 text-brand-700"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                  )}
+
+                  {canManageUser(appUser, user) ? (
+                    <div
+                      ref={activeMenuUserId === user.uid ? activeMenuRef : null}
+                      className="relative"
+                    >
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setActiveMenuUserId((current) =>
+                            current === user.uid ? null : user.uid
+                          );
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-overlay bg-surface-card text-ink-muted"
+                        aria-label={`Manage ${user.displayName}`}
+                        aria-expanded={activeMenuUserId === user.uid}
+                      >
+                        <EllipsisIcon className="h-4 w-4" />
+                      </button>
+                      {activeMenuUserId === user.uid && (
+                        <div className="absolute right-0 top-full z-20 mt-2 w-56 space-y-3 rounded-xl border border-surface-overlay bg-surface-card p-3 shadow-lg">
+                          <label className="block">
+                            <span className="mb-1 block text-xs font-medium text-ink-body">
+                              Promote
+                            </span>
+                            <select
+                              value={user.role}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) =>
+                                handleRoleChange(
+                                  user,
+                                  event.target.value as UserRole
+                                )
+                              }
+                              disabled={actioning === user.uid}
+                              className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                              {getAssignableRoles(appUser?.role).map((role) => (
+                                <option key={role} value={role}>
+                                  {formatRoleLabel(role)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleStatusChange(user, "retired");
+                              }}
+                              disabled={actioning === user.uid}
+                              className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 disabled:text-amber-300"
+                            >
+                              Retire
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleStatusChange(user, "suspended");
+                              }}
+                              disabled={actioning === user.uid}
+                              className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:text-red-300"
+                            >
+                              Suspend
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="h-9 w-9" aria-hidden="true" />
+                  )}
+                </div>
+
+                {editingHandicapFor === user.uid && (
+                  <div className="mt-3 rounded-xl bg-surface-muted px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="space-y-2">
+                      <label className="block">
+                        <span className="block text-xs font-medium text-ink-body mb-1">
+                          Starting handicap
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="54"
+                          step="0.1"
+                          value={handicapInput}
+                          onChange={(e) => setHandicapInput(e.target.value)}
+                          className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+                        />
+                      </label>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveHandicap(user)}
+                          disabled={actioning === user.uid}
+                          className="flex-1 rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white disabled:bg-green-300"
+                        >
+                          {actioning === user.uid ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelHandicapEdit}
+                          disabled={actioning === user.uid}
+                          className="flex-1 rounded-xl border border-surface-overlay py-2 text-sm font-semibold text-ink-body"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Invite — a button that opens the form, not a permanently open form */}
+      <CollapsibleSection
+        title="Invite player"
+        subtitle={`${active.length} of ${memberLimit === Infinity ? "unlimited" : memberLimit}`}
+        open={inviteOpen}
+        onToggle={() => setInviteOpen((current) => !current)}
+      >
       <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -501,8 +731,8 @@ export default function AdminMembersPage() {
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-medium text-ink-body">
               {memberLimit === Infinity
-                ? `${active.length} members · ${planLabel}`
-                : `${active.length} / ${memberLimit} members · ${planLabel}`}
+                ? `${active.length} members`
+                : `${active.length} / ${memberLimit} members`}
             </span>
             {atLimit && memberLimit !== Infinity && (
               <span className="text-xs font-semibold text-amber-600">At limit</span>
@@ -693,7 +923,15 @@ export default function AdminMembersPage() {
           )}
         </div>
       </section>
+      </CollapsibleSection>
 
+      {/* Placeholders — collapsed; a rarely-used tool, not a landing area */}
+      <CollapsibleSection
+        title="Placeholder members"
+        subtitle={placeholders.length > 0 ? `${placeholders.length}` : undefined}
+        open={placeholdersOpen}
+        onToggle={() => setPlaceholdersOpen((current) => !current)}
+      >
       {/* Placeholder members */}
       <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm space-y-4">
         <div>
@@ -814,7 +1052,12 @@ export default function AdminMembersPage() {
           </button>
         </div>
       </section>
+      </CollapsibleSection>
 
+      {/* Only rendered when they hold something. Three permanently empty
+           sections is three reasons to scroll past the list. */}
+      {pending.length > 0 && (
+        <>
       {/* Pending approvals */}
       <div>
         <h2 className="font-semibold text-ink-body mb-3">
@@ -940,217 +1183,40 @@ export default function AdminMembersPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
-      {/* Active members */}
-      <div>
-        <h2 className="font-semibold text-ink-body mb-3">
-          Active Members ({active.length})
-        </h2>
-        <p className="text-xs text-ink-muted mb-3">
-          {activeSectionDescription}
-        </p>
-        <input
-          type="search"
-          value={activeSearch}
-          onChange={(event) => setActiveSearch(event.target.value)}
-          placeholder="Search players"
-          className="mb-3 w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+      {retired.length > 0 && (
+        <MemberStatusSection
+          title={`Retired Members (${retired.length})`}
+          users={retired}
+          loading={loading}
+          emptyMessage="No retired members"
+          tone="amber"
+          actioning={actioning}
+          appUser={appUser}
+          onPrimaryAction={(user) => handleStatusChange(user, "active")}
+          primaryActionLabel="Reactivate"
+          onSecondaryAction={(user) => handleStatusChange(user, "suspended")}
+          secondaryActionLabel="Suspend"
         />
-        {loading ? (
-          <div className="animate-pulse space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-surface-muted rounded-xl h-14" />
-            ))}
-          </div>
-        ) : activeMembers.length === 0 ? (
-          <div className="bg-surface-muted rounded-2xl p-6 text-center text-ink-hint text-sm">
-            {activeSearch.trim() ? "No players matched your search" : "No active members"}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {activeMembers.map((user) => (
-              <div
-                key={user.uid}
-                className="cursor-pointer rounded-xl border border-surface-overlay bg-surface-card px-4 py-3 transition-colors hover:bg-surface-muted"
-                onClick={() => setSelectedActiveUser(user)}
-              >
-                <div className="grid grid-cols-[auto,minmax(0,1fr),72px,36px,36px] items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100 text-base font-bold text-brand-700">
-                    {user.displayName.charAt(0).toUpperCase()}
-                  </div>
-                  <MemberListName name={user.displayName} />
+      )}
 
-                  {editingHandicapFor !== user.uid ? (
-                    <span className="w-[72px] whitespace-nowrap rounded-lg bg-surface-muted px-2.5 py-1 text-center text-xs font-semibold text-ink-body">
-                      HCP {members[user.uid]?.currentHandicap ?? "—"}
-                    </span>
-                  ) : (
-                    <span className="w-[72px] text-center text-xs font-medium text-brand-700">
-                      Editing
-                    </span>
-                  )}
-
-                  {editingHandicapFor !== user.uid && (
-                    <button
-                      type="button"
-                      aria-label={`Edit handicap for ${user.displayName}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        startHandicapEdit(user);
-                      }}
-                      className="rounded-lg border border-green-100 bg-surface-card p-2 text-brand-700"
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </button>
-                  )}
-
-                  {canManageUser(appUser, user) ? (
-                    <div
-                      ref={activeMenuUserId === user.uid ? activeMenuRef : null}
-                      className="relative"
-                    >
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setActiveMenuUserId((current) =>
-                            current === user.uid ? null : user.uid
-                          );
-                        }}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg border border-surface-overlay bg-surface-card text-ink-muted"
-                        aria-label={`Manage ${user.displayName}`}
-                        aria-expanded={activeMenuUserId === user.uid}
-                      >
-                        <EllipsisIcon className="h-4 w-4" />
-                      </button>
-                      {activeMenuUserId === user.uid && (
-                        <div className="absolute right-0 top-full z-20 mt-2 w-56 space-y-3 rounded-xl border border-surface-overlay bg-surface-card p-3 shadow-lg">
-                          <label className="block">
-                            <span className="mb-1 block text-xs font-medium text-ink-body">
-                              Promote
-                            </span>
-                            <select
-                              value={user.role}
-                              onClick={(event) => event.stopPropagation()}
-                              onChange={(event) =>
-                                handleRoleChange(
-                                  user,
-                                  event.target.value as UserRole
-                                )
-                              }
-                              disabled={actioning === user.uid}
-                              className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
-                            >
-                              {getAssignableRoles(appUser?.role).map((role) => (
-                                <option key={role} value={role}>
-                                  {formatRoleLabel(role)}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleStatusChange(user, "retired");
-                              }}
-                              disabled={actioning === user.uid}
-                              className="rounded-xl border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 disabled:text-amber-300"
-                            >
-                              Retire
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleStatusChange(user, "suspended");
-                              }}
-                              disabled={actioning === user.uid}
-                              className="rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 disabled:text-red-300"
-                            >
-                              Suspend
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="h-9 w-9" aria-hidden="true" />
-                  )}
-                </div>
-
-                {editingHandicapFor === user.uid && (
-                  <div className="mt-3 rounded-xl bg-surface-muted px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                    <div className="space-y-2">
-                      <label className="block">
-                        <span className="block text-xs font-medium text-ink-body mb-1">
-                          Starting handicap
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="54"
-                          step="0.1"
-                          value={handicapInput}
-                          onChange={(e) => setHandicapInput(e.target.value)}
-                          className="w-full rounded-xl border border-surface-overlay px-3 py-2 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
-                        />
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => saveHandicap(user)}
-                          disabled={actioning === user.uid}
-                          className="flex-1 rounded-xl bg-brand-600 py-2 text-sm font-semibold text-white disabled:bg-green-300"
-                        >
-                          {actioning === user.uid ? "Saving..." : "Save"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={cancelHandicapEdit}
-                          disabled={actioning === user.uid}
-                          className="flex-1 rounded-xl border border-surface-overlay py-2 text-sm font-semibold text-ink-body"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <MemberStatusSection
-        title={`Retired Members (${retired.length})`}
-        users={retired}
-        loading={loading}
-        emptyMessage="No retired members"
-        tone="amber"
-        actioning={actioning}
-        appUser={appUser}
-        onPrimaryAction={(user) => handleStatusChange(user, "active")}
-        primaryActionLabel="Reactivate"
-        onSecondaryAction={(user) => handleStatusChange(user, "suspended")}
-        secondaryActionLabel="Suspend"
-      />
-
-      <MemberStatusSection
-        title={`Suspended Members (${suspended.length})`}
-        users={suspended}
-        loading={loading}
-        emptyMessage="No suspended members"
-        tone="red"
-        actioning={actioning}
-        appUser={appUser}
-        onPrimaryAction={(user) => handleStatusChange(user, "active")}
-        primaryActionLabel="Reactivate"
-        onSecondaryAction={(user) => handleStatusChange(user, "retired")}
-        secondaryActionLabel="Retire"
-      />
+      {suspended.length > 0 && (
+        <MemberStatusSection
+          title={`Suspended Members (${suspended.length})`}
+          users={suspended}
+          loading={loading}
+          emptyMessage="No suspended members"
+          tone="red"
+          actioning={actioning}
+          appUser={appUser}
+          onPrimaryAction={(user) => handleStatusChange(user, "active")}
+          primaryActionLabel="Reactivate"
+          onSecondaryAction={(user) => handleStatusChange(user, "retired")}
+          secondaryActionLabel="Retire"
+        />
+      )}
 
       {selectedActiveUser && (
         <MemberDetailModal

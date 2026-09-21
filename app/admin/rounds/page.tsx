@@ -77,51 +77,45 @@ export default function AdminRoundsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
           <h1 className="text-2xl font-bold text-ink-title">Rounds</h1>
-          <p className="text-sm text-ink-muted">
-            {selectedSeason === "all"
-              ? "All seasons"
-              : `Season ${selectedSeason || currentSeason}`}
-          </p>
+          {/* Import is a rare action — out of the primary row, not floating
+              below it as a third, unaligned control. */}
+          <Link
+            href="/admin/rounds/import"
+            className="shrink-0 text-xs text-ink-hint transition-colors hover:text-ink-muted"
+          >
+            Import historical
+          </Link>
         </div>
-        <div className="flex items-end gap-2">
-          <label className="block">
-            <span className="mb-1 block text-right text-xs font-medium uppercase tracking-wide text-ink-hint">
-              Season
-            </span>
-            <select
-              value={selectedSeason || String(currentSeason)}
-              onChange={(event) => setSelectedSeason(event.target.value)}
-              className="rounded-xl border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              <option value={String(currentSeason)}>Active season</option>
-              {seasonOptions
-                .filter((season) => season !== currentSeason)
-                .map((season) => (
-                  <option key={season} value={String(season)}>
-                    {season}
-                  </option>
-                ))}
-              <option value="all">All seasons</option>
-            </select>
-          </label>
+
+        <div className="flex items-center gap-2">
+          <select
+            aria-label="Season"
+            value={selectedSeason || String(currentSeason)}
+            onChange={(event) => setSelectedSeason(event.target.value)}
+            className="min-w-0 flex-1 rounded-xl border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value={String(currentSeason)}>
+              Active season ({currentSeason})
+            </option>
+            {seasonOptions
+              .filter((season) => season !== currentSeason)
+              .map((season) => (
+                <option key={season} value={String(season)}>
+                  Season {season}
+                </option>
+              ))}
+            <option value="all">All seasons</option>
+          </select>
           <Link
             href="/admin/rounds/create"
-            className="bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-brand-700 transition-colors"
+            className="shrink-0 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
           >
             + New round
           </Link>
         </div>
-      </div>
-      <div className="flex justify-end">
-        <Link
-          href="/admin/rounds/import"
-          className="text-xs text-ink-hint hover:text-ink-muted transition-colors"
-        >
-          Import historical rounds
-        </Link>
       </div>
 
       {loading ? (

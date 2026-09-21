@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import { auth } from "@/lib/firebase";
 import {
+  getGroupContentCounts,
+  type GroupContentCounts,
   getActiveMembers,
   subscribeGroup,
   getPendingMembers,
@@ -77,6 +79,7 @@ export default function AdminSettingsPage() {
   const [rawHandicapBestX, setRawHandicapBestX] = useState(String(normaliseGroupSettings().handicapBestX));
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingError, setBillingError] = useState("");
+  const [contentCounts, setContentCounts] = useState<GroupContentCounts | null>(null);
   const [handicapPreview, setHandicapPreview] = useState<{
     season: number;
     standings: number;
@@ -85,6 +88,13 @@ export default function AdminSettingsPage() {
     existingHistoryRows: number;
     handicapWindow: number;
   } | null>(null);
+
+  useEffect(() => {
+    if (!appUser?.groupId || !isAdmin) return;
+    getGroupContentCounts(appUser.groupId)
+      .then(setContentCounts)
+      .catch(() => setContentCounts(null));
+  }, [appUser?.groupId, isAdmin]);
 
   const loadRemovablePlayers = async (groupId?: string, currentUserId?: string) => {
     if (!groupId) return;
@@ -193,6 +203,57 @@ export default function AdminSettingsPage() {
     });
     setLogoFile(null);
     setLogoRemoved(true);
+    setError("");
+    setSuccess("");
+  };
+
+  /**
+   * Brief 3 §3 — which sections the save actually covers, stated rather than
+   * guessed. Subscription and Danger Zone are deliberately absent: they act
+   * immediately and are separated under "Account" below.
+   */
+  const dirtyFields = useMemo(() => {
+    if (!group) return [] as string[];
+    const current = normaliseGroupSettings(group.settings);
+    const next = normaliseGroupSettings(settings);
+    const changed: string[] = [];
+
+    if (groupName.trim() !== group.name) changed.push("group name");
+    if (logoFile || logoRemoved) changed.push("logo");
+    if (JSON.stringify(next.pointsTable) !== JSON.stringify(current.pointsTable)) {
+      changed.push("ladder points");
+    }
+    if (
+      next.handicapRoundsWindow !== current.handicapRoundsWindow ||
+      next.handicapBestX !== current.handicapBestX ||
+      next.handicapMode !== current.handicapMode ||
+      next.minimumRoundsForPoints !== current.minimumRoundsForPoints ||
+      JSON.stringify(next.bestXofY) !== JSON.stringify(current.bestXofY)
+    ) {
+      changed.push("handicap rules");
+    }
+    if (next.defaultScoringFormat !== current.defaultScoringFormat) {
+      changed.push("scoring format");
+    }
+    if (
+      next.seasonStartMonth !== current.seasonStartMonth ||
+      next.seasonEndMonth !== current.seasonEndMonth
+    ) {
+      changed.push("season dates");
+    }
+    return changed;
+  }, [group, groupName, logoFile, logoRemoved, settings]);
+
+  const handleDiscard = () => {
+    if (!group) return;
+    setGroupName(group.name);
+    setSettings(normaliseGroupSettings(group.settings));
+    setLogoFile(null);
+    setLogoRemoved(false);
+    setLogoPreviewUrl(group.logoUrl ?? "");
+    const restored = normaliseGroupSettings(group.settings);
+    setRawHandicapWindow(String(restored.handicapRoundsWindow));
+    setRawHandicapBestX(String(restored.handicapBestX));
     setError("");
     setSuccess("");
   };
@@ -875,14 +936,15 @@ export default function AdminSettingsPage() {
         </div>
       </CollapsibleSettingsSection>
 
-      <button
-        type="button"
-        onClick={handleSave}
-        disabled={saving || !group}
-        className="w-full rounded-xl bg-brand-600 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-green-300"
-      >
-        {saving ? "Saving..." : "Save Settings"}
-      </button>
+      {/* ── Account ──────────────────────────────────────────────────────
+           Below this line nothing is covered by Save: every control acts the
+           moment you use it. */}
+      <div className="border-t border-surface-overlay pt-5">
+        <h2 className="text-xs font-bold uppercase tracking-wide text-ink-muted">
+          Account
+        </h2>
+        <p className="mt-1 text-xs text-ink-hint">Applied immediately.</p>
+      </div>
 
       {/* ── Subscription & Billing ── */}
       <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
@@ -975,8 +1037,13 @@ export default function AdminSettingsPage() {
               handleDangerAction({
                 action: "clear_feed",
                 label: "Clear feed",
-                confirmation:
-                  "Delete every post, comment, reaction, and feed announcement for this group?",
+                confirmation: contentCounts
+                  ? `This will delete ${contentCounts.posts} feed post${
+                      contentCounts.posts === 1 ? "" : "s"
+                    }, ${contentCounts.photos} photo${
+                      contentCounts.photos === 1 ? "" : "s"
+                    }, and every comment, reaction and feed announcement on them.`
+                  : "Delete every post, comment, reaction, and feed announcement for this group?",
                 confirmationWord: "CLEAR",
               })
             }
@@ -991,8 +1058,11 @@ export default function AdminSettingsPage() {
               handleDangerAction({
                 action: "clear_notifications",
                 label: "Clear notifications",
-                confirmation:
-                  "Delete every notification for this group?",
+                confirmation: contentCounts
+                  ? `This will delete ${contentCounts.notifications} notification${
+                      contentCounts.notifications === 1 ? "" : "s"
+                    } across every member of this group.`
+                  : "Delete every notification for this group?",
                 confirmationWord: "CLEAR",
               })
             }
@@ -1015,14 +1085,63 @@ export default function AdminSettingsPage() {
               handleDangerAction({
                 action: "full_reset_except_me",
                 label: "Factory reset",
-                confirmation:
-                  "Fully reset this group and keep only your admin account? This deletes rounds, results, feed, notifications, invites, and all other members.",
+                confirmation: contentCounts
+                  ? `This will delete ${contentCounts.rounds} round${
+                      contentCounts.rounds === 1 ? "" : "s"
+                    }, ${contentCounts.scorecards} scorecard${
+                      contentCounts.scorecards === 1 ? "" : "s"
+                    }, ${contentCounts.results} published result${
+                      contentCounts.results === 1 ? "" : "s"
+                    }, ${contentCounts.posts} feed post${
+                      contentCounts.posts === 1 ? "" : "s"
+                    }, ${contentCounts.notifications} notification${
+                      contentCounts.notifications === 1 ? "" : "s"
+                    }, ${contentCounts.invites} invite${
+                      contentCounts.invites === 1 ? "" : "s"
+                    }, and ${Math.max(contentCounts.members - 1, 0)} member${
+                      contentCounts.members - 1 === 1 ? "" : "s"
+                    } — keeping only your admin account. Ladder history and handicap history go with them.`
+                  : "Fully reset this group and keep only your admin account? This deletes rounds, results, feed, notifications, invites, and all other members.",
                 confirmationWord: "RESET",
               })
             }
           />
         </div>
       </section>
+
+      {dirtyFields.length > 0 && (
+        <div className="sticky bottom-0 z-30 -mx-4 border-t border-surface-overlay bg-surface-card/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-ink-title">
+                {dirtyFields.length} unsaved{" "}
+                {dirtyFields.length === 1 ? "change" : "changes"}
+              </p>
+              <p className="truncate text-xs text-ink-muted">
+                {dirtyFields.join(" · ")}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={handleDiscard}
+                disabled={saving}
+                className="rounded-xl border border-surface-overlay bg-surface-card px-3 py-2 text-xs font-semibold text-ink-body disabled:opacity-50"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !group}
+                className="rounded-xl bg-brand-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showRemovePlayersModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">

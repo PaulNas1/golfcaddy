@@ -34,10 +34,6 @@ export function getHoleOptionLabel(
     .join(" - ");
 }
 
-export function getDriveHoleOptions(holes: CourseHole[]) {
-  return holes.filter((hole) => hole.par >= 4);
-}
-
 /**
  * R1 — the tee sets a round scores off.
  *

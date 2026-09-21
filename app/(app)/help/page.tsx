@@ -43,9 +43,10 @@ const ADMIN_GUIDES: GuideItem[] = [
   },
   {
     icon: "🎯",
-    title: "Side prizes (NTP, Longest Drive)",
+    title: "Side prizes",
     steps: [
-      "Set up special holes when creating or editing the round in Admin.",
+      "Nearest the Pin is every par 3 — automatic, nothing to set.",
+      "Longest Drive, Green in Two and Green in Three are nominated per round: pick their holes when editing the round in Admin.",
       "On scoring day, members with admin access can record the winner in the Special Holes section on the round detail page.",
       "Winners appear in the published results automatically.",
     ],

@@ -5,11 +5,11 @@ import Link from "next/link";
 import TeeTimesEditor, { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
 import { getCourseTees, subscribeCourses } from "@/lib/firestore";
 import {
-  getDriveHoleOptions,
   getHoleOptionLabel,
   getParThreeHoles,
   getRoundTeeSets,
 } from "@/lib/courseData";
+import { SIDE_PRIZE_NAMES, sidePrizeFieldLabel } from "@/lib/sidePrizes";
 import {
   buildCourseSnapshot,
   diffSnapshots,
@@ -280,8 +280,6 @@ export default function RoundDetailsForm({
   const holeOptions =
     selectedTeeSet?.holes ??
     (existingRound.courseHoles.length ? existingRound.courseHoles : []);
-
-  const driveHoleOptions = getDriveHoleOptions(holeOptions);
 
   // Every par 3 is an NTP hole, always. Only LD, T2 and T3 are decisions.
   const ntpHoles = holeOptions
@@ -808,36 +806,28 @@ export default function RoundDetailsForm({
       <div className="border-t border-surface-overlay pt-3 mt-2 space-y-3">
         <h3 className="text-xs font-semibold text-ink-body">Prize holes</h3>
         <div className="flex items-baseline gap-2 rounded-lg bg-surface-muted px-3 py-2">
-          <span className="text-xs font-semibold text-ink-body">🎯 NTP</span>
+          <span className="text-xs font-semibold text-ink-body">
+            {SIDE_PRIZE_NAMES.ntp.emoji} {SIDE_PRIZE_NAMES.ntp.full}
+          </span>
           <span className="text-xs text-ink-muted">
             {ntpHoles.length > 0 ? ntpHoles.join(", ") : "—"}
           </span>
         </div>
         <div className="space-y-2">
-          <div>
-            <label className="block text-xs font-medium text-ink-body mb-1">
-              💪 Longest Drive (LD)
-            </label>
-            <select
-              value={ldHole}
-              onChange={(e) => setLdHole(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              <option value="">Not set</option>
-              {driveHoleOptions.map((hole) => (
-                <option key={hole.number} value={hole.number}>
-                  {getHoleOptionLabel(hole)}
-                </option>
-              ))}
-            </select>
-          </div>
           {([
-            { label: "⭐ T2", value: t2Hole, setter: setT2Hole },
-            { label: "⭐ T3", value: t3Hole, setter: setT3Hole },
-          ] as const).map(({ label, value, setter }) => (
-            <div key={label}>
-              <label className="block text-xs font-medium text-ink-body mb-1">{label}</label>
+            { prize: "ld", value: ldHole, setter: setLdHole },
+            { prize: "t2", value: t2Hole, setter: setT2Hole },
+            { prize: "t3", value: t3Hole, setter: setT3Hole },
+          ] as const).map(({ prize, value, setter }) => (
+            <div key={prize}>
+              <label
+                className="block text-xs font-medium text-ink-body mb-1"
+                htmlFor={`prize-${prize}`}
+              >
+                {sidePrizeFieldLabel(prize)}
+              </label>
               <select
+                id={`prize-${prize}`}
                 value={value}
                 onChange={(e) => setter(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
