@@ -139,18 +139,77 @@ export interface CourseHole {
   distanceMeters?: number;
 }
 
+/**
+ * A course in the group's own catalogue: `groups/{groupId}/courses/{courseId}`.
+ *
+ * Admin-authored. Never fetched from an external provider — see Brief 1.
+ * A course is *archived*, never deleted, so rounds that snapshotted it keep
+ * rendering (R6).
+ */
 export interface Course {
   id: string;
+  groupId: string;
   name: string;
-  address: string;
-  mapsUrl: string;
-  phone: string | null;
-  website: string | null;
-  apiId: string | null;
-  holes: CourseHole[];
-  createdBy: string;
+  location: string | null;
+  holeCount: number;      // 18 or 9
+  archived: boolean;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export type TeeGender = "men" | "women" | "mixed";
+
+/**
+ * One row of a tee's card. Par, stroke index and distance live *together* —
+ * this single-array shape is the core of Brief 1.
+ */
+export interface TeeHole {
+  hole: number;    // 1…holeCount
+  par: number;
+  index: number;   // stroke index — a permutation of 1…holeCount
+  metres: number;
+}
+
+/**
+ * A tee on a course: `groups/{groupId}/courses/{courseId}/tees/{teeId}`.
+ */
+export interface CourseTee {
+  id: string;
+  courseId: string;
+  name: string;            // "Men's White" — free text, admin-authored
+  gender: TeeGender;
+  courseRating: number | null;
+  slope: number | null;
+  par: number;             // denormalised sum(holes[].par), for list display
+  holes: TeeHole[];        // exactly holeCount entries, ordered by hole
+  updatedAt: Date;
+}
+
+/** A tee as frozen into a round's snapshot — no ids that can drift. */
+export interface SnapshotTee {
+  teeId: string;
+  name: string;
+  gender: TeeGender;
+  courseRating: number | null;
+  slope: number | null;
+  par: number;
+  holes: TeeHole[];
+}
+
+/**
+ * FROZEN course data on a round. The scoring source of truth (R1).
+ *
+ * Every tee on the course is copied, not just the default — that is what lets
+ * a mixed men's/women's group score off different tees without a second
+ * mechanism. Immutable once the round leaves `upcoming` (R4, enforced in
+ * firestore.rules).
+ */
+export interface CourseSnapshot {
+  courseId: string;
+  courseName: string;
+  holeCount: number;
+  snapshotAt: Date;
+  tees: SnapshotTee[];
 }
 
 export interface CourseDataSource {
@@ -186,26 +245,6 @@ export interface HoleOverride {
   overriddenAt: Date;
 }
 
-export interface HoleCorrectionItem {
-  holeNumber: number;
-  strokeIndex: number;
-  par: number;
-}
-
-export interface CourseCorrection {
-  id: string;
-  groupId: string;
-  teeSetId: string;
-  courseName: string;
-  teeSetName: string;
-  correctedCourseRating: number | null;
-  correctedSlopeRating: number | null;
-  holeCorrections: HoleCorrectionItem[];
-  savedAt: Date;
-  savedBy: string;
-  savedByName: string;
-}
-
 export interface SpecialHoles {
   ntp: number[];          // all par 3 hole numbers
   ld: number | null;
@@ -236,6 +275,15 @@ export interface Round {
   availableTeeSets: CourseTeeSet[];
   playerTeeAssignments: Record<string, string>;
   courseSource: CourseDataSource | null;
+  /**
+   * FROZEN course data — the scoring source of truth (R1).
+   *
+   * Written on round create (R2) from the group's course catalogue. Null only
+   * on rounds created before Brief 1 that have not been backfilled; read paths
+   * fall back to the legacy `courseHoles` / `availableTeeSets` fields in that
+   * case. `teeSetId` is the default tee, and matches a `tees[].teeId` here.
+   */
+  courseSnapshot: CourseSnapshot | null;
   date: Date;
   season: number;
   roundNumber: number;

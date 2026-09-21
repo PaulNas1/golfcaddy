@@ -1,22 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import TeeTimesEditor, { type TeeTimeDraftValue } from "@/components/TeeTimesEditor";
+import { getCourseTees, subscribeCourses } from "@/lib/firestore";
 import {
-  getGolfCourseCatalogueCourse,
-  searchGolfCourseCatalogue,
-} from "@/lib/courseCatalogueClient";
-import { getCourseCorrection } from "@/lib/firestore";
-import {
-  type SeededCourse,
-  getCourseSearchLabel,
   getDriveHoleOptions,
-  getFallbackCourseHoles,
   getHoleOptionLabel,
   getParThreeHoles,
-  getPreferredDefaultTeeSet,
   getRoundTeeSets,
 } from "@/lib/courseData";
+import {
+  buildCourseSnapshot,
+  diffSnapshots,
+  legacyRoundFieldsFromSnapshot,
+  snapshotToTeeSets,
+} from "@/lib/courseSnapshot";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
 import {
   formatShortMemberName,
@@ -27,9 +26,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import type {
   AppUser,
-  CourseTeeSet,
+  Course,
   CourseHole,
-  CourseCorrection,
+  CourseSnapshot,
+  CourseTee,
+  CourseTeeSet,
   Round,
   ScoringFormat,
   SpecialHoles,
@@ -37,16 +38,6 @@ import type {
 } from "@/types";
 
 // ─── Helper functions ─────────────────────────────────────────────────────────
-
-function mergeTeeSets(...groups: Array<CourseTeeSet[] | null | undefined>): CourseTeeSet[] {
-  const merged = new Map<string, CourseTeeSet>();
-  groups.forEach((group) => {
-    group?.forEach((teeSet) => {
-      merged.set(teeSet.id, teeSet);
-    });
-  });
-  return Array.from(merged.values());
-}
 
 function needsTeeReview(member: AppUser): boolean {
   return (
@@ -56,21 +47,17 @@ function needsTeeReview(member: AppUser): boolean {
   );
 }
 
-function extractApiId(
-  courseId: string | null | undefined,
-  teeSetId: string | null | undefined
-): number | null {
-  const courseMatch = courseId?.match(/^golfcourseapi-(\d+)$/);
-  if (courseMatch) return Number(courseMatch[1]);
-
-  const teeSetMatch = teeSetId?.match(/^golfcourseapi-(\d+)-/);
-  if (teeSetMatch) return Number(teeSetMatch[1]);
-
-  return null;
+/** Prefer a men's tee as the round default, else the first tee on the course. */
+function pickDefaultTee(tees: CourseTee[]): CourseTee | null {
+  if (tees.length === 0) return null;
+  return tees.find((tee) => tee.gender === "men") ?? tees[0];
 }
 
 const DATE_INPUT_CLASSNAME =
   "block h-[42px] w-full min-w-0 max-w-full appearance-none rounded-xl border border-surface-overlay bg-surface-card px-3 text-left text-sm leading-[42px] text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500 [&::-webkit-date-and-time-value]:block [&::-webkit-date-and-time-value]:min-w-0 [&::-webkit-date-and-time-value]:text-left";
+
+const SELECT_CLASSNAME =
+  "w-full px-3 py-2.5 rounded-xl border border-surface-overlay bg-surface-card text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:bg-surface-muted disabled:text-ink-muted";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -85,6 +72,7 @@ export type RoundFormSavePayload = {
   courseHoles: CourseHole[];
   availableTeeSets: CourseTeeSet[];
   courseSource: Round["courseSource"];
+  courseSnapshot: CourseSnapshot | null;
   date: Date;
   roundNumber: number;
   format: ScoringFormat;
@@ -106,8 +94,9 @@ type RoundDetailsFormProps = {
   onTeeTimes?: (next: TeeTimeDraftValue[]) => void;
   playerTeeAssignments?: Record<string, string>;
   onPlayerTeeAssignmentsChange?: (v: Record<string, string>) => void;
-  onRefreshCourseData?: (course: SeededCourse, teeSet: CourseTeeSet) => Promise<void>;
-  refreshing?: boolean;
+  /** R3 — true once the round is played, or has scorecards. Set by the parent. */
+  courseLocked?: boolean;
+  courseLockReason?: string | null;
   onSave: (payload: RoundFormSavePayload, notifyPlayers: boolean) => Promise<void>;
   saving: boolean;
   error?: string;
@@ -127,8 +116,8 @@ export default function RoundDetailsForm({
   onTeeTimes,
   playerTeeAssignments,
   onPlayerTeeAssignmentsChange,
-  onRefreshCourseData,
-  refreshing,
+  courseLocked = false,
+  courseLockReason,
   onSave,
   saving,
   error,
@@ -172,18 +161,12 @@ export default function RoundDetailsForm({
     existingRound?.specialHoles.t3 ? String(existingRound.specialHoles.t3) : ""
   );
 
-  // ─── API / course search state ───────────────────────────────────────────────
-  const [apiCourses, setApiCourses] = useState<SeededCourse[]>([]);
-  const [apiCourseLoading, setApiCourseLoading] = useState(false);
-  const [apiCourseError, setApiCourseError] = useState("");
-  const [courseSearchActive, setCourseSearchActive] = useState(false);
-
-  // ─── Create-mode only state ──────────────────────────────────────────────────
-  const [showCustomCourseSetup, setShowCustomCourseSetup] = useState(false);
-  const [customHoles, setCustomHoles] = useState<CourseHole[]>(getFallbackCourseHoles);
-  const [customStrokeIndexInputs, setCustomStrokeIndexInputs] = useState<Record<number, string>>({});
-  const [pendingCorrection, setPendingCorrection] = useState<CourseCorrection | null>(null);
-  const [dismissedCorrectionId, setDismissedCorrectionId] = useState<string | null>(null);
+  // ─── Course catalogue state ─────────────────────────────────────────────────
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [catalogueError, setCatalogueError] = useState("");
+  const [tees, setTees] = useState<CourseTee[]>([]);
+  const [teesLoading, setTeesLoading] = useState(false);
 
   // ─── Internal tee times (uncontrolled mode) ──────────────────────────────────
   const [internalTeeTimes, setInternalTeeTimes] = useState<TeeTimeDraftValue[]>([
@@ -203,48 +186,116 @@ export default function RoundDetailsForm({
     }
   };
 
-  // ─── Derived: course ─────────────────────────────────────────────────────────
-  const selectedCourse = useMemo(() => {
-    const byId = apiCourses.find((c) => c.id === courseId);
-    const byName = apiCourses.find((c) => c.name === courseName);
-    return byId ?? byName ?? null;
-  }, [apiCourses, courseId, courseName]);
+  // ─── Effect: load the group's course catalogue ──────────────────────────────
+  useEffect(() => {
+    if (!appUser?.groupId) return;
+    return subscribeCourses(
+      appUser.groupId,
+      (next) => {
+        setCourses(next);
+        setCoursesLoading(false);
+        setCatalogueError("");
+      },
+      () => {
+        setCatalogueError("Could not load the course list.");
+        setCoursesLoading(false);
+      }
+    );
+  }, [appUser?.groupId]);
 
-  const courseTeeSets = useMemo(
-    () => mergeTeeSets(selectedCourse?.teeSets, existingRound ? getRoundTeeSets(existingRound) : []),
-    [selectedCourse?.teeSets, existingRound]
+  // ─── Effect: load the selected course's tees ────────────────────────────────
+  useEffect(() => {
+    if (!appUser?.groupId || !courseId) {
+      setTees([]);
+      return;
+    }
+
+    let cancelled = false;
+    setTees([]);
+    setTeesLoading(true);
+
+    getCourseTees(appUser.groupId, courseId)
+      .then((next) => {
+        if (cancelled) return;
+        setTees(next);
+        setTeesLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTees([]);
+        setTeesLoading(false);
+        setCatalogueError("Could not load tees for that course.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appUser?.groupId, courseId]);
+
+  // ─── Effect: default the tee once a course's tees arrive ────────────────────
+  useEffect(() => {
+    if (teeSetId || tees.length === 0) return;
+    setTeeSetId(pickDefaultTee(tees)?.id ?? "");
+  }, [tees, teeSetId]);
+
+  // ─── Derived: course selection ──────────────────────────────────────────────
+  const canEditCourse = !courseLocked;
+
+  const selectedCourse = useMemo(
+    () => courses.find((course) => course.id === courseId) ?? null,
+    [courses, courseId]
   );
 
-  const selectedTeeSet = courseTeeSets.find((ts) => ts.id === teeSetId) ?? null;
-
-  const apiCourseSuggestions = useMemo(
-    () => apiCourses.filter((c) => c.id !== selectedCourse?.id),
-    [apiCourses, selectedCourse?.id]
+  // Archived courses stay selectable when a round already points at one (R6),
+  // but never appear as a fresh choice.
+  const selectableCourses = useMemo(
+    () => courses.filter((course) => !course.archived || course.id === courseId),
+    [courses, courseId]
   );
 
-  const showCourseSuggestions = courseSearchActive && apiCourseSuggestions.length > 0;
+  /**
+   * The snapshot this save would write.
+   *
+   * Null on a sealed round: its course data is frozen (R4) and every save must
+   * pass the existing snapshot straight back through, untouched.
+   */
+  const pendingSnapshot = useMemo<CourseSnapshot | null>(() => {
+    if (!canEditCourse) return null;
+    if (!selectedCourse || tees.length === 0) return null;
+    // Belt and braces against a mid-flight course switch: never mix one
+    // course's tees into another course's snapshot.
+    if (tees.some((tee) => tee.courseId !== selectedCourse.id)) return null;
+    return buildCourseSnapshot(selectedCourse, tees);
+  }, [canEditCourse, selectedCourse, tees]);
+
+  // The tee sets in play: from the catalogue while the round can still be
+  // re-snapshotted, otherwise read straight out of the frozen snapshot.
+  const activeTeeSets = useMemo<CourseTeeSet[]>(() => {
+    if (pendingSnapshot) return snapshotToTeeSets(pendingSnapshot);
+    if (existingRound?.courseSnapshot) {
+      return snapshotToTeeSets(existingRound.courseSnapshot);
+    }
+    return existingRound ? getRoundTeeSets(existingRound) : [];
+  }, [pendingSnapshot, existingRound]);
+
+  const selectedTeeSet =
+    activeTeeSets.find((teeSet) => teeSet.id === teeSetId) ?? null;
+  const assignmentTeeSets = activeTeeSets;
 
   const holeOptions =
     selectedTeeSet?.holes ??
-    (existingRound?.courseHoles?.length === 18 ? existingRound.courseHoles : customHoles);
+    (existingRound?.courseHoles?.length ? existingRound.courseHoles : []);
 
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
 
-  const customCoursePar = customHoles.reduce((total, hole) => total + hole.par, 0);
-  const customCourseDistanceCount = customHoles.filter(
-    (hole) => typeof hole.distanceMeters === "number"
-  ).length;
-
-  const refreshableTeeSet =
-    selectedTeeSet ?? getPreferredDefaultTeeSet(selectedCourse?.teeSets ?? []) ?? null;
+  /** R3 — show a diff of what a re-snapshot will change, before applying it. */
+  const snapshotDiff = useMemo(() => {
+    if (!existingRound || !pendingSnapshot) return [];
+    return diffSnapshots(existingRound.courseSnapshot, pendingSnapshot);
+  }, [existingRound, pendingSnapshot]);
 
   // ─── Derived: edit-mode tee assignments ─────────────────────────────────────
   const acceptedMembers = assignableMembers ?? [];
-
-  const assignmentTeeSets = useMemo(
-    () => mergeTeeSets(courseTeeSets, existingRound?.availableTeeSets, selectedCourse?.teeSets),
-    [courseTeeSets, existingRound?.availableTeeSets, selectedCourse?.teeSets]
-  );
 
   const teeReviewMembers = acceptedMembers.filter(
     (m) => needsTeeReview(m) && !playerTeeAssignments?.[m.uid]
@@ -252,52 +303,7 @@ export default function RoundDetailsForm({
 
   const teeOverrideCount = Object.values(playerTeeAssignments ?? {}).filter(Boolean).length;
 
-  // ─── Effect: initial API course load (edit mode) ─────────────────────────────
-  useEffect(() => {
-    if (!existingRound) return;
-
-    const existingTeeSets = getRoundTeeSets(existingRound);
-    if (existingTeeSets.length > 1) return;
-
-    const apiId = extractApiId(existingRound.courseId, existingRound.teeSetId);
-    if (!apiId) return;
-
-    let cancelled = false;
-    setApiCourseLoading(true);
-
-    getGolfCourseCatalogueCourse(apiId)
-      .then((result) => {
-        if (cancelled) return;
-
-        if (result.course && result.course.teeSets.length > 0) {
-          setApiCourses((current) => [
-            result.course!,
-            ...current.filter((c) => c.id !== result.course!.id),
-          ]);
-          setApiCourseError("");
-        } else if (result.error) {
-          setApiCourseError(result.error);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setApiCourseError("Could not load tee data for that course.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setApiCourseLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  // Run once on mount (existingRound identity is stable on first render)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ─── Effect: course sync on refresh (edit mode) ──────────────────────────────
-  // When the parent refreshes course data via onRefreshCourseData, it updates
-  // existingRound and the new courseId/teeSetId/courseName come in here.
+  // ─── Effect: course sync on external round change (edit mode) ───────────────
   useEffect(() => {
     if (!existingRound) return;
     setCourseId(existingRound.courseId);
@@ -305,178 +311,14 @@ export default function RoundDetailsForm({
     setCourseName(existingRound.courseName);
   }, [existingRound?.courseId, existingRound?.teeSetId, existingRound?.courseName]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Effect: course search debounce ─────────────────────────────────────────
-  useEffect(() => {
-    const query = courseName.trim();
-
-    if (!courseSearchActive) {
-      setApiCourseError("");
-      setApiCourseLoading(false);
-      return;
-    }
-
-    if (query.length < 3) {
-      setApiCourses([]);
-      setApiCourseError("");
-      setApiCourseLoading(false);
-      return;
-    }
-
-    if (selectedCourse?.name === query) {
-      setApiCourseError("");
-      setApiCourseLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-    setApiCourseLoading(true);
-
-    const timeout = window.setTimeout(async () => {
-      const result = await searchGolfCourseCatalogue(query);
-      if (cancelled) return;
-
-      setApiCourses(result.courses.slice(0, 6));
-      setApiCourseError(result.error ?? "");
-      setApiCourseLoading(false);
-    }, 600);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-    };
-  }, [courseName, courseSearchActive, selectedCourse?.name]);
-
-  // ─── Effect: course correction check (create mode only) ─────────────────────
-  useEffect(() => {
-    if (existingRound) return;
-    if (!teeSetId || !appUser?.groupId || !selectedCourse) return;
-    if (teeSetId === dismissedCorrectionId) return;
-
-    getCourseCorrection(appUser.groupId, teeSetId)
-      .then((correction) => {
-        if (correction) setPendingCorrection(correction);
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teeSetId]);
-
   // ─── Course handlers ─────────────────────────────────────────────────────────
-  const applyCourse = (course: SeededCourse) => {
-    const defaultTeeSet = getPreferredDefaultTeeSet(course.teeSets);
-    setApiCourses([course]);
-    setCourseSearchActive(false);
-    setCourseId(course.id);
-    setTeeSetId(defaultTeeSet?.id ?? "");
-    setCourseName(course.name);
+  const handleCourseChange = (nextCourseId: string) => {
+    setCourseId(nextCourseId);
+    setTeeSetId("");
+    setCourseName(courses.find((course) => course.id === nextCourseId)?.name ?? "");
     setLdHole("");
     setT2Hole("");
     setT3Hole("");
-  };
-
-  const applyApiCourse = async (course: SeededCourse) => {
-    let courseToApply = course;
-
-    if (course.apiId && course.teeSets.length === 0) {
-      setApiCourseLoading(true);
-      setApiCourseError("");
-      const result = await getGolfCourseCatalogueCourse(course.apiId);
-      setApiCourseLoading(false);
-
-      if (result.course) {
-        courseToApply = result.course;
-        setApiCourses((current) => [
-          result.course!,
-          ...current.filter((item) => item.id !== course.id),
-        ]);
-      } else {
-        setApiCourseError(result.error ?? "Could not load tee data for that course.");
-        return;
-      }
-    }
-
-    if (courseToApply.teeSets.length === 0) {
-      setApiCourseError("That course does not include 18-hole tee data.");
-      return;
-    }
-
-    applyCourse(courseToApply);
-  };
-
-  const handleCourseNameChange = (value: string) => {
-    setCourseSearchActive(true);
-    setCourseName(value);
-    setCourseId("");
-    setTeeSetId("");
-    if (!existingRound) {
-      setPendingCorrection(null);
-      setDismissedCorrectionId(null);
-    }
-  };
-
-  const applyCorrections = (correction: CourseCorrection) => {
-    setApiCourses((current) =>
-      current.map((course) => ({
-        ...course,
-        teeSets: course.teeSets.map((teeSet) => {
-          if (teeSet.id !== correction.teeSetId) return teeSet;
-          return {
-            ...teeSet,
-            courseRating: correction.correctedCourseRating ?? teeSet.courseRating,
-            slopeRating: correction.correctedSlopeRating ?? teeSet.slopeRating,
-            holes: teeSet.holes.map((hole) => {
-              const item = correction.holeCorrections.find(
-                (c) => c.holeNumber === hole.number
-              );
-              if (!item) return hole;
-              return {
-                ...hole,
-                strokeIndex: item.strokeIndex,
-                par: item.par,
-                type: item.par === 3 ? "par3" : item.par === 5 ? "par5" : "par4",
-              };
-            }),
-          };
-        }),
-      }))
-    );
-    setPendingCorrection(null);
-  };
-
-  // ─── Custom hole handlers (create mode only) ─────────────────────────────────
-  const updateCustomHole = (
-    holeNumber: number,
-    field: "par" | "strokeIndex" | "distanceMeters",
-    value: string
-  ) => {
-    if (field === "strokeIndex") {
-      setCustomStrokeIndexInputs((current) => ({ ...current, [holeNumber]: value }));
-    }
-
-    setCustomHoles((holes) =>
-      holes.map((hole) => {
-        if (hole.number !== holeNumber) return hole;
-
-        if (field === "distanceMeters") {
-          const distance = parseInt(value, 10);
-          return {
-            ...hole,
-            distanceMeters: Number.isFinite(distance) ? distance : undefined,
-          };
-        }
-
-        const numericValue = parseInt(value, 10);
-        if (!Number.isFinite(numericValue)) return hole;
-
-        return {
-          ...hole,
-          [field]: numericValue,
-          type:
-            field === "par"
-              ? numericValue === 3 ? "par3" : numericValue === 5 ? "par5" : "par4"
-              : hole.type,
-        };
-      })
-    );
   };
 
   // ─── Tee time handlers ───────────────────────────────────────────────────────
@@ -586,64 +428,9 @@ export default function RoundDetailsForm({
 
   // ─── Payload computation ─────────────────────────────────────────────────────
   const computePayload = (): RoundFormSavePayload => {
-    const appliedTeeSet = selectedTeeSet;
-    const preserveExistingCourseData =
-      !!existingRound &&
-      !appliedTeeSet &&
-      courseName.trim() === existingRound.courseName &&
-      existingRound.courseHoles.length === 18;
-
-    const courseDetails = appliedTeeSet
-      ? {
-          teeSetId: appliedTeeSet.id,
-          teeSetName: appliedTeeSet.name,
-          coursePar: appliedTeeSet.par,
-          courseRating: appliedTeeSet.courseRating,
-          slopeRating: appliedTeeSet.slopeRating,
-          courseHoles: appliedTeeSet.holes,
-          courseSource: appliedTeeSet.source,
-        }
-      : preserveExistingCourseData
-      ? {
-          teeSetId: existingRound!.teeSetId,
-          teeSetName: existingRound!.teeSetName,
-          coursePar: existingRound!.coursePar,
-          courseRating: existingRound!.courseRating,
-          slopeRating: existingRound!.slopeRating,
-          courseHoles: existingRound!.courseHoles,
-          courseSource: existingRound!.courseSource,
-        }
-      : {
-          teeSetId: null,
-          teeSetName: existingRound ? null : "Custom",
-          coursePar: existingRound ? null : customCoursePar,
-          courseRating: null,
-          slopeRating: null,
-          courseHoles: existingRound ? [] : customHoles,
-          courseSource: existingRound
-            ? null
-            : {
-                provider: "Admin custom",
-                url: "",
-                lastVerified: new Date().toISOString().slice(0, 10),
-                confidence: "admin_verified" as const,
-              },
-        };
-
-    const isEditingExistingCourse =
-      !!existingRound && !selectedCourse && courseName.trim() === existingRound.courseName;
-    const resolvedCourseId =
-      selectedCourse?.id ??
-      ((isEditingExistingCourse || preserveExistingCourseData) ? existingRound!.courseId : "");
-    const resolvedAvailableTeeSets =
-      selectedCourse?.teeSets ??
-      ((isEditingExistingCourse || preserveExistingCourseData) ? courseTeeSets : []);
-
-    const ntpHoles = appliedTeeSet
-      ? getParThreeHoles(appliedTeeSet)
-      : preserveExistingCourseData
-      ? (existingRound!.specialHoles.ntp ?? [])
-      : customHoles.filter((h) => h.par === 3).map((h) => h.number);
+    const ntpHoles = selectedTeeSet
+      ? getParThreeHoles(selectedTeeSet)
+      : (existingRound?.specialHoles.ntp ?? []);
 
     const specialHoles: SpecialHoles = {
       ntp: ntpHoles,
@@ -674,11 +461,33 @@ export default function RoundDetailsForm({
           null,
       }));
 
+    // A catalogue course in play → write a fresh snapshot (R2) and derive every
+    // legacy field from it, so the snapshot is the single authored source.
+    // Otherwise pass the round's existing course data straight back through:
+    // a sealed round's snapshot must never be rewritten (R4).
+    const courseFields = pendingSnapshot
+      ? {
+          courseId: pendingSnapshot.courseId,
+          courseName: pendingSnapshot.courseName,
+          courseSnapshot: pendingSnapshot,
+          ...legacyRoundFieldsFromSnapshot(pendingSnapshot, teeSetId || null),
+        }
+      : {
+          courseId: existingRound?.courseId ?? courseId,
+          courseName: existingRound?.courseName ?? courseName.trim(),
+          courseSnapshot: existingRound?.courseSnapshot ?? null,
+          teeSetId: existingRound?.teeSetId ?? null,
+          teeSetName: existingRound?.teeSetName ?? null,
+          coursePar: existingRound?.coursePar ?? null,
+          courseRating: existingRound?.courseRating ?? null,
+          slopeRating: existingRound?.slopeRating ?? null,
+          courseHoles: existingRound?.courseHoles ?? [],
+          availableTeeSets: existingRound?.availableTeeSets ?? [],
+          courseSource: existingRound?.courseSource ?? null,
+        };
+
     return {
-      courseId: resolvedCourseId,
-      courseName: courseName.trim(),
-      ...courseDetails,
-      availableTeeSets: resolvedAvailableTeeSets,
+      ...courseFields,
       date: new Date(date),
       roundNumber: parseInt(roundNumber, 10),
       format: scoringFormat,
@@ -689,8 +498,10 @@ export default function RoundDetailsForm({
   };
 
   // ─── Save handler ────────────────────────────────────────────────────────────
+  const courseReady = !!existingRound || (!!courseId && !!teeSetId);
+
   const handleSave = async (notifyPlayers: boolean) => {
-    if (!courseName.trim() || !date) return;
+    if (!courseReady || !date) return;
     const parsed = parseInt(roundNumber, 10);
     if (!parsed || parsed <= 0) return;
     await onSave(computePayload(), notifyPlayers);
@@ -701,57 +512,71 @@ export default function RoundDetailsForm({
     <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
       <h2 className="font-semibold text-ink-title">Round Details</h2>
 
-      {/* Course search */}
+      {/* Course picker — from the group's own catalogue */}
       <div>
-        <label className="block text-xs font-medium text-ink-body mb-1">
-          Course search
-        </label>
-        <input
-          type="text"
-          value={courseName}
-          onChange={(e) => handleCourseNameChange(e.target.value)}
-          required
-          placeholder="Start typing a course name..."
-          className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-        {showCourseSuggestions && (
-          <div className="mt-2 rounded-xl border border-surface-overlay bg-surface-muted p-1">
-            {apiCourseSuggestions.map((course) => (
-              <button
-                key={course.id}
-                type="button"
-                onClick={() => applyApiCourse(course)}
-                disabled={apiCourseLoading}
-                className="block w-full rounded-lg px-3 py-2 text-left text-xs text-ink-body hover:bg-surface-card disabled:text-ink-hint"
-              >
-                <span className="font-medium text-ink-title">{course.name}</span>
-                <span className="block text-xs text-ink-muted">
-                  GolfCourseAPI · {getCourseSearchLabel(course)}
-                  {course.teeSets.length > 0
-                    ? ` · ${course.teeSets.length} tee set${course.teeSets.length === 1 ? "" : "s"}`
-                    : " · tap to load tee data"}
-                </span>
-              </button>
-            ))}
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <label className="block text-xs font-medium text-ink-body" htmlFor="round-course">
+            Course
+          </label>
+          <Link
+            href="/admin/courses"
+            className="text-xs font-semibold text-brand-700 hover:text-brand-800"
+          >
+            Manage courses
+          </Link>
+        </div>
+        {!coursesLoading && courses.length === 0 ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+            <p className="text-xs font-semibold text-amber-800">No courses yet</p>
+            <p className="mt-1 text-xs text-amber-700">
+              Add a course and its tees before creating a round — pars, stroke
+              indexes and distances all come from there.
+            </p>
+            <Link
+              href="/admin/courses"
+              className="mt-2 inline-block rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700"
+            >
+              Add a course
+            </Link>
           </div>
+        ) : (
+          <select
+            id="round-course"
+            value={courseId}
+            onChange={(e) => handleCourseChange(e.target.value)}
+            disabled={!canEditCourse || coursesLoading}
+            className={SELECT_CLASSNAME}
+          >
+            <option value="">
+              {coursesLoading ? "Loading courses…" : "Select a course…"}
+            </option>
+            {selectableCourses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.name}
+                {course.location ? ` — ${course.location}` : ""}
+                {course.archived ? " (archived)" : ""}
+              </option>
+            ))}
+          </select>
         )}
-        {apiCourseLoading && (
-          <p className="text-xs text-ink-hint mt-1">Searching GolfCourseAPI...</p>
+        {!canEditCourse && (
+          <p className="mt-1 text-xs text-ink-hint">
+            {courseLockReason ??
+              "Course data is sealed for this round so past results can never change."}
+          </p>
         )}
-        {apiCourseError && (
-          <p className="text-xs text-amber-600 mt-1">{apiCourseError}</p>
+        {catalogueError && (
+          <p className="mt-1 text-xs text-amber-600">{catalogueError}</p>
         )}
-        <p className="text-xs text-ink-hint mt-1">
-          Select a GolfCourseAPI result to auto-fill tee data, pars, distances, and NTP holes.
-          If the course is not available, keep your typed name and save it as a custom course.
-        </p>
       </div>
 
-      {/* Tee set selector */}
-      {courseTeeSets.length > 0 && (
+      {/* Tee picker */}
+      {(courseId || activeTeeSets.length > 0) && (
         <div>
           <div className="mb-1 flex items-center justify-between gap-2">
-            <label className="block text-xs font-medium text-ink-body">Tee set</label>
+            <label className="block text-xs font-medium text-ink-body" htmlFor="round-tee">
+              Tee
+            </label>
             {existingRound && teeReviewMembers.length > 0 && (
               <button
                 type="button"
@@ -765,17 +590,36 @@ export default function RoundDetailsForm({
             )}
           </div>
           <select
+            id="round-tee"
             value={teeSetId}
             onChange={(e) => setTeeSetId(e.target.value)}
-            className="w-full px-3 py-2.5 rounded-xl border border-surface-overlay text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
+            disabled={!canEditCourse || teesLoading || activeTeeSets.length === 0}
+            className={SELECT_CLASSNAME}
           >
-            {(existingRound ? assignmentTeeSets : courseTeeSets).map((teeSet) => (
+            <option value="">
+              {teesLoading ? "Loading tees…" : "Select a tee…"}
+            </option>
+            {activeTeeSets.map((teeSet) => (
               <option key={teeSet.id} value={teeSet.id}>
-                {teeSet.name} - Par {teeSet.par}
+                {teeSet.name} — Par {teeSet.par}
                 {teeSet.slopeRating ? ` / Slope ${teeSet.slopeRating}` : ""}
               </option>
             ))}
           </select>
+
+          {canEditCourse && courseId && !teesLoading && activeTeeSets.length === 0 && (
+            <p className="mt-1 text-xs text-amber-600">
+              This course has no tees yet.{" "}
+              <Link
+                href={`/admin/courses/${courseId}`}
+                className="font-semibold underline"
+              >
+                Add one
+              </Link>
+              .
+            </p>
+          )}
+
           {selectedTeeSet && (
             <p className="text-xs text-ink-hint mt-1">
               NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
@@ -854,150 +698,45 @@ export default function RoundDetailsForm({
             </div>
           )}
 
-          {/* Edit mode: refresh API course data */}
-          {existingRound && selectedCourse && refreshableTeeSet && (
-            <div className="mt-3 space-y-2 border-t border-green-100 pt-3">
-              <p className="text-xs text-brand-700">
-                Refresh pars, stroke indexes, distances, tee metadata, and NTP holes from
-                GolfCourseAPI. LD, T2, and T3 stay as currently selected below.
+
+          {/* R3: what a re-snapshot will change, shown before it is applied */}
+          {existingRound && canEditCourse && snapshotDiff.length > 0 && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+              <p className="text-xs font-semibold text-amber-800">
+                Saving will refresh this round&apos;s course data
               </p>
-              <button
-                type="button"
-                onClick={() => onRefreshCourseData?.(selectedCourse, refreshableTeeSet)}
-                disabled={refreshing}
-                className="w-full rounded-xl border border-brand-200 bg-surface-card px-3 py-2 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:text-brand-300"
-              >
-                {refreshing ? "Refreshing..." : "Refresh API course data"}
-              </button>
+              <p className="mt-1 text-xs text-amber-700">
+                The round is still upcoming with no scorecards, so its frozen
+                course data can be rebuilt from the catalogue. Here is what
+                changes:
+              </p>
+              <ul className="mt-2 space-y-2">
+                {snapshotDiff.map((row) => (
+                  <li key={`${row.kind}-${row.teeName}`} className="text-xs text-amber-800">
+                    <span className="font-semibold">{row.teeName}</span>{" "}
+                    <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-900">
+                      {row.kind}
+                    </span>
+                    <ul className="mt-1 space-y-0.5 pl-3 text-amber-700">
+                      {row.changes.map((change) => (
+                        <li key={change}>· {change}</li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
       )}
 
       {/* Course card preview */}
-      {holeOptions.length === 18 && (
+      {holeOptions.length > 0 && (
         <CourseCardPreview
           holes={holeOptions}
           distanceUnit={appUser?.distanceUnit ?? "meters"}
           teeSetName={selectedTeeSet?.name ?? existingRound?.teeSetName ?? undefined}
         />
-      )}
-
-      {/* Create mode: pending correction */}
-      {!existingRound && pendingCorrection && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
-          <p className="text-sm font-semibold text-amber-800">
-            Saved course corrections available
-          </p>
-          <p className="text-xs text-amber-700">
-            You have saved corrections for {pendingCorrection.courseName} —{" "}
-            {pendingCorrection.teeSetName}.
-            {pendingCorrection.correctedCourseRating != null &&
-              ` Course Rating: ${pendingCorrection.correctedCourseRating}.`}
-            {pendingCorrection.correctedSlopeRating != null &&
-              ` Slope: ${pendingCorrection.correctedSlopeRating}.`}{" "}
-            Hole Stroke Indexes and pars have been corrected for all 18 holes.
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => applyCorrections(pendingCorrection)}
-              className="flex-1 rounded-lg bg-amber-600 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
-            >
-              Apply corrections
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDismissedCorrectionId(pendingCorrection.teeSetId);
-                setPendingCorrection(null);
-              }}
-              className="flex-1 rounded-lg border border-amber-200 bg-surface-card py-2 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50"
-            >
-              Use API data as-is
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Create mode: custom course setup */}
-      {!existingRound && !selectedCourse && (
-        <div className="border-t border-surface-overlay pt-3">
-          <div className="rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-ink-title">Custom course setup</h3>
-                <p className="mt-1 text-xs text-ink-muted">
-                  Use this when GolfCourseAPI does not return 18-hole round data. The hole data
-                  is saved to this round only.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCustomCourseSetup((current) => !current)}
-                className="shrink-0 rounded-lg border border-surface-overlay bg-surface-card px-3 py-1.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-50"
-                aria-expanded={showCustomCourseSetup}
-              >
-                {showCustomCourseSetup ? "Hide holes" : "Set up holes"}
-              </button>
-            </div>
-            <p className="mt-2 text-xs font-medium text-ink-body">
-              Custom par total: {customCoursePar} · {customHoles.length} holes ·{" "}
-              {customCourseDistanceCount} distances entered
-            </p>
-          </div>
-          {showCustomCourseSetup && (
-            <div className="mt-3">
-              <div className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs font-semibold text-ink-muted">
-                <span>Hole</span>
-                <span>Par</span>
-                <span>Index</span>
-                <span>Distance</span>
-              </div>
-              <div className="mt-2 space-y-2">
-                {customHoles.map((hole) => (
-                  <div
-                    key={hole.number}
-                    className="grid grid-cols-[34px_minmax(0,1fr)_62px_84px] items-center gap-1.5 text-xs"
-                  >
-                    <span className="font-semibold text-ink-body">H{hole.number}</span>
-                    <select
-                      value={hole.par}
-                      onChange={(e) => updateCustomHole(hole.number, "par", e.target.value)}
-                      className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      aria-label={`Hole ${hole.number} par`}
-                    >
-                      {[3, 4, 5].map((par) => (
-                        <option key={par} value={par}>
-                          Par {par}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min={1}
-                      max={18}
-                      value={customStrokeIndexInputs[hole.number] ?? ""}
-                      onChange={(e) => updateCustomHole(hole.number, "strokeIndex", e.target.value)}
-                      placeholder={String(hole.number)}
-                      className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-center text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      aria-label={`Hole ${hole.number} stroke index`}
-                    />
-                    <input
-                      type="number"
-                      min={1}
-                      value={hole.distanceMeters ?? ""}
-                      onChange={(e) => updateCustomHole(hole.number, "distanceMeters", e.target.value)}
-                      placeholder="m"
-                      className="min-w-0 rounded-lg border border-surface-overlay bg-surface-card px-2 py-2 text-center text-ink-title focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      aria-label={`Hole ${hole.number} distance metres`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
       )}
 
       {/* Create mode: active season banner */}

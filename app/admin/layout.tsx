@@ -85,6 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 const adminNavItems = [
   { href: "/admin",          label: "Dashboard", Icon: DashboardIcon },
   { href: "/admin/rounds",   label: "Rounds",    Icon: RoundsIcon },
+  { href: "/admin/courses",  label: "Courses",   Icon: CoursesIcon },
   { href: "/admin/members",  label: "Members",   Icon: MembersIcon },
   { href: "/admin/settings", label: "Settings",  Icon: SettingsIcon, adminOnly: true },
 ];
@@ -111,6 +112,14 @@ function RoundsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M7 5h9l-1.5 3L16 11H7" />
+    </svg>
+  );
+}
+
+function CoursesIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21c4.5 0 8-1.12 8-2.5S16.5 16 12 16s-8 1.12-8 2.5S7.5 21 12 21Zm0-5V3l7 3.5L12 10" />
     </svg>
   );
 }

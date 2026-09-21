@@ -53,6 +53,53 @@ service cloud.firestore {
         groupId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.groupId;
     }
 
+    // ─── R4: historical integrity ─────────────────────────────────────────
+    //
+    // A course edited in 2027 must not alter a single value in a 2026 round.
+    // Rounds carry a frozen `courseSnapshot`, plus the legacy fields derived
+    // from it. Both are immutable once the round is no longer 'upcoming', so
+    // no client — not even an admin's — can rewrite what was played.
+    //
+    // Re-snapshotting an *upcoming* round is allowed: that is R3, the case of
+    // picking the wrong tee or fixing a course error before play.
+
+    function courseDataKeys() {
+      return [
+        'courseSnapshot',
+        'courseHoles',
+        'availableTeeSets',
+        'coursePar',
+        'courseRating',
+        'slopeRating',
+        'courseSource',
+        'teeSetId',
+        'teeSetName',
+        'courseId'
+      ];
+    }
+
+    // A round that has never carried a snapshot has nothing to protect yet.
+    // This is the one-time Brief 1 backfill (§6 Pass 2): an admin may FILL an
+    // absent snapshot on an already-played round, and never touch it again —
+    // the moment a snapshot exists, hasNoSnapshot() is false forever.
+    function hasNoSnapshot() {
+      return !('courseSnapshot' in resource.data) ||
+        resource.data.courseSnapshot == null;
+    }
+
+    function isBackfillingMissingSnapshot() {
+      return isAdmin() &&
+        hasNoSnapshot() &&
+        request.resource.data.courseSnapshot != null;
+    }
+
+    function courseDataSealRespected() {
+      return resource.data.status == 'upcoming' ||
+        !request.resource.data.diff(resource.data)
+          .affectedKeys().hasAny(courseDataKeys()) ||
+        isBackfillingMissingSnapshot();
+    }
+
     function canMarkInviteUsed() {
       return isSignedIn() &&
         resource.data.status == 'created' &&
@@ -91,11 +138,29 @@ service cloud.firestore {
       // Only admins can change group settings, season config, points table, etc.
       allow write: if isAdmin();
 
-      // ─── Course Corrections (subcollection) ───────────────────────────
+      // ─── Course corrections: legacy, read-only ────────────────────────
+      //
+      // Deleted by Brief 1. Kept readable only so the one-time migration can
+      // seed the new catalogue from the corrections already saved here.
+      // Nothing writes these any more.
 
       match /courseCorrections/{correctionId} {
         allow read: if isAdminOrModerator() && isSameGroup(groupId);
-        allow write: if isAdminOrModerator() && isSameGroup(groupId);
+      }
+
+      // ─── Course catalogue (subcollection) ─────────────────────────────
+      //
+      // Each group authors its own courses. Admin-only, both ways: no
+      // player-facing screen reads the catalogue, because rounds score off
+      // their own frozen `courseSnapshot`. Editing a course here can never
+      // change a round that has already been played.
+
+      match /courses/{courseId} {
+        allow read, write: if isAdminOrModerator() && isSameGroup(groupId);
+
+        match /tees/{teeId} {
+          allow read, write: if isAdminOrModerator() && isSameGroup(groupId);
+        }
       }
     }
 
@@ -115,11 +180,13 @@ service cloud.firestore {
       allow update: if isAdminOrModerator() || canMarkInviteUsed();
     }
 
-    // ─── Courses ──────────────────────────────────────────────────────────
+    // ─── Rounds backup (Brief 1 §6 rollback) ──────────────────────────────
+    //
+    // The pre-migration copy of every round, kept until the ladder and
+    // handicaps are confirmed. Admin-only, and never read by the app.
 
-    match /courses/{courseId} {
-      allow read: if isActiveUserOrAdmin();
-      allow write: if isAdminOrModerator();
+    match /rounds_backup_20260920/{roundId} {
+      allow read, write: if isAdmin();
     }
 
     // ─── Rounds ───────────────────────────────────────────────────────────
@@ -127,7 +194,10 @@ service cloud.firestore {
     match /rounds/{roundId} {
       allow read: if isActiveUserOrAdmin();
       // Moderators can create and edit rounds but cannot delete them.
-      allow create, update: if isAdminOrModerator();
+      allow create: if isAdminOrModerator();
+      // R4 — a round's course data is sealed the moment it leaves 'upcoming'.
+      // Every other field stays editable (status, notes, tee times, results).
+      allow update: if isAdminOrModerator() && courseDataSealRespected();
       allow delete: if isAdmin();
 
       match /teeTimes/{teeTimeId} {

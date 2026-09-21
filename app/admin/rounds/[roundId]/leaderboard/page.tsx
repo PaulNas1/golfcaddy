@@ -372,6 +372,9 @@ export default function AdminRoundLeaderboardPage() {
         availableTeeSets: round.availableTeeSets,
         playerTeeAssignments: {},
         courseSource: round.courseSource,
+        // Carried forward, not re-read from the catalogue: the new round is
+        // upcoming, so it can be refreshed in the editor if the course changed.
+        courseSnapshot: round.courseSnapshot,
         date: new Date(rebookDate),
         season: parsedSeason,
         roundNumber: parsedRoundNumber,

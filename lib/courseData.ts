@@ -1,3 +1,4 @@
+import { snapshotToTeeSets } from "./courseSnapshot.ts";
 import type {
   AppUser,
   CourseHole,
@@ -8,26 +9,12 @@ import type {
   SpecialHoles,
 } from "@/types";
 
-export type SeededCourse = {
-  id: string;
-  apiId?: number;
-  catalogueSource?: "golfcourseapi";
-  name: string;
-  location: string;
-  aliases: string[];
-  teeSets: CourseTeeSet[];
-};
-
 const DEFAULT_NTP_HOLES = [3, 6, 12, 16];
 
 function holeType(par: number): HoleType {
   if (par === 3) return "par3";
   if (par === 5) return "par5";
   return "par4";
-}
-
-export function getCourseSearchLabel(course: SeededCourse) {
-  return `${course.name} - ${course.location}`;
 }
 
 export function getParThreeHoles(teeSet: CourseTeeSet) {
@@ -53,7 +40,18 @@ export function getDriveHoleOptions(holes: CourseHole[]) {
   return holes.filter((hole) => hole.par >= 4);
 }
 
+/**
+ * R1 — the tee sets a round scores off.
+ *
+ * The frozen `courseSnapshot` wins over everything. The legacy fields below
+ * are the fallback for rounds created before Brief 1 and not yet backfilled;
+ * nothing here ever reads the live `courses` catalogue.
+ */
 export function getRoundTeeSets(round: Round): CourseTeeSet[] {
+  if (round.courseSnapshot && round.courseSnapshot.tees.length > 0) {
+    return snapshotToTeeSets(round.courseSnapshot);
+  }
+
   if (round.availableTeeSets && round.availableTeeSets.length > 0) {
     return round.availableTeeSets;
   }
@@ -195,12 +193,22 @@ export function getEffectiveCourseHoles(
   return applyHoleOverrides(baseHoles, round.holeOverrides);
 }
 
+/**
+ * The round's default-tee holes, snapshot-first.
+ *
+ * One source of truth for the course card and for NTP derivation, so the two
+ * can never disagree the way availableTeeSets and courseHoles once could.
+ */
+export function getRoundDefaultHoles(round: Round): CourseHole[] {
+  const defaultTee = getRoundDefaultTeeSet(round);
+  if (defaultTee && defaultTee.holes.length > 0) return defaultTee.holes;
+  return round.courseHoles.length > 0 ? round.courseHoles : [];
+}
+
 export function getEffectiveSpecialHoles(round: Round): SpecialHoles {
-  // Use round.courseHoles as the single source of truth for NTP — same data
-  // the course card shows via getViewerHoles. Tee-set-picking logic in
-  // getEffectiveCourseHoles can diverge when availableTeeSets has stale data.
-  const baseHoles =
-    round.courseHoles.length === 18 ? round.courseHoles : getFallbackCourseHoles();
+  // One source of truth for NTP — the same holes the course card shows.
+  const resolved = getRoundDefaultHoles(round);
+  const baseHoles = resolved.length > 0 ? resolved : getFallbackCourseHoles();
   const holes = applyHoleOverrides(baseHoles, round.holeOverrides);
   return {
     ...round.specialHoles,
@@ -275,16 +283,15 @@ export function getViewerHoles(
     viewer?.uid ? (round.playerTeeAssignments ?? {})[viewer.uid] : null;
 
   if (assignedTeeSetId) {
-    const assigned = (round.availableTeeSets ?? []).find(
+    const assigned = getRoundTeeSets(round).find(
       (ts) => ts.id === assignedTeeSetId
     );
-    if (assigned && assigned.holes.length === 18) {
+    if (assigned && assigned.holes.length > 0) {
       return { holes: assigned.holes, note: null };
     }
   }
 
-  // Fall back to round default holes
-  const holes = round.courseHoles.length === 18 ? round.courseHoles : [];
+  const holes = getRoundDefaultHoles(round);
   if (!holes.length) return { holes: [], note: null };
 
   // If this user typically plays a different tee set (female / senior / pro)
@@ -303,6 +310,14 @@ export function getViewerHoles(
   return { holes, note };
 }
 
+/**
+ * LAST RESORT ONLY — fabricates a card with stroke index === hole number.
+ *
+ * This is the "SI 1, 2, 3 … 18" that Brief 1 exists to eliminate. It is
+ * reached only by a round carrying no snapshot and no hole data at all, i.e.
+ * a pre-Brief-1 round that has not been through the migration. Every round
+ * created from the course catalogue resolves real data long before this.
+ */
 export function getFallbackCourseHoles(): CourseHole[] {
   return Array.from({ length: 18 }, (_, index) => {
     const number = index + 1;

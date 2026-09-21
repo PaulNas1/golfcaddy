@@ -23,10 +23,7 @@ import {
 } from "@/lib/firestore";
 import { buildPlayerRankings } from "@/lib/results";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  type SeededCourse,
-  getParThreeHoles,
-} from "@/lib/courseData";
+import { canResnapshot } from "@/lib/courseSnapshot";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import {
   getTeeTimeGroupLabel,
@@ -38,12 +35,10 @@ import RoundDetailsForm, {
 import RsvpRosterSection from "@/components/admin/RsvpRosterSection";
 import RoundStatusSection from "@/components/admin/RoundStatusSection";
 import CloseOutSection from "@/components/admin/CloseOutSection";
-import CourseCorrectionsSection from "@/components/admin/CourseCorrectionsSection";
 import RoundInfoSection from "@/components/admin/RoundInfoSection";
 import DangerZoneSection from "@/components/admin/DangerZoneSection";
 import type {
   AppUser,
-  CourseTeeSet,
   Group,
   HoleScore,
   Round,
@@ -115,6 +110,16 @@ export default function AdminRoundDetailPage() {
 
   // Scorecards & scoring
   const [scorecards, setScorecards] = useState<Scorecard[]>([]);
+
+  /**
+   * R3 — course data may only be rebuilt while the round is upcoming and has
+   * no scorecards. The UI disables the pickers; firestore.rules enforce it.
+   */
+  const courseGate = useMemo(
+    () => canResnapshot(round?.status ?? "upcoming", scorecards.length),
+    [round?.status, scorecards.length]
+  );
+
   const [holeScoresByCardId, setHoleScoresByCardId] = useState<
     Record<string, HoleScore[]>
   >({});
@@ -402,8 +407,41 @@ export default function AdminRoundDetailPage() {
         payload.teeTimes
       );
 
+      // R4 — a sealed round's course data is never written back, not even
+      // as an identical value. firestore.rules rejects it either way; this
+      // keeps the client honest about what it is actually changing.
+      const {
+        courseSnapshot,
+        courseHoles,
+        availableTeeSets,
+        coursePar,
+        courseRating,
+        slopeRating,
+        courseSource,
+        teeSetId,
+        teeSetName,
+        courseId,
+        ...roundFields
+      } = payload;
+
+      const coursePatch = courseGate.allowed
+        ? {
+            courseSnapshot,
+            courseHoles,
+            availableTeeSets,
+            coursePar,
+            courseRating,
+            slopeRating,
+            courseSource,
+            teeSetId,
+            teeSetName,
+            courseId,
+          }
+        : {};
+
       await updateRound(round.id, {
-        ...payload,
+        ...roundFields,
+        ...coursePatch,
         playerTeeAssignments: savedPlayerTeeAssignments,
         rsvpOpen: notifyPlayers ? true : round.rsvpOpen,
         rsvpNotifiedAt: notifyPlayers ? new Date() : round.rsvpNotifiedAt,
@@ -493,38 +531,6 @@ export default function AdminRoundDetailPage() {
     }
   };
 
-  const handleRefreshCourseData = async (
-    selectedCourse: SeededCourse,
-    refreshableTeeSet: CourseTeeSet
-  ) => {
-    if (!round) return;
-    setSaving(true);
-    const refreshedSpecialHoles = {
-      ...round.specialHoles,
-      ntp: getParThreeHoles(refreshableTeeSet),
-    };
-    const refreshedCourseDetails = {
-      courseId: selectedCourse.id,
-      courseName: selectedCourse.name,
-      teeSetId: refreshableTeeSet.id,
-      teeSetName: refreshableTeeSet.name,
-      coursePar: refreshableTeeSet.par,
-      courseRating: refreshableTeeSet.courseRating,
-      slopeRating: refreshableTeeSet.slopeRating,
-      courseHoles: refreshableTeeSet.holes,
-      availableTeeSets: selectedCourse.teeSets,
-      playerTeeAssignments: {},
-      courseSource: refreshableTeeSet.source,
-      specialHoles: refreshedSpecialHoles,
-    };
-    await updateRound(round.id, refreshedCourseDetails);
-    setRound({ ...round, ...refreshedCourseDetails });
-    setPlayerTeeAssignments({});
-    setSuccess("Course data refreshed from GolfCourseAPI");
-    setSaving(false);
-    setTimeout(() => setSuccess(""), 3000);
-  };
-
   const updateSideWinner = async (
     key: string,
     prizeType: SidePrizeType,
@@ -598,8 +604,8 @@ export default function AdminRoundDetailPage() {
         onTeeTimes={setTeeTimes}
         playerTeeAssignments={playerTeeAssignments}
         onPlayerTeeAssignmentsChange={setPlayerTeeAssignments}
-        onRefreshCourseData={handleRefreshCourseData}
-        refreshing={saving}
+        courseLocked={courseGate.allowed === false}
+        courseLockReason={courseGate.reason}
         onSave={handleSaveDetails}
         saving={saving}
         error={detailsError}
@@ -639,15 +645,6 @@ export default function AdminRoundDetailPage() {
           onUpdateSideWinner={updateSideWinner}
         />
       )}
-
-      {/* Course corrections: par fixes, rating/slope, stroke indexes */}
-      <CourseCorrectionsSection
-        round={round}
-        group={group}
-        appUser={appUser}
-        onRoundChange={setRound}
-        onSuccess={showSuccess}
-      />
 
       {/* Quick info read-out */}
       <RoundInfoSection round={round} group={group} />

@@ -205,9 +205,9 @@ export default function AdminDashboard() {
               <span className="mt-1 block text-xs text-ink-muted">Scan to sign up on the spot</span>
             </button>
             <ActionTile
-              href="/admin/course-corrections"
-              label="Course corrections"
-              description="Saved tee set fixes"
+              href="/admin/courses"
+              label="Courses"
+              description="Pars, stroke index, distances"
               icon={<CourseIcon className="h-6 w-6" />}
             />
           </div>

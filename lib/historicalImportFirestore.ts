@@ -90,6 +90,7 @@ export async function importHistoricalRoundsToFirestore({
       availableTeeSets: [],
       playerTeeAssignments: {},
       courseSource: null,
+      courseSnapshot: null,
       date: group.roundDate,
       season: group.season,
       roundNumber: group.roundNumber ?? 0,

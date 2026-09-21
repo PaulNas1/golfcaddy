@@ -53,7 +53,11 @@ import type {
   PostComment,
   HandicapHistory,
   NotificationType,
-  CourseCorrection,
+  Course,
+  CourseSnapshot,
+  CourseTee,
+  SnapshotTee,
+  TeeHole,
 } from "@/types";
 import {
   buildSeasonStandings,
@@ -64,6 +68,8 @@ import {
   inferHandicapStatus,
 } from "./season";
 import { withSeededCourseData } from "./courseData";
+import { legacyRoundFieldsFromSnapshot } from "./courseSnapshot";
+import type { LegacyCorrection } from "./courseMigration";
 import { DEFAULT_GROUP_SETTINGS, normaliseGroupSettings } from "./settings";
 import { sendPushNotificationsToUsers } from "./pushClient";
 
@@ -206,6 +212,56 @@ function shouldSyncMemberSeasonSnapshot(
   return (group?.currentSeason ?? season) === season;
 }
 
+/**
+ * Read a round's frozen course snapshot back out (R1).
+ *
+ * Returns null for rounds created before Brief 1 — callers fall back to the
+ * legacy `courseHoles` / `availableTeeSets` fields in that case.
+ */
+const mapCourseSnapshot = (raw: unknown): CourseSnapshot | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const data = raw as Record<string, unknown>;
+  if (!Array.isArray(data.tees)) return null;
+
+  const tees: SnapshotTee[] = data.tees.map((entry) => {
+    const tee = (entry ?? {}) as Record<string, unknown>;
+    const holes: TeeHole[] = Array.isArray(tee.holes)
+      ? tee.holes.map((holeEntry, position) => {
+          const hole = (holeEntry ?? {}) as Record<string, unknown>;
+          return {
+            hole: typeof hole.hole === "number" ? hole.hole : position + 1,
+            par: typeof hole.par === "number" ? hole.par : 0,
+            index: typeof hole.index === "number" ? hole.index : 0,
+            metres: typeof hole.metres === "number" ? hole.metres : 0,
+          };
+        })
+      : [];
+
+    return {
+      teeId: typeof tee.teeId === "string" ? tee.teeId : "",
+      name: typeof tee.name === "string" ? tee.name : "",
+      gender:
+        tee.gender === "women" || tee.gender === "mixed" ? tee.gender : "men",
+      courseRating:
+        typeof tee.courseRating === "number" ? tee.courseRating : null,
+      slope: typeof tee.slope === "number" ? tee.slope : null,
+      par:
+        typeof tee.par === "number"
+          ? tee.par
+          : holes.reduce((total, hole) => total + hole.par, 0),
+      holes,
+    };
+  });
+
+  return {
+    courseId: typeof data.courseId === "string" ? data.courseId : "",
+    courseName: typeof data.courseName === "string" ? data.courseName : "",
+    holeCount: typeof data.holeCount === "number" ? data.holeCount : 18,
+    snapshotAt: toDate(data.snapshotAt as Timestamp | Date | null | undefined),
+    tees,
+  };
+};
+
 const mapRound = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
 ): Round => {
@@ -243,6 +299,7 @@ const mapRound = (
         ? data.playerTeeAssignments
         : {},
     courseSource: data.courseSource ?? null,
+    courseSnapshot: mapCourseSnapshot(data.courseSnapshot),
     rsvpOpen: data.rsvpOpen ?? false,
     rsvpNotifiedAt: data.rsvpNotifiedAt
       ? toDate(data.rsvpNotifiedAt)
@@ -3408,57 +3465,336 @@ export const markAllNotificationsRead = async (notificationIds: string[]) => {
   });
   await batch.commit();
 };
+// ─── Course catalogue (Brief 1) ──────────────────────────────────────────────
+//
+// `groups/{groupId}/courses/{courseId}` and its `tees` subcollection. Each
+// group authors and owns its own courses. This replaces both the GolfCourseAPI
+// integration and the per-tee "course corrections" that patched it.
 
-// ─── Course Corrections ───────────────────────────────────────────────────────
-
-const mapCourseCorrection = (
+const mapCourse = (
   d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>
-): CourseCorrection => {
+): Course => {
   const data = d.data() ?? {};
   return {
     id: d.id,
-    ...data,
-    savedAt: toDate(data.savedAt),
-  } as CourseCorrection;
+    groupId: data.groupId ?? "",
+    name: data.name ?? "",
+    location: data.location ?? null,
+    holeCount: typeof data.holeCount === "number" ? data.holeCount : 18,
+    archived: data.archived === true,
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
+  };
 };
 
-export const saveCourseCorrection = async (
-  groupId: string,
-  correction: Omit<CourseCorrection, "id" | "savedAt">
-): Promise<void> => {
-  await setDoc(
-    doc(db, "groups", groupId, "courseCorrections", correction.teeSetId),
-    { ...correction, savedAt: serverTimestamp() }
-  );
+const mapCourseTee = (
+  d: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>,
+  courseId: string
+): CourseTee => {
+  const data = d.data() ?? {};
+  const holes: TeeHole[] = Array.isArray(data.holes)
+    ? data.holes.map((hole: Partial<TeeHole>, position: number) => ({
+        hole: typeof hole?.hole === "number" ? hole.hole : position + 1,
+        par: typeof hole?.par === "number" ? hole.par : 0,
+        index: typeof hole?.index === "number" ? hole.index : 0,
+        metres: typeof hole?.metres === "number" ? hole.metres : 0,
+      }))
+    : [];
+
+  return {
+    id: d.id,
+    courseId,
+    name: data.name ?? "",
+    gender: data.gender ?? "men",
+    courseRating:
+      typeof data.courseRating === "number" ? data.courseRating : null,
+    slope: typeof data.slope === "number" ? data.slope : null,
+    par:
+      typeof data.par === "number"
+        ? data.par
+        : holes.reduce((total, hole) => total + hole.par, 0),
+    holes: holes.slice().sort((a, b) => a.hole - b.hole),
+    updatedAt: toDate(data.updatedAt),
+  };
 };
 
-export const getCourseCorrection = async (
+const coursesRef = (groupId: string) =>
+  collection(db, "groups", groupId, "courses");
+
+const courseRef = (groupId: string, courseId: string) =>
+  doc(db, "groups", groupId, "courses", courseId);
+
+const teesRef = (groupId: string, courseId: string) =>
+  collection(db, "groups", groupId, "courses", courseId, "tees");
+
+const teeRef = (groupId: string, courseId: string, teeId: string) =>
+  doc(db, "groups", groupId, "courses", courseId, "tees", teeId);
+
+const byCourseName = (a: Course, b: Course) => a.name.localeCompare(b.name);
+const byTeeName = (a: CourseTee, b: CourseTee) => a.name.localeCompare(b.name);
+
+export const getCourses = async (
   groupId: string,
-  teeSetId: string
-): Promise<CourseCorrection | null> => {
-  const snap = await getDoc(
-    doc(db, "groups", groupId, "courseCorrections", teeSetId)
+  { includeArchived = false }: { includeArchived?: boolean } = {}
+): Promise<Course[]> => {
+  const snap = await getDocs(coursesRef(groupId));
+  return snap.docs
+    .map(mapCourse)
+    .filter((course) => includeArchived || !course.archived)
+    .sort(byCourseName);
+};
+
+export const subscribeCourses = (
+  groupId: string,
+  onChange: (courses: Course[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    coursesRef(groupId),
+    (snap) => onChange(snap.docs.map(mapCourse).sort(byCourseName)),
+    onError
   );
+
+export const getCourse = async (
+  groupId: string,
+  courseId: string
+): Promise<Course | null> => {
+  const snap = await getDoc(courseRef(groupId, courseId));
   if (!snap.exists()) return null;
-  return mapCourseCorrection(snap);
+  return mapCourse(snap);
 };
 
-export const getCourseCorrectionsForGroup = async (
+export const createCourse = async (
+  groupId: string,
+  data: Pick<Course, "name" | "location" | "holeCount">
+): Promise<string> => {
+  const ref = await addDoc(coursesRef(groupId), {
+    groupId,
+    name: data.name,
+    location: data.location,
+    holeCount: data.holeCount,
+    archived: false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+};
+
+export const updateCourse = async (
+  groupId: string,
+  courseId: string,
+  data: Partial<Pick<Course, "name" | "location" | "holeCount" | "archived">>
+): Promise<void> => {
+  await updateDoc(courseRef(groupId, courseId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  });
+};
+
+/**
+ * R6 — deleting a course is archiving it. Rounds keep their snapshots and
+ * continue to render correctly; the course just leaves the pickers.
+ */
+export const setCourseArchived = async (
+  groupId: string,
+  courseId: string,
+  archived: boolean
+): Promise<void> => updateCourse(groupId, courseId, { archived });
+
+export const getCourseTees = async (
+  groupId: string,
+  courseId: string
+): Promise<CourseTee[]> => {
+  const snap = await getDocs(teesRef(groupId, courseId));
+  return snap.docs.map((d) => mapCourseTee(d, courseId)).sort(byTeeName);
+};
+
+export const subscribeCourseTees = (
+  groupId: string,
+  courseId: string,
+  onChange: (tees: CourseTee[]) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    teesRef(groupId, courseId),
+    (snap) =>
+      onChange(snap.docs.map((d) => mapCourseTee(d, courseId)).sort(byTeeName)),
+    onError
+  );
+
+export const getCourseTee = async (
+  groupId: string,
+  courseId: string,
+  teeId: string
+): Promise<CourseTee | null> => {
+  const snap = await getDoc(teeRef(groupId, courseId, teeId));
+  if (!snap.exists()) return null;
+  return mapCourseTee(snap, courseId);
+};
+
+export type CourseTeeInput = Pick<
+  CourseTee,
+  "name" | "gender" | "courseRating" | "slope" | "holes"
+>;
+
+const teeWritePayload = (data: CourseTeeInput) => ({
+  name: data.name,
+  gender: data.gender,
+  courseRating: data.courseRating,
+  slope: data.slope,
+  // Denormalised for list display — always the sum, never authored directly.
+  par: data.holes.reduce((total, hole) => total + hole.par, 0),
+  holes: data.holes.map((hole) => ({
+    hole: hole.hole,
+    par: hole.par,
+    index: hole.index,
+    metres: hole.metres,
+  })),
+  updatedAt: serverTimestamp(),
+});
+
+export const createCourseTee = async (
+  groupId: string,
+  courseId: string,
+  data: CourseTeeInput
+): Promise<string> => {
+  const ref = await addDoc(teesRef(groupId, courseId), teeWritePayload(data));
+  return ref.id;
+};
+
+export const updateCourseTee = async (
+  groupId: string,
+  courseId: string,
+  teeId: string,
+  data: CourseTeeInput
+): Promise<void> => {
+  await setDoc(teeRef(groupId, courseId, teeId), teeWritePayload(data));
+};
+
+export const deleteCourseTee = async (
+  groupId: string,
+  courseId: string,
+  teeId: string
+): Promise<void> => {
+  await deleteDoc(teeRef(groupId, courseId, teeId));
+};
+
+/** Everything needed to build a round's snapshot, in one read. */
+export const getCourseWithTees = async (
+  groupId: string,
+  courseId: string
+): Promise<{ course: Course; tees: CourseTee[] } | null> => {
+  const [course, tees] = await Promise.all([
+    getCourse(groupId, courseId),
+    getCourseTees(groupId, courseId),
+  ]);
+  if (!course) return null;
+  return { course, tees };
+};
+
+// ─── Migration support (Brief 1 §6) ─────────────────────────────────────────
+//
+// Read paths the two-pass migration needs and nothing else does. The legacy
+// `courseCorrections` reader lives here rather than in the main API surface
+// because migration is the only thing that should still know that collection
+// existed.
+
+/** Every round for a group — the normal reader caps at 20 for the list view. */
+export const getAllRoundsForGroup = async (
   groupId: string
-): Promise<CourseCorrection[]> => {
+): Promise<Round[]> => {
+  const snap = await getDocs(
+    query(collection(db, "rounds"), where("groupId", "==", groupId))
+  );
+  return snap.docs
+    .map(mapRound)
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+};
+
+export const getLegacyCourseCorrections = async (
+  groupId: string
+): Promise<LegacyCorrection[]> => {
   const snap = await getDocs(
     collection(db, "groups", groupId, "courseCorrections")
   );
-  return snap.docs
-    .map(mapCourseCorrection)
-    .sort((a, b) => b.savedAt.getTime() - a.savedAt.getTime());
+  return snap.docs.map((d) => {
+    const data = d.data() ?? {};
+    return {
+      teeSetId: data.teeSetId ?? d.id,
+      courseName: data.courseName ?? "",
+      teeSetName: data.teeSetName ?? "",
+      correctedCourseRating:
+        typeof data.correctedCourseRating === "number"
+          ? data.correctedCourseRating
+          : null,
+      correctedSlopeRating:
+        typeof data.correctedSlopeRating === "number"
+          ? data.correctedSlopeRating
+          : null,
+      holeCorrections: Array.isArray(data.holeCorrections)
+        ? data.holeCorrections
+        : [],
+    };
+  });
 };
 
-export const deleteCourseCorrection = async (
+/**
+ * §6 rollback — copy every round into `rounds_backup_20260920` before Pass 2
+ * writes a single snapshot. Kept until Paul confirms the ladder and handicaps
+ * look right.
+ */
+export const backupRounds = async (
   groupId: string,
-  teeSetId: string
+  backupCollection: string
+): Promise<number> => {
+  const snap = await getDocs(
+    query(collection(db, "rounds"), where("groupId", "==", groupId))
+  );
+  const writer = createBatchedWriter();
+
+  for (const roundDoc of snap.docs) {
+    await writer.queue((batch) =>
+      batch.set(doc(db, backupCollection, roundDoc.id), {
+        ...roundDoc.data(),
+        backedUpAt: serverTimestamp(),
+      })
+    );
+  }
+
+  await writer.commit();
+  return snap.size;
+};
+
+export const countBackedUpRounds = async (
+  backupCollection: string
+): Promise<number> => {
+  const snap = await getDocs(collection(db, backupCollection));
+  return snap.size;
+};
+
+/** Pass 2b — freeze a snapshot, and the legacy fields derived from it, onto a round. */
+export const writeRoundCourseSnapshot = async (
+  roundId: string,
+  snapshot: CourseSnapshot,
+  defaultTeeId: string
 ): Promise<void> => {
-  await deleteDoc(doc(db, "groups", groupId, "courseCorrections", teeSetId));
+  await updateDoc(doc(db, "rounds", roundId), {
+    courseId: snapshot.courseId,
+    courseName: snapshot.courseName,
+    courseSnapshot: snapshot,
+    ...legacyRoundFieldsFromSnapshot(snapshot, defaultTeeId),
+    updatedAt: serverTimestamp(),
+  });
+};
+
+/** R3 — the gate on "Refresh course data" needs to know if play has started. */
+export const countScorecardsForRound = async (
+  roundId: string
+): Promise<number> => {
+  const snap = await getDocs(
+    query(collection(db, "scorecards"), where("roundId", "==", roundId))
+  );
+  return snap.size;
 };
 
 // ─── Placeholder Members ──────────────────────────────────────────────────────
