@@ -299,7 +299,12 @@ export default function RoundDetailsForm({
     (m) => needsTeeReview(m) && !playerTeeAssignments?.[m.uid]
   );
 
-  const teeOverrideCount = Object.values(playerTeeAssignments ?? {}).filter(Boolean).length;
+  // Must match what the save actually keeps: an assignment equal to the round
+  // default is dropped, so counting it as an override makes the summary
+  // disagree with the data the moment you reload.
+  const teeOverrideCount = Object.values(playerTeeAssignments ?? {}).filter(
+    (assignedTeeId) => assignedTeeId && assignedTeeId !== teeSetId
+  ).length;
 
   // ─── Effect: course sync on external round change (edit mode) ───────────────
   useEffect(() => {

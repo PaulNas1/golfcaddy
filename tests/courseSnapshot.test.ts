@@ -436,3 +436,75 @@ test("a round with no card keeps its imported NTP rather than blanking it", asyn
 
   assert.deepEqual(withSeededCourseData(round).specialHoles.ntp, [4, 9, 14]);
 });
+
+// ─── "Default (Mens White)" resolves to the tee the admin created ───────────
+
+test("a player left on Default scores off the round's chosen tee, exactly", async () => {
+  const { getPlayerTeeSet } = await import("../lib/courseData.ts");
+
+  const mens = tee({ id: "tee-mens-white", name: "Mens White" });
+  const womens = womensTee();
+  const snapshot = buildCourseSnapshot(course(), [mens, womens], SNAPSHOT_AT);
+
+  const round = {
+    ...legacyRoundFieldsFromSnapshot(snapshot, "tee-mens-white"),
+    courseSnapshot: snapshot,
+    // No entry for this player — which is exactly what the admin form writes
+    // when the dropdown is left on "Default (Mens White)".
+    playerTeeAssignments: {},
+    holeOverrides: [],
+  } as unknown as Parameters<typeof getPlayerTeeSet>[0];
+
+  const resolved = getPlayerTeeSet(round, "player-on-default");
+  assert.ok(resolved);
+
+  // Same tee document, and every scoring input matches the card as authored.
+  assert.equal(resolved.id, "tee-mens-white");
+  assert.equal(resolved.name, "Mens White");
+  assert.equal(resolved.slopeRating, mens.slope);
+  assert.equal(resolved.courseRating, mens.courseRating);
+  assert.deepEqual(
+    resolved.holes.map((hole) => hole.strokeIndex),
+    mens.holes.map((hole) => hole.index)
+  );
+  assert.deepEqual(
+    resolved.holes.map((hole) => hole.par),
+    mens.holes.map((hole) => hole.par)
+  );
+});
+
+test("an explicit override sends that player to the other tee, and only them", async () => {
+  const { getPlayerTeeSet } = await import("../lib/courseData.ts");
+
+  const mens = tee({ id: "tee-mens-white", name: "Mens White" });
+  const snapshot = buildCourseSnapshot(course(), [mens, womensTee()], SNAPSHOT_AT);
+
+  const round = {
+    ...legacyRoundFieldsFromSnapshot(snapshot, "tee-mens-white"),
+    courseSnapshot: snapshot,
+    playerTeeAssignments: { "player-brylee": "tee-red" },
+    holeOverrides: [],
+  } as unknown as Parameters<typeof getPlayerTeeSet>[0];
+
+  assert.equal(getPlayerTeeSet(round, "player-brylee")?.id, "tee-red");
+  assert.equal(getPlayerTeeSet(round, "player-chopper")?.id, "tee-mens-white");
+});
+
+test("the default is chosen by id, not by tee name", async () => {
+  const { getPlayerTeeSet } = await import("../lib/courseData.ts");
+
+  // Two tees whose names differ only in case and spacing — resolution must not
+  // depend on the label the admin typed.
+  const a = tee({ id: "tee-a", name: "Mens White" });
+  const b = tee({ id: "tee-b", name: "mens  white" });
+  const snapshot = buildCourseSnapshot(course(), [a, b], SNAPSHOT_AT);
+
+  const round = {
+    ...legacyRoundFieldsFromSnapshot(snapshot, "tee-b"),
+    courseSnapshot: snapshot,
+    playerTeeAssignments: {},
+    holeOverrides: [],
+  } as unknown as Parameters<typeof getPlayerTeeSet>[0];
+
+  assert.equal(getPlayerTeeSet(round, "anyone")?.id, "tee-b");
+});
