@@ -9,8 +9,6 @@ import type {
   SpecialHoles,
 } from "@/types";
 
-const DEFAULT_NTP_HOLES = [3, 6, 12, 16];
-
 function holeType(par: number): HoleType {
   if (par === 3) return "par3";
   if (par === 5) return "par5";
@@ -216,32 +214,27 @@ export function getEffectiveSpecialHoles(round: Round): SpecialHoles {
   };
 }
 
-function arraysEqual(a: number[], b: number[]) {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
-}
-
+/**
+ * Every par 3 is a nearest-the-pin hole, always. NTP is therefore derived
+ * from the card, never chosen and never stored as a decision — only LD, T2
+ * and T3 vary from round to round.
+ *
+ * When the round's holes are unknown (a pre-Brief-1 import that carries no
+ * card), the stored value is kept rather than blanked: an import may have
+ * brought real NTP holes across from a spreadsheet. Nothing is invented.
+ */
 function normalizeSpecialHoles(
   specialHoles: SpecialHoles | undefined,
   courseHoles: CourseHole[]
 ): SpecialHoles {
-  const existing = specialHoles ?? {
-    ntp: DEFAULT_NTP_HOLES,
-    ld: null,
-    t2: null,
-    t3: null,
-  };
-  const existingNtp = existing.ntp ?? [];
-  const parThreeHoles =
-    courseHoles.length === 18
-      ? courseHoles.filter((hole) => hole.par === 3).map((hole) => hole.number)
-      : [];
-  const shouldUseCourseNtp =
-    parThreeHoles.length > 0 &&
-    (existingNtp.length === 0 || arraysEqual(existingNtp, DEFAULT_NTP_HOLES));
+  const existing = specialHoles ?? { ntp: [], ld: null, t2: null, t3: null };
+  const parThreeHoles = courseHoles
+    .filter((hole) => hole.par === 3)
+    .map((hole) => hole.number);
 
   return {
     ...existing,
-    ntp: shouldUseCourseNtp ? parThreeHoles : existingNtp,
+    ntp: courseHoles.length > 0 ? parThreeHoles : existing.ntp ?? [],
   };
 }
 

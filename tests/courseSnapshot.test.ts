@@ -385,3 +385,54 @@ test("a duplicated index reads as invalid", () => {
   const snapshot = buildCourseSnapshot(course(), [broken], SNAPSHOT_AT);
   assert.equal(snapshotIndexIsValid(snapshot), false);
 });
+
+// ─── NTP is derived, never chosen ───────────────────────────────────────────
+//
+// Every par 3 is a nearest-the-pin hole, always. Only LD, T2 and T3 vary.
+
+test("every par 3 is an NTP hole, whatever the round has stored", async () => {
+  const { getEffectiveSpecialHoles, withSeededCourseData } = await import(
+    "../lib/courseData.ts"
+  );
+  const snapshot = buildCourseSnapshot(course(), [tee()], SNAPSHOT_AT);
+  const legacy = legacyRoundFieldsFromSnapshot(snapshot, "tee-white");
+
+  // PARS has par 3s at holes 3, 6, 13 and 16.
+  const realParThrees = PARS.flatMap((par, position) =>
+    par === 3 ? [position + 1] : []
+  );
+
+  const round = {
+    ...legacy,
+    courseSnapshot: snapshot,
+    holeOverrides: [],
+    // Deliberately wrong, and not the old [3, 6, 12, 16] default either.
+    specialHoles: { ntp: [1, 2, 3], ld: 4, t2: 7, t3: 11 },
+  } as unknown as Parameters<typeof getEffectiveSpecialHoles>[0];
+
+  const effective = getEffectiveSpecialHoles(round);
+  assert.deepEqual(effective.ntp, realParThrees);
+
+  // LD / T2 / T3 are decisions, so they survive untouched.
+  assert.equal(effective.ld, 4);
+  assert.equal(effective.t2, 7);
+  assert.equal(effective.t3, 11);
+
+  // And the same holds through the round mapper.
+  const seeded = withSeededCourseData(round);
+  assert.deepEqual(seeded.specialHoles.ntp, realParThrees);
+});
+
+test("a round with no card keeps its imported NTP rather than blanking it", async () => {
+  const { withSeededCourseData } = await import("../lib/courseData.ts");
+
+  const round = {
+    courseHoles: [],
+    availableTeeSets: [],
+    courseSnapshot: null,
+    holeOverrides: [],
+    specialHoles: { ntp: [4, 9, 14], ld: null, t2: null, t3: null },
+  } as unknown as Parameters<typeof withSeededCourseData>[0];
+
+  assert.deepEqual(withSeededCourseData(round).specialHoles.ntp, [4, 9, 14]);
+});

@@ -1,3 +1,4 @@
+import { getEffectiveSpecialHoles } from "@/lib/courseData";
 import type { Group, Round } from "@/types";
 
 function InfoRow({ label, value }: { label: string; value: string }) {
@@ -15,6 +16,10 @@ type Props = {
 };
 
 export default function RoundInfoSection({ round, group }: Props) {
+  // Derived, like every other read path — so this read-out can never disagree
+  // with the course card or the scorecard about which holes are NTP.
+  const specialHoles = getEffectiveSpecialHoles(round);
+
   return (
     <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-2">
       <h2 className="font-semibold text-ink-title mb-2">Round Info</h2>
@@ -45,19 +50,19 @@ export default function RoundInfoSection({ round, group }: Props) {
       />
       <InfoRow
         label="NTP holes"
-        value={round.specialHoles.ntp.join(", ") || "None set"}
+        value={specialHoles.ntp.join(", ") || "None set"}
       />
       <InfoRow
         label="LD hole"
-        value={round.specialHoles.ld?.toString() || "None set"}
+        value={specialHoles.ld?.toString() || "None set"}
       />
       <InfoRow
         label="T2 hole"
-        value={round.specialHoles.t2?.toString() || "None set"}
+        value={specialHoles.t2?.toString() || "None set"}
       />
       <InfoRow
         label="T3 hole"
-        value={round.specialHoles.t3?.toString() || "None set"}
+        value={specialHoles.t3?.toString() || "None set"}
       />
     </div>
   );

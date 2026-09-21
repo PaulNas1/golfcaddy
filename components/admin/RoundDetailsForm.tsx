@@ -283,6 +283,11 @@ export default function RoundDetailsForm({
 
   const driveHoleOptions = getDriveHoleOptions(holeOptions);
 
+  // Every par 3 is an NTP hole, always. Only LD, T2 and T3 are decisions.
+  const ntpHoles = holeOptions
+    .filter((hole) => hole.par === 3)
+    .map((hole) => hole.number);
+
   /** R3 — show a diff of what a re-snapshot will change, before applying it. */
   const snapshotDiff = useMemo(() => {
     if (!existingRound || !pendingSnapshot) return [];
@@ -611,12 +616,6 @@ export default function RoundDetailsForm({
             </p>
           )}
 
-          {selectedTeeSet && (
-            <p className="text-xs text-ink-hint mt-1">
-              NTP holes from par 3s: {getParThreeHoles(selectedTeeSet).join(", ")}
-            </p>
-          )}
-
           {/* Edit mode: player tee assignments panel */}
           {existingRound && assignmentTeeSets.length > 0 && playerTeeAssignments && (
             <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2">
@@ -807,10 +806,13 @@ export default function RoundDetailsForm({
 
       {/* Special holes */}
       <div className="border-t border-surface-overlay pt-3 mt-2 space-y-3">
-        <h3 className="text-xs font-semibold text-ink-body">Special holes</h3>
-        <p className="text-xs text-ink-hint">
-          NTP holes are set from par 3s. Update LD, T2, and T3 if the course changes.
-        </p>
+        <h3 className="text-xs font-semibold text-ink-body">Prize holes</h3>
+        <div className="flex items-baseline gap-2 rounded-lg bg-surface-muted px-3 py-2">
+          <span className="text-xs font-semibold text-ink-body">🎯 NTP</span>
+          <span className="text-xs text-ink-muted">
+            {ntpHoles.length > 0 ? ntpHoles.join(", ") : "—"}
+          </span>
+        </div>
         <div className="space-y-2">
           <div>
             <label className="block text-xs font-medium text-ink-body mb-1">
