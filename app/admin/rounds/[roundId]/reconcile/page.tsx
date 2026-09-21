@@ -17,6 +17,7 @@ import {
   parseHandicapList,
   reconcileRound,
   summariseReconcile,
+  type HandicapKind,
   type ReconcileResult,
 } from "@/lib/roundReconcile";
 import type { AppUser, Group, HoleScore, Round, Scorecard } from "@/types";
@@ -66,6 +67,7 @@ export default function ReconcileRoundPage() {
   const [holeScoresByCardId, setHoleScores] = useState<Record<string, HoleScore[]>>({});
   const [loading, setLoading] = useState(true);
 
+  const [handicapKind, setHandicapKind] = useState<HandicapKind>("index");
   const [handicapText, setHandicapText] = useState("");
   const [expectedText, setExpectedText] = useState("");
   const [result, setResult] = useState<ReconcileResult | null>(null);
@@ -109,6 +111,15 @@ export default function ReconcileRoundPage() {
     [result]
   );
 
+  /** The same numbers mean different things in each mode, so a mode change
+   *  throws the dry run away rather than leaving Apply pointed at stale rows. */
+  const chooseKind = (kind: HandicapKind) => {
+    if (kind === handicapKind) return;
+    setHandicapKind(kind);
+    setResult(null);
+    setMessage("");
+  };
+
   const runDryRun = () => {
     if (!round) return;
     setError("");
@@ -119,6 +130,7 @@ export default function ReconcileRoundPage() {
         holeScoresByCardId,
         members,
         handicaps: parsed.entries,
+        handicapKind,
         expectedStableford: parseExpectedTotals(expectedText),
         handicapMode: normaliseGroupSettings(group?.settings).handicapMode,
         format: round.format,
@@ -203,15 +215,39 @@ export default function ReconcileRoundPage() {
 
       <div className="space-y-3 rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
         <div>
+          <p className="mb-1.5 text-xs font-medium text-ink-body">
+            What kind of number are you pasting?
+          </p>
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <KindOption
+              selected={handicapKind === "index"}
+              onSelect={() => chooseKind("index")}
+              title="Handicap index"
+              detail="e.g. 19.4 — converted for the tee each player played."
+            />
+            <KindOption
+              selected={handicapKind === "playing"}
+              onSelect={() => chooseKind("playing")}
+              title="Playing handicap"
+              detail="e.g. 21 — the adjusted number for the day, used as is."
+            />
+          </div>
+
           <label className="mb-1 block text-xs font-medium text-ink-body" htmlFor="hcp">
-            Corrected handicaps — name and handicap index, one per line
+            {handicapKind === "index"
+              ? "Corrected handicaps — name and handicap index, one per line"
+              : "Adjusted handicaps — name and playing handicap, one per line"}
           </label>
           <textarea
             id="hcp"
             rows={8}
             value={handicapText}
             onChange={(e) => setHandicapText(e.target.value)}
-            placeholder={"Ash Grybas\t19.4\nBrad Giampietro\t18.1"}
+            placeholder={
+              handicapKind === "index"
+                ? "Ash Grybas\t19.4\nBrad Giampietro\t18.1"
+                : "Ash Grybas\t21\nBrad Giampietro\t20"
+            }
             className={TEXTAREA}
           />
           {parsed.entries.length > 0 && (
@@ -344,7 +380,9 @@ export default function ReconcileRoundPage() {
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               {result.rows.length === 0
                 ? "This round has no scorecards, so there is nothing to rebuild. Scores entered outside the app do not create cards — that would also be why publishing is blocked."
-                : "Nothing to change. Every card already holds exactly these handicaps, strokes and points, so the handicaps supplied are the ones already in use. Paste the corrected indexes to see a difference."}
+                : handicapKind === "playing"
+                ? "Nothing to change. Every card already plays off exactly these handicaps, so the numbers pasted are the ones already in use — these are not the wrong handicaps. Check them against the ones you meant to apply."
+                : "Nothing to change. Every card already holds exactly these handicaps, strokes and points. Either the indexes pasted are the ones already in use, or they are adjusted handicaps rather than indexes — in which case switch to Playing handicap above and run it again."}
             </p>
           )}
 
@@ -384,5 +422,41 @@ function Stat({
       </p>
       <p className="text-xs text-ink-muted">{label}</p>
     </div>
+  );
+}
+
+function KindOption({
+  selected,
+  onSelect,
+  title,
+  detail,
+}: {
+  selected: boolean;
+  onSelect: () => void;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={`rounded-xl border px-3 py-2 text-left transition-colors ${
+        selected
+          ? "border-brand-500 bg-brand-50"
+          : "border-surface-overlay bg-surface-card hover:bg-surface-muted"
+      }`}
+    >
+      <span
+        className={`block text-xs font-semibold ${
+          selected ? "text-brand-800" : "text-ink-title"
+        }`}
+      >
+        {title}
+      </span>
+      <span className="mt-0.5 block text-[11px] leading-snug text-ink-muted">
+        {detail}
+      </span>
+    </button>
   );
 }

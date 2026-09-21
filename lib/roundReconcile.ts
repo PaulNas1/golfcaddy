@@ -28,10 +28,23 @@ import type {
 // Gross scores are never touched: what a player actually hit is not in doubt.
 // Slope, course rating and par are read off the scorecard, not the round, so
 // a player on a different tee is recomputed against the tee they played.
+//
+// The supplied number can be either end of that chain:
+//
+//   "index"   — a handicap index (19.4). Converted per player against the tee
+//               they played. Use this when the indexes themselves were wrong.
+//   "playing" — an already-adjusted playing handicap (21). Used exactly as
+//               given, no slope conversion. Use this when the adjusted figures
+//               are already known — off a ladder or a printed card — and the
+//               indexes behind them are not.
+
+/** Which end of the chain the pasted number sits at. */
+export type HandicapKind = "index" | "playing";
 
 export interface HandicapEntry {
   name: string;
-  handicapIndex: number;
+  /** An index or a playing handicap, per the run's `handicapKind`. */
+  handicap: number;
 }
 
 export interface ReconcileHoleRow {
@@ -49,8 +62,8 @@ export interface ReconcileRow {
   scorecardId: string;
   playerId: string;
   playerName: string;
-  /** The corrected index this was rebuilt from. Null when none was supplied. */
-  handicapIndex: number | null;
+  /** The number this was rebuilt from. Null when none was supplied. */
+  suppliedHandicap: number | null;
   previousPlayingHandicap: number;
   nextPlayingHandicap: number;
   previousStableford: number | null;
@@ -107,12 +120,12 @@ export function parseHandicapList(text: string): {
       const hasColumns = cells.length > 1;
       const parts = hasColumns ? cells : line.split(/\s+/);
 
-      let handicapIndex: number | null = null;
+      let handicap: number | null = null;
       let handicapAt = -1;
       for (let index = parts.length - 1; index >= 1; index -= 1) {
         const value = Number(parts[index]);
         if (Number.isFinite(value)) {
-          handicapIndex = value;
+          handicap = value;
           handicapAt = index;
           break;
         }
@@ -127,17 +140,15 @@ export function parseHandicapList(text: string): {
           : parts.slice(0, handicapAt === -1 ? parts.length : handicapAt).join(" ")
       ).trim();
 
-      if (handicapIndex == null || !name) {
+      if (handicap == null || !name) {
         // A header row is a normal thing to paste; say so rather than failing.
         if (/\b(player|name|handicap|index|status)\b/i.test(line)) return;
         errors.push(`Line ${position + 1} ("${line}") — no name and handicap.`);
         return;
       }
 
-      if (handicapIndex < 0 || handicapIndex > 54) {
-        errors.push(
-          `${name} — handicap ${handicapIndex} is outside 0–54. Skipped.`
-        );
+      if (handicap < 0 || handicap > 54) {
+        errors.push(`${name} — handicap ${handicap} is outside 0–54. Skipped.`);
         return;
       }
 
@@ -147,7 +158,7 @@ export function parseHandicapList(text: string): {
         return;
       }
       seen.add(key);
-      entries.push({ name, handicapIndex });
+      entries.push({ name, handicap });
     });
 
   return { entries, errors };
@@ -199,6 +210,11 @@ export interface ReconcileInput {
   holeScoresByCardId: Record<string, HoleScore[]>;
   members: AppUser[];
   handicaps: HandicapEntry[];
+  /**
+   * How to read the supplied numbers. Defaults to "index", which is what the
+   * chain above describes. "playing" skips the conversion entirely.
+   */
+  handicapKind?: HandicapKind;
   expectedStableford?: Record<string, number>;
   handicapMode: HandicapMode;
   format: ScoringFormat;
@@ -209,6 +225,7 @@ export function reconcileRound({
   holeScoresByCardId,
   members,
   handicaps,
+  handicapKind = "index",
   expectedStableford = {},
   handicapMode,
   format,
@@ -227,7 +244,7 @@ export function reconcileRound({
       unmatchedNames.push(entry.name);
       return;
     }
-    handicapByPlayerId.set(member.uid, entry.handicapIndex);
+    handicapByPlayerId.set(member.uid, entry.handicap);
   });
 
   Object.entries(expectedStableford).forEach(([name, total]) => {
@@ -240,21 +257,38 @@ export function reconcileRound({
   const rows = scorecards.map((scorecard) => {
     const member = membersByUid.get(scorecard.playerId);
     const playerName = member?.displayName ?? scorecard.playerId;
-    const handicapIndex = handicapByPlayerId.get(scorecard.playerId) ?? null;
+    const supplied = handicapByPlayerId.get(scorecard.playerId) ?? null;
     const issues: string[] = [];
 
-    if (handicapIndex == null) {
+    if (supplied == null) {
       missingHandicapFor.push(playerName);
       issues.push("No corrected handicap supplied — left untouched.");
     }
 
+    // A playing handicap is a whole number of strokes. Rounding one silently
+    // would change someone's points without saying so, so say so.
+    if (
+      supplied != null &&
+      handicapKind === "playing" &&
+      !Number.isInteger(supplied)
+    ) {
+      issues.push(
+        `Playing handicap ${supplied} is not a whole number — used as ${Math.round(
+          supplied
+        )}.`
+      );
+    }
+
     // Slope, rating and par come off the scorecard: that is the tee this
-    // player actually played, which may not be the round default.
+    // player actually played, which may not be the round default. A playing
+    // handicap has already been through that conversion, so it is taken as is.
     const nextPlayingHandicap =
-      handicapIndex == null
+      supplied == null
         ? scorecard.handicapAtTime
+        : handicapKind === "playing"
+        ? Math.max(0, Math.round(supplied))
         : calculatePlayingHandicap({
-            handicap: handicapIndex,
+            handicap: supplied,
             mode: handicapMode,
             slopeRating: scorecard.slopeRating,
             courseRating: scorecard.courseRating,
@@ -328,7 +362,7 @@ export function reconcileRound({
       scorecardId: scorecard.id,
       playerId: scorecard.playerId,
       playerName,
-      handicapIndex,
+      suppliedHandicap: supplied,
       previousPlayingHandicap: scorecard.handicapAtTime,
       nextPlayingHandicap,
       previousStableford: scorecard.totalStableford,

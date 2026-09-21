@@ -91,17 +91,17 @@ test("parses the Members tab pasted with its Status column", () => {
 
   assert.deepEqual(errors, []);
   assert.deepEqual(entries, [
-    { name: "Ash Grybas", handicapIndex: 19.4 },
-    { name: "Brad Giampietro", handicapIndex: 18.1 },
-    { name: "Rick Cucanic", handicapIndex: 11 },
+    { name: "Ash Grybas", handicap: 19.4 },
+    { name: "Brad Giampietro", handicap: 18.1 },
+    { name: "Rick Cucanic", handicap: 11 },
   ]);
 });
 
 test("parses a plain name and number, comma or tab", () => {
   const { entries } = parseHandicapList("Paul Nasrallah, 22.3\nTim Vafides\t31.1");
   assert.deepEqual(entries, [
-    { name: "Paul Nasrallah", handicapIndex: 22.3 },
-    { name: "Tim Vafides", handicapIndex: 31.1 },
+    { name: "Paul Nasrallah", handicap: 22.3 },
+    { name: "Tim Vafides", handicap: 31.1 },
   ]);
 });
 
@@ -150,7 +150,7 @@ test("a corrected handicap rebuilds strokes, points and totals", () => {
     scorecards: [card()],
     holeScoresByCardId: { "card-ash": holes() },
     members: [member()],
-    handicaps: [{ name: "Ash Grybas", handicapIndex: 19.4 }],
+    handicaps: [{ name: "Ash Grybas", handicap: 19.4 }],
     handicapMode: "slope_adjusted",
     format: "stableford",
   });
@@ -195,8 +195,8 @@ test("a player on a different tee is recomputed against the tee they played", ()
     holeScoresByCardId: { "card-ash": holes(), "card-red": holes() },
     members: [member(), member({ uid: "u-red", displayName: "Red Player" })],
     handicaps: [
-      { name: "Ash Grybas", handicapIndex: 19.4 },
-      { name: "Red Player", handicapIndex: 19.4 },
+      { name: "Ash Grybas", handicap: 19.4 },
+      { name: "Red Player", handicap: 19.4 },
     ],
     handicapMode: "slope_adjusted",
     format: "stableford",
@@ -212,7 +212,7 @@ test("a spreadsheet total that disagrees is named, not quietly accepted", () => 
     scorecards: [card()],
     holeScoresByCardId: { "card-ash": holes() },
     members: [member()],
-    handicaps: [{ name: "Ash Grybas", handicapIndex: 19.4 }],
+    handicaps: [{ name: "Ash Grybas", handicap: 19.4 }],
     expectedStableford: { "Ash Grybas": 99 },
     handicapMode: "slope_adjusted",
     format: "stableford",
@@ -248,8 +248,8 @@ test("a supplied name that matches nobody is reported", () => {
     holeScoresByCardId: { "card-ash": holes() },
     members: [member()],
     handicaps: [
-      { name: "Ash Grybas", handicapIndex: 19.4 },
-      { name: "Andrew Radze", handicapIndex: 12 },
+      { name: "Ash Grybas", handicap: 19.4 },
+      { name: "Andrew Radze", handicap: 12 },
     ],
     handicapMode: "slope_adjusted",
     format: "stableford",
@@ -266,7 +266,7 @@ test("an unscored hole contributes nothing and is flagged", () => {
     scorecards: [card()],
     holeScoresByCardId: { "card-ash": partial },
     members: [member()],
-    handicaps: [{ name: "Ash Grybas", handicapIndex: 19.4 }],
+    handicaps: [{ name: "Ash Grybas", handicap: 19.4 }],
     handicapMode: "slope_adjusted",
     format: "stableford",
   });
@@ -274,4 +274,100 @@ test("an unscored hole contributes nothing and is flagged", () => {
   const row = result.rows[0];
   assert.equal(row.holes[7].nextPoints, null);
   assert.ok(row.issues.some((issue) => /1 hole with no gross score/.test(issue)));
+});
+
+// ─── Playing handicaps entered directly ─────────────────────────────────────
+
+test("a playing handicap is used exactly as given, with no slope conversion", () => {
+  const result = reconcileRound({
+    scorecards: [card()],
+    holeScoresByCardId: { "card-ash": holes() },
+    members: [member()],
+    handicaps: [{ name: "Ash Grybas", handicap: 21 }],
+    handicapKind: "playing",
+    handicapMode: "slope_adjusted",
+    format: "stableford",
+  });
+
+  const row = result.rows[0];
+  assert.equal(row.nextPlayingHandicap, 21);
+
+  // 21 over 18 holes: one stroke everywhere, a second on the three hardest.
+  assert.equal(row.holes.find((hole) => hole.strokeIndex === 1)?.nextStrokes, 2);
+  assert.equal(row.holes.find((hole) => hole.strokeIndex === 3)?.nextStrokes, 2);
+  assert.equal(row.holes.find((hole) => hole.strokeIndex === 4)?.nextStrokes, 1);
+  assert.equal(row.holes.find((hole) => hole.strokeIndex === 18)?.nextStrokes, 1);
+});
+
+test("the same number means different things in the two modes", () => {
+  const run = (handicapKind: "index" | "playing") =>
+    reconcileRound({
+      scorecards: [card()],
+      holeScoresByCardId: { "card-ash": holes() },
+      members: [member()],
+      handicaps: [{ name: "Ash Grybas", handicap: 21 }],
+      handicapKind,
+      handicapMode: "slope_adjusted",
+      format: "stableford",
+    }).rows[0];
+
+  // Ringwood White is slope 112, CR 68.9, par 69 — an index of 21 plays off
+  // less than 21. If these ever came out equal the toggle would be decorative.
+  assert.notEqual(run("index").nextPlayingHandicap, run("playing").nextPlayingHandicap);
+  assert.equal(run("playing").nextPlayingHandicap, 21);
+});
+
+test("the default is still an index, so an existing call is unchanged", () => {
+  const withDefault = reconcileRound({
+    scorecards: [card()],
+    holeScoresByCardId: { "card-ash": holes() },
+    members: [member()],
+    handicaps: [{ name: "Ash Grybas", handicap: 19.4 }],
+    handicapMode: "slope_adjusted",
+    format: "stableford",
+  }).rows[0];
+
+  assert.equal(
+    withDefault.nextPlayingHandicap,
+    calculatePlayingHandicap({
+      handicap: 19.4,
+      mode: "slope_adjusted",
+      slopeRating: 112,
+      courseRating: 68.9,
+      coursePar: 69,
+      gender: "male",
+    })
+  );
+});
+
+test("a fractional playing handicap is rounded, and says so", () => {
+  const result = reconcileRound({
+    scorecards: [card()],
+    holeScoresByCardId: { "card-ash": holes() },
+    members: [member()],
+    handicaps: [{ name: "Ash Grybas", handicap: 20.6 }],
+    handicapKind: "playing",
+    handicapMode: "slope_adjusted",
+    format: "stableford",
+  });
+
+  const row = result.rows[0];
+  assert.equal(row.nextPlayingHandicap, 21);
+  assert.ok(row.issues.some((issue) => /not a whole number/.test(issue)));
+});
+
+test("a woman entered as a playing handicap skips the gender factor entirely", () => {
+  // Direct entry is the way round the conversion, whatever the conversion
+  // would have done — the number on the ladder is the number that is used.
+  const result = reconcileRound({
+    scorecards: [card({ id: "card-red", playerId: "u-red", slopeRating: 128 })],
+    holeScoresByCardId: { "card-red": holes() },
+    members: [member({ uid: "u-red", displayName: "Red Player", gender: "female" })],
+    handicaps: [{ name: "Red Player", handicap: 27 }],
+    handicapKind: "playing",
+    handicapMode: "slope_adjusted",
+    format: "stableford",
+  });
+
+  assert.equal(result.rows[0].nextPlayingHandicap, 27);
 });
