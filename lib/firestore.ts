@@ -2117,6 +2117,11 @@ export const publishRoundResults = async (
   });
 };
 
+const sidePrizeWhere = (prize: string, holeNumber: number | null) =>
+  holeNumber == null
+    ? prize.toUpperCase()
+    : `${prize.toUpperCase()} on hole ${holeNumber}`;
+
 export const publishRoundResultsWithStage3 = async ({
   round,
   results,
@@ -2174,18 +2179,19 @@ export const publishRoundResultsWithStage3 = async ({
       // A side-prize winner becomes a member id too, so a broken one is just
       // as fatal as a broken ranking.
       collectSidePrizeWinners(seasonResult.sideResults).forEach(
-        ({ prize, winnerId }) =>
+        ({ prize, winnerId, holeNumber }) =>
           idProblems.check(
             winnerId,
-            `${label} has a ${prize.toUpperCase()} winner whose player id`
+            `${label} has a ${sidePrizeWhere(prize, holeNumber)} winner whose player id`
           )
       );
     });
-  collectSidePrizeWinners(results.sideResults).forEach(({ prize, winnerId }) =>
-    idProblems.check(
-      winnerId,
-      `This round's ${prize.toUpperCase()} winner's player id`
-    )
+  collectSidePrizeWinners(results.sideResults).forEach(
+    ({ prize, winnerId, holeNumber }) =>
+      idProblems.check(
+        winnerId,
+        `This round's ${sidePrizeWhere(prize, holeNumber)} winner's player id`
+      )
   );
   idProblems.throwIfAny("Cannot publish these results");
 

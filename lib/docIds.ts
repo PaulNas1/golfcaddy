@@ -54,7 +54,11 @@ export class DocIdProblems {
   private readonly problems: string[] = [];
 
   check(value: unknown, subject: string): void {
-    if (!isDocId(value)) this.problems.push(`${subject} is ${describeDocId(value)}`);
+    if (isDocId(value)) return;
+    const problem = `${subject} is ${describeDocId(value)}`;
+    // Two records broken the same way in the same place read as one line
+    // repeated, which looks like a rendering fault rather than two problems.
+    if (!this.problems.includes(problem)) this.problems.push(problem);
   }
 
   get length(): number {

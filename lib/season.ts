@@ -39,9 +39,23 @@ export type SidePrizeWinner = {
   /** Unknown on purpose: validating it is the caller's job. */
   winnerId: unknown;
   winnerName: string | null;
+  /** Null when the record does not say which hole. */
+  holeNumber: number | null;
 };
 
 const SIDE_PRIZE_KEYS: SidePrizeKey[] = ["ntp", "ld", "t2", "t3"];
+
+/**
+ * At least one old results record stores each winner id wrapped in a list —
+ * ["d4vz…"] rather than "d4vz…". A single wrapped id is not ambiguous, so it
+ * is unwrapped and the win is credited to that player.
+ *
+ * Anything else is handed back untouched for the caller to reject: an empty
+ * list names nobody, and a list of two would mean choosing which of them won.
+ */
+function unwrapWinnerId(value: unknown): unknown {
+  return Array.isArray(value) && value.length === 1 ? value[0] : value;
+}
 
 function asRecords(value: unknown): Record<string, unknown>[] {
   const entries = Array.isArray(value) ? value : [value];
@@ -61,9 +75,11 @@ export function collectSidePrizeWinners(sideResults: unknown): SidePrizeWinner[]
       .filter((entry) => entry.winnerId != null)
       .map((entry) => ({
         prize,
-        winnerId: entry.winnerId,
+        winnerId: unwrapWinnerId(entry.winnerId),
         winnerName:
           typeof entry.winnerName === "string" ? entry.winnerName : null,
+        holeNumber:
+          typeof entry.holeNumber === "number" ? entry.holeNumber : null,
       }))
   );
 }

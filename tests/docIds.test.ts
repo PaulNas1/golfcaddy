@@ -195,12 +195,51 @@ test("a legacy single-object ntp no longer stops the season aggregating", () => 
   assert.equal(ash.totalPoints, 10);
 });
 
-test("a winner id that is not a string never becomes a member id", () => {
-  // This is the shape that reached doc(db, "members", …) and detonated.
+test("a single wrapped winner id is unwrapped and the win is credited", () => {
+  // This is the shape that reached doc(db, "members", …) and detonated:
+  // ["d4vz…"] where a bare uid belonged. One id in a list names one player,
+  // so it is read as that player rather than thrown away.
+  const winners = collectSidePrizeWinners({
+    ntp: [{ holeNumber: 3, winnerId: ["u-ash"], winnerName: "Ash" }],
+  });
+  assert.deepEqual(winners.map((winner) => winner.winnerId), ["u-ash"]);
+
   const standings = build([
     result({
       sideResults: {
         ntp: [{ holeNumber: 3, winnerId: ["u-ash"], winnerName: "Ash" }],
+        ld: { holeNumber: 17, winnerId: null, winnerName: null },
+        t2: { holeNumber: 5, winnerId: null, winnerName: null },
+        t3: { holeNumber: 11, winnerId: null, winnerName: null },
+      },
+    } as unknown as Partial<Results>),
+  ]);
+
+  const ash = standings.find((standing) => standing.memberId === "u-ash");
+  assert.equal(ash?.ntpWinsSeason, 1, "the NTP should be credited, not dropped");
+  assert.equal(isDocId(ash!.memberId), true);
+});
+
+test("an ambiguous winner id is never guessed at", () => {
+  // Nobody, two people, or something that is not an id at all. Choosing one
+  // would be inventing a result, so these stay broken for the guard to name.
+  const winners = collectSidePrizeWinners({
+    ntp: [
+      { holeNumber: 3, winnerId: [], winnerName: null },
+      { holeNumber: 6, winnerId: ["u-ash", "u-brad"], winnerName: null },
+    ],
+    ld: { holeNumber: 17, winnerId: 12345, winnerName: "Brad" },
+  });
+
+  assert.equal(winners.length, 3);
+  winners.forEach((winner) => assert.equal(isDocId(winner.winnerId), false));
+});
+
+test("an ambiguous winner id never becomes a member id", () => {
+  const standings = build([
+    result({
+      sideResults: {
+        ntp: [{ holeNumber: 3, winnerId: ["u-ash", "u-brad"], winnerName: "?" }],
         ld: { holeNumber: 17, winnerId: 12345, winnerName: "Brad" },
         t2: { holeNumber: 5, winnerId: null, winnerName: null },
         t3: { holeNumber: 11, winnerId: "", winnerName: null },
@@ -216,18 +255,18 @@ test("a winner id that is not a string never becomes a member id", () => {
     )
   );
 
-  // Ash is still there from the ranking, but the broken NTP is not credited.
-  const ash = standings.find((standing) => standing.memberId === "u-ash");
-  assert.equal(ash?.ntpWinsSeason, 0);
+  // Ash is still in the ladder from the ranking, with no NTP credited.
   assert.equal(standings.length, 1);
+  assert.equal(standings[0].memberId, "u-ash");
+  assert.equal(standings[0].ntpWinsSeason, 0);
 });
 
-test("the guard finds the broken winner the aggregate drops", () => {
+test("the guard still names an ambiguous winner the aggregate drops", () => {
   // Together these are the contract: the aggregate refuses to credit it, and
   // the publish guard refuses to write silently around it.
   const problems = new DocIdProblems();
   collectSidePrizeWinners({
-    ntp: [{ holeNumber: 3, winnerId: ["u-ash"], winnerName: "Ash" }],
+    ntp: [{ holeNumber: 3, winnerId: ["u-ash", "u-brad"], winnerName: "?" }],
   }).forEach(({ prize, winnerId }) =>
     problems.check(winnerId, `Round 1's ${prize.toUpperCase()} winner's player id`)
   );
@@ -236,5 +275,36 @@ test("the guard finds the broken winner the aggregate drops", () => {
   assert.throws(
     () => problems.throwIfAny("Cannot publish these results"),
     /Round 1's NTP winner's player id is a list/
+  );
+});
+
+test("the same problem twice is listed once", () => {
+  const problems = new DocIdProblems();
+  problems.check(["u-a", "u-b"], "Record X has a NTP winner whose player id");
+  problems.check(["u-a", "u-b"], "Record X has a NTP winner whose player id");
+  assert.equal(problems.length, 1);
+});
+
+test("the same fault on two holes is listed twice, told apart by hole", () => {
+  // Deduping must not swallow a second genuinely distinct broken record.
+  const winners = collectSidePrizeWinners({
+    ntp: [
+      { holeNumber: 3, winnerId: ["a", "b"], winnerName: null },
+      { holeNumber: 12, winnerId: ["a", "b"], winnerName: null },
+    ],
+  });
+
+  const problems = new DocIdProblems();
+  winners.forEach(({ prize, winnerId, holeNumber }) =>
+    problems.check(
+      winnerId,
+      `Record X has a ${prize.toUpperCase()} on hole ${holeNumber} winner whose player id`
+    )
+  );
+
+  assert.equal(problems.length, 2);
+  assert.deepEqual(
+    winners.map((winner) => winner.holeNumber),
+    [3, 12]
   );
 });
