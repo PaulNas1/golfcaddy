@@ -749,11 +749,22 @@ export default function RoundDetailPage() {
       if (!hasSpecial) return null;
       // Before (and after) play, pickers can't be used — show a one-line summary.
       if (round.status !== "live" || round.resultsPublished) {
-        const extras = [
+        // Set holes show their number; unset ones show "TBC" so players know
+        // they're still to be announced rather than not running.
+        const set = [
           specialHoles.ld ? `LD ${specialHoles.ld}` : null,
           specialHoles.t2 ? `T2 ${specialHoles.t2}` : null,
           specialHoles.t3 ? `T3 ${specialHoles.t3}` : null,
         ].filter(Boolean);
+        const unset = [
+          specialHoles.ld ? null : "LD",
+          specialHoles.t2 ? null : "T2",
+          specialHoles.t3 ? null : "T3",
+        ].filter(Boolean);
+        const extras = [
+          ...set,
+          ...(unset.length > 0 && round.status === "upcoming" ? [`${unset.join(" · ")} TBC`] : []),
+        ];
         return (
           <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay px-4 py-3">
             <div className="flex items-baseline justify-between gap-3">
