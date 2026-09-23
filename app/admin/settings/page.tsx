@@ -17,7 +17,10 @@ import {
   updateGroupCurrentSeason,
   updateGroupProfile,
   updateGroupSettings,
+  subscribeRoundsForGroup,
 } from "@/lib/firestore";
+import { getSeasonLock, touchesSeasonRules } from "@/lib/seasonLock";
+import { DEFAULT_CARDS_TO_ESTABLISH_HANDICAP } from "@/lib/handicapEngine";
 import { normaliseGroupSettings } from "@/lib/settings";
 import {
   deleteStoredImage,
@@ -27,7 +30,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { startCheckout, openBillingPortal } from "@/lib/billingClient";
 import { BILLING_ENABLED, PLAN_LABELS, PLAN_PRICES, getPlanLabel } from "@/lib/subscription";
-import type { AppUser, Group, GroupSettings, HandicapMode, SubscriptionPlan } from "@/types";
+import type { AppUser, Group, GroupSettings, HandicapMode, Round, SubscriptionPlan } from "@/types";
 
 type ResetAction =
   | "clear_feed"
@@ -43,6 +46,10 @@ type PendingDangerConfig = {
   userIds: string[];
   onSuccess?: () => void;
 };
+
+// Factory reset wipes a live season in one step. Hidden while FourPlay is
+// running (code kept) — flip to true if a full reset is ever genuinely needed.
+const SHOW_FACTORY_RESET = false;
 
 // Season handicap rules are locked for the season, so the mid-season
 // "Recalculate Season Handicaps" tool is hidden (code kept for later).
@@ -72,9 +79,17 @@ export default function AdminSettingsPage() {
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [expandedSections, setExpandedSections] = useState({
     ladderPoints: false,
+    seasonTotal: false,
     handicapRules: false,
     handicapRebuild: false,
   });
+  // Season rules lock (see lib/seasonLock.ts). Unlocking is admin-only and
+  // lasts for this visit only — it re-locks after a save or a reload.
+  const [groupRounds, setGroupRounds] = useState<Round[]>([]);
+  const [rulesUnlocked, setRulesUnlocked] = useState(false);
+  const [showUnlockWarning, setShowUnlockWarning] = useState(false);
+  const [showSeasonChange, setShowSeasonChange] = useState(false);
+  const [showDangerZone, setShowDangerZone] = useState(false);
   const [handicapRebuildSeason, setHandicapRebuildSeason] = useState(
     new Date().getFullYear()
   );
@@ -99,6 +114,11 @@ export default function AdminSettingsPage() {
       .then(setContentCounts)
       .catch(() => setContentCounts(null));
   }, [appUser?.groupId, isAdmin]);
+
+  useEffect(() => {
+    if (!appUser?.groupId) return;
+    return subscribeRoundsForGroup(appUser.groupId, setGroupRounds, () => setGroupRounds([]));
+  }, [appUser?.groupId]);
 
   const loadRemovablePlayers = async (groupId?: string, currentUserId?: string) => {
     if (!groupId) return;
@@ -231,10 +251,12 @@ export default function AdminSettingsPage() {
       next.handicapRoundsWindow !== current.handicapRoundsWindow ||
       next.handicapBestX !== current.handicapBestX ||
       next.handicapMode !== current.handicapMode ||
-      next.minimumRoundsForPoints !== current.minimumRoundsForPoints ||
-      JSON.stringify(next.bestXofY) !== JSON.stringify(current.bestXofY)
+      next.minimumRoundsForPoints !== current.minimumRoundsForPoints
     ) {
       changed.push("handicap rules");
+    }
+    if (JSON.stringify(next.bestXofY) !== JSON.stringify(current.bestXofY)) {
+      changed.push("season total");
     }
     if (next.defaultScoringFormat !== current.defaultScoringFormat) {
       changed.push("scoring format");
@@ -248,6 +270,13 @@ export default function AdminSettingsPage() {
     return changed;
   }, [group, groupName, logoFile, logoRemoved, settings]);
 
+  const activeSeason = group?.currentSeason ?? seasonDraft;
+  const seasonLock = useMemo(
+    () => getSeasonLock(groupRounds, activeSeason),
+    [groupRounds, activeSeason]
+  );
+  const rulesLocked = seasonLock.locked && !rulesUnlocked;
+
   const handleDiscard = () => {
     if (!group) return;
     setGroupName(group.name);
@@ -260,10 +289,17 @@ export default function AdminSettingsPage() {
     setRawHandicapBestX(String(restored.handicapBestX));
     setError("");
     setSuccess("");
+    setRulesUnlocked(false);
   };
 
   const handleSave = async () => {
     if (!group) return;
+    // Belt and braces: rule changes on a locked season need the admin unlock.
+    if (seasonLock.locked && !rulesUnlocked && touchesSeasonRules(dirtyFields)) {
+      setError("Season rules are locked. An admin must unlock them before saving rule changes.");
+      return;
+    }
+    const savedRuleChanges = seasonLock.locked && touchesSeasonRules(dirtyFields);
     setSaving(true);
     setError("");
     setSuccess("");
@@ -312,7 +348,12 @@ export default function AdminSettingsPage() {
       setLogoFile(null);
       setLogoRemoved(false);
       setSettings(nextSettings);
-      setSuccess("Settings saved.");
+      setRulesUnlocked(false);
+      setSuccess(
+        savedRuleChanges
+          ? `Settings saved. New rules apply to ${activeSeason} rounds published from now on — published results are unchanged. Rules are locked again.`
+          : "Settings saved."
+      );
     } catch {
       if (uploadedLogoPath) {
         await deleteStoredImage(uploadedLogoPath);
@@ -523,7 +564,7 @@ export default function AdminSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-ink-title">Settings</h1>
         <p className="text-sm text-ink-muted">
-          Set the competition rules used when round results are published.
+          Your group, this season&apos;s rules, and admin tools.
         </p>
       </div>
 
@@ -538,75 +579,174 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
+      {/* ── Group ─────────────────────────────────────────────────────── */}
       <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
-        <h2 className="font-semibold text-ink-title">Group Identity</h2>
-        <p className="mt-1 text-xs text-ink-muted">
-          This is the name and emblem used for this social group.
-        </p>
-        <div className="mt-4 space-y-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-body">
-              Group name
+        <SectionLabel>Group</SectionLabel>
+        <div className="mt-2 flex items-center gap-3">
+          {/* Tap the logo to change it */}
+          <label className="relative shrink-0 cursor-pointer" title="Change logo">
+            {logoPreviewUrl.trim() ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logoPreviewUrl.trim()}
+                alt="Group logo"
+                className="h-14 w-14 rounded-xl object-cover"
+              />
+            ) : (
+              <span className="flex h-14 w-14 items-center justify-center rounded-xl bg-brand-100 text-2xl">
+                ⛳
+              </span>
+            )}
+            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border border-surface-overlay bg-surface-card text-[11px] text-ink-body shadow-sm">
+              ✎
             </span>
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              onChange={(event) =>
+                handleLogoFileChange(event.target.files?.[0] ?? null)
+              }
+            />
+          </label>
+          <div className="min-w-0 flex-1">
             <input
               type="text"
               value={groupName}
               onChange={(event) => setGroupName(event.target.value)}
-              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+              aria-label="Group name"
+              className="w-full rounded-xl border border-surface-overlay bg-surface-card px-3 py-2.5 text-sm font-semibold text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
               placeholder="Your Social Golf Group"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-body">
-              Group logo
-            </span>
-            <div className="rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(event) =>
-                  handleLogoFileChange(event.target.files?.[0] ?? null)
-                }
-                className="block w-full text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
-              />
-              <p className="mt-2 text-xs text-ink-hint">
-                Upload a square logo if possible. JPG, PNG, or WebP up to 5 MB.
-              </p>
-              <button
-                type="button"
-                onClick={handleRemoveLogo}
-                className="mt-3 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600"
-              >
-                Remove logo
-              </button>
-            </div>
-          </label>
-          <div className="rounded-xl bg-surface-muted px-3 py-3">
-            <p className="text-xs font-semibold text-ink-body">Preview</p>
-            <div className="mt-2 flex items-center gap-3">
-              {logoPreviewUrl.trim() ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={logoPreviewUrl.trim()}
-                  alt=""
-                  className="h-10 w-10 rounded-lg object-cover"
-                />
-              ) : (
-                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-100 text-lg">
-                  ⛳
-                </span>
+            <p className="mt-1 text-[11px] text-ink-hint">
+              Tap the logo to change it · square JPG/PNG/WebP, max 5 MB
+              {logoPreviewUrl.trim() && (
+                <>
+                  {" · "}
+                  <button
+                    type="button"
+                    onClick={handleRemoveLogo}
+                    className="font-semibold text-red-500 hover:underline"
+                  >
+                    Remove
+                  </button>
+                </>
               )}
-              <span className="text-sm font-semibold text-ink-title">
-                {groupName.trim() || "Your group name"}
-              </span>
-            </div>
+            </p>
           </div>
         </div>
       </section>
 
+      {/* ── Season ────────────────────────────────────────────────────── */}
+      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <SectionLabel>Season</SectionLabel>
+            <p className="mt-1 flex items-center gap-2 text-xl font-bold text-ink-title">
+              {activeSeason}
+              <span className="rounded-full bg-surface-selected px-2 py-0.5 text-[11px] font-semibold text-ink-action">
+                Active
+              </span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowSeasonChange((v) => !v)}
+            className="rounded-full border border-surface-overlay px-3 py-1.5 text-xs font-semibold text-ink-body hover:bg-surface-muted"
+          >
+            {showSeasonChange ? "Close" : "Change season"}
+          </button>
+        </div>
+
+        {showSeasonChange && (
+          <div className="space-y-3 rounded-xl bg-surface-muted p-3">
+            <p className="text-xs text-ink-muted">
+              New rounds and ladder updates go into the active season. Past
+              results stay in history and handicaps carry over.
+            </p>
+            <select
+              value={seasonDraft}
+              onChange={(event) =>
+                setSeasonDraft(Number(event.target.value) || new Date().getFullYear())
+              }
+              aria-label="Active season"
+              className="w-full rounded-xl border border-surface-overlay bg-surface-card px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              {getSeasonOptions(activeSeason).map((seasonOption) => (
+                <option key={seasonOption} value={seasonOption}>
+                  {seasonOption}
+                </option>
+              ))}
+            </select>
+            {seasonDraft !== activeSeason && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                New rounds will go into {seasonDraft}. {activeSeason} results stay as they are.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleSeasonUpdate}
+              disabled={updatingSeason || !group || seasonDraft === activeSeason}
+              className="w-full rounded-xl bg-brand-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:bg-surface-overlay disabled:text-ink-hint"
+            >
+              {updatingSeason
+                ? "Updating season..."
+                : seasonDraft === activeSeason
+                ? "Pick a different season"
+                : getSeasonActionLabel(group?.currentSeason, seasonDraft)}
+            </button>
+          </div>
+        )}
+
+        {/* Rules lock banner */}
+        {seasonLock.locked && (
+          <div
+            className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 ${
+              rulesUnlocked
+                ? "border-amber-300 bg-amber-50"
+                : "border-surface-overlay bg-surface-muted"
+            }`}
+          >
+            <p className={`text-xs ${rulesUnlocked ? "text-amber-800" : "text-ink-body"}`}>
+              {rulesUnlocked ? (
+                <>
+                  <span className="font-semibold">🔓 Rules unlocked.</span> Changes apply to
+                  rounds published from now on.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold">🔒 {activeSeason} rules are locked</span>{" "}
+                  — set since Round {seasonLock.firstPublishedRound ?? 1} was published.
+                </>
+              )}
+            </p>
+            {rulesUnlocked ? (
+              <button
+                type="button"
+                onClick={() => setRulesUnlocked(false)}
+                className="shrink-0 rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-800"
+              >
+                Lock
+              </button>
+            ) : isAdmin ? (
+              <button
+                type="button"
+                onClick={() => setShowUnlockWarning(true)}
+                className="shrink-0 rounded-full border border-surface-overlay bg-surface-card px-3 py-1 text-xs font-semibold text-ink-body hover:bg-surface-muted"
+              >
+                Unlock
+              </button>
+            ) : (
+              <span className="shrink-0 text-[11px] text-ink-hint">Admin only</span>
+            )}
+          </div>
+        )}
+      </section>
+
       <CollapsibleSettingsSection
-        title="Ladder Points"
-        description="Points are awarded by final placing after countback."
+        locked={rulesLocked}
+        title="Ladder points"
+        description="Points by final placing, after countback."
         summary={getPointsSummary(settings.pointsTable)}
         expanded={expandedSections.ladderPoints}
         onToggle={() =>
@@ -638,15 +778,27 @@ export default function AdminSettingsPage() {
         </div>
       </CollapsibleSettingsSection>
 
-      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
-        <h2 className="font-semibold text-ink-title">Season Total</h2>
-        <p className="mt-1 text-xs text-ink-muted">
-          Count every round, or only a player&apos;s best rounds for the season.
-        </p>
-        <div className="mt-4 space-y-3">
+      <CollapsibleSettingsSection
+        locked={rulesLocked}
+        title="Season total"
+        description="Which rounds count toward a player's season points."
+        summary={
+          settings.bestXofY.enabled
+            ? `Best ${settings.bestXofY.bestX} rounds count`
+            : "All rounds count"
+        }
+        expanded={expandedSections.seasonTotal}
+        onToggle={() =>
+          setExpandedSections((current) => ({
+            ...current,
+            seasonTotal: !current.seasonTotal,
+          }))
+        }
+      >
+        <div className="space-y-3">
           <ToggleRow
-            label="Use best-X rounds"
-            description="When enabled, weaker rounds remain in history but do not count toward total ladder points."
+            label="Only count each player's best rounds"
+            description="Weaker rounds stay in history but don't add to season points."
             checked={settings.bestXofY.enabled}
             onChange={(checked) =>
               setSettings((current) => ({
@@ -655,85 +807,35 @@ export default function AdminSettingsPage() {
               }))
             }
           />
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-body">
-              Best rounds to count
-            </span>
-            <input
-              type="number"
-              min={1}
-              value={settings.bestXofY.bestX}
-              onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  bestXofY: {
-                    ...current.bestXofY,
-                    bestX: Number(event.target.value) || 1,
-                  },
-                }))
-              }
-              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
-          </label>
+          {settings.bestXofY.enabled && (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-ink-body">
+                Rounds to count
+              </span>
+              <input
+                type="number"
+                min={1}
+                value={settings.bestXofY.bestX}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    bestXofY: {
+                      ...current.bestXofY,
+                      bestX: Number(event.target.value) || 1,
+                    },
+                  }))
+                }
+                className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </label>
+          )}
         </div>
-      </section>
-
-      <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
-        <h2 className="font-semibold text-ink-title">Season Management</h2>
-        <p className="mt-1 text-xs text-ink-muted">
-          Choose which season new rounds and ladder updates belong to. Past
-          season results stay in history, and handicaps continue from each
-          player&apos;s latest card.
-        </p>
-        <div className="mt-4 space-y-3">
-          <div className="rounded-xl bg-surface-muted px-3 py-3">
-            <p className="text-xs font-medium text-ink-muted">Active season</p>
-            <p className="mt-1 text-2xl font-bold text-ink-title">
-              {group?.currentSeason ?? seasonDraft}
-            </p>
-          </div>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-ink-body">
-              Change active season
-            </span>
-            <select
-              value={seasonDraft}
-              onChange={(event) =>
-                setSeasonDraft(Number(event.target.value) || new Date().getFullYear())
-              }
-              className="w-full rounded-xl border border-surface-overlay px-3 py-2.5 text-sm text-ink-title focus:outline-none focus:ring-2 focus:ring-green-500"
-            >
-              {getSeasonOptions(group?.currentSeason ?? seasonDraft).map(
-                (seasonOption) => (
-                  <option key={seasonOption} value={seasonOption}>
-                    {seasonOption}
-                  </option>
-                )
-              )}
-            </select>
-          </label>
-          <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
-            <p className="text-xs text-amber-800">
-              Changing the active season only affects where new rounds and
-              ladder updates go. Historical season results stay in place.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleSeasonUpdate}
-            disabled={updatingSeason || !group}
-            className="w-full rounded-xl border border-brand-200 bg-brand-50 py-3 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100 disabled:border-green-100 disabled:bg-brand-50 disabled:text-green-400"
-          >
-            {updatingSeason
-              ? "Updating season..."
-              : getSeasonActionLabel(group?.currentSeason, seasonDraft)}
-          </button>
-        </div>
-      </section>
+      </CollapsibleSettingsSection>
 
       <CollapsibleSettingsSection
-        title="Handicap Rules"
-        description="GolfCaddy handicap uses the rolling average of recent Stableford cards."
+        locked={rulesLocked}
+        title="Handicap"
+        description="Moves on each player's best recent Stableford cards."
         summary={getHandicapSummary(settings)}
         expanded={expandedSections.handicapRules}
         onToggle={() =>
@@ -787,6 +889,12 @@ export default function AdminSettingsPage() {
           <p className="text-xs text-ink-muted">
             e.g. pool&nbsp;6, best&nbsp;3 → average of the 3 highest Stableford scores from the last 6 rounds. Set best = pool to use all rounds.
           </p>
+          <div className="rounded-xl bg-surface-muted px-3 py-2.5 text-xs text-ink-body">
+            <span className="font-semibold">New players:</span> stroke only, no
+            ladder points, for their first {DEFAULT_CARDS_TO_ESTABLISH_HANDICAP} cards.
+            Their handicap is then set from those cards (slope-adjusted) and they
+            join the ladder.
+          </div>
 
           <div className="grid grid-cols-1 gap-2">
             <ModeButton
@@ -947,12 +1055,14 @@ export default function AdminSettingsPage() {
       {/* ── Account ──────────────────────────────────────────────────────
            Below this line nothing is covered by Save: every control acts the
            moment you use it. */}
+      {BILLING_ENABLED && (
       <div className="border-t border-surface-overlay pt-5">
         <h2 className="text-xs font-bold uppercase tracking-wide text-ink-muted">
           Account
         </h2>
         <p className="mt-1 text-xs text-ink-hint">Applied immediately.</p>
       </div>
+      )}
 
       {/* ── Subscription & Billing ── (hidden while BILLING_ENABLED is off) */}
       {BILLING_ENABLED && (
@@ -1032,10 +1142,23 @@ export default function AdminSettingsPage() {
       </section>
       )}
 
-      <section className="rounded-2xl border border-red-200 bg-surface-card p-4 shadow-sm">
-        <h2 className="font-semibold text-red-700">Danger Zone</h2>
+      <div className="pt-2 text-center">
+        <button
+          type="button"
+          onClick={() => setShowDangerZone((v) => !v)}
+          aria-expanded={showDangerZone}
+          className="text-xs font-semibold text-red-500 hover:underline"
+        >
+          {showDangerZone ? "Hide danger zone" : "Show danger zone"}
+        </button>
+      </div>
+
+      {showDangerZone && (
+      <section className="rounded-2xl border border-red-300/60 bg-surface-card p-4 shadow-sm">
+        <h2 className="font-semibold text-red-500">Danger Zone</h2>
         <p className="mt-1 text-xs text-ink-muted">
-          These tools are admin-only and destructive. Each action will ask for a confirmation word before it runs.
+          Admin-only and permanent. Each action acts immediately and asks for a
+          confirmation word first.
         </p>
         <div className="mt-4 space-y-3">
           <DangerActionCard
@@ -1080,12 +1203,13 @@ export default function AdminSettingsPage() {
 
           <DangerActionCard
             title="Remove players"
-            description="Choose one or more players to remove from Firebase Auth and Firestore."
+            description="Permanently delete one or more player accounts."
             buttonLabel="Manage"
             busy={false}
             onClick={handleOpenRemovePlayers}
           />
 
+          {SHOW_FACTORY_RESET && (
           <DangerActionCard
             title="Factory reset"
             description="Clears members, rounds, scorecards, results, ladder history, feed, notifications, and invites while preserving your admin account and access."
@@ -1116,8 +1240,59 @@ export default function AdminSettingsPage() {
               })
             }
           />
+          )}
         </div>
       </section>
+      )}
+
+      {/* ── Unlock season rules: admin-only warning ── */}
+      {showUnlockWarning && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="unlock-title"
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-surface-overlay bg-surface-card p-5 shadow-xl">
+            <h3 id="unlock-title" className="text-lg font-bold text-ink-title">
+              You&apos;re about to change the {activeSeason} season
+            </h3>
+            <ul className="mt-3 space-y-2 text-sm text-ink-body">
+              <li>
+                • {seasonLock.publishedCount} round{seasonLock.publishedCount === 1 ? " has" : "s have"} already
+                been played under the current rules.
+              </li>
+              <li>• Any change applies only to rounds published from now on.</li>
+              <li>
+                • Published results and handicaps are <span className="font-semibold">not</span> recalculated,
+                so the season will mix old and new rules.
+              </li>
+            </ul>
+            <p className="mt-3 text-xs text-ink-muted">
+              Rules re-lock automatically after you save or leave this page.
+            </p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUnlockWarning(false)}
+                className="rounded-xl border border-surface-overlay py-2.5 text-sm font-semibold text-ink-body"
+              >
+                Keep locked
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRulesUnlocked(true);
+                  setShowUnlockWarning(false);
+                }}
+                className="rounded-xl bg-amber-500 py-2.5 text-sm font-semibold text-white hover:bg-amber-600"
+              >
+                Unlock rules
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {dirtyFields.length > 0 && (
         <div className="sticky bottom-0 z-30 -mx-4 border-t border-surface-overlay bg-surface-card/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] backdrop-blur">
@@ -1266,12 +1441,21 @@ export default function AdminSettingsPage() {
   );
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-bold uppercase tracking-wide text-ink-hint">
+      {children}
+    </p>
+  );
+}
+
 function CollapsibleSettingsSection({
   title,
   description,
   summary,
   expanded,
   onToggle,
+  locked = false,
   children,
 }: {
   title: string;
@@ -1279,6 +1463,8 @@ function CollapsibleSettingsSection({
   summary: string;
   expanded: boolean;
   onToggle: () => void;
+  /** Season rules lock: still viewable, inputs disabled. */
+  locked?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -1290,21 +1476,33 @@ function CollapsibleSettingsSection({
         aria-expanded={expanded}
       >
         <span>
-          <span className="block font-semibold text-ink-title">{title}</span>
+          <span className="flex items-center gap-1.5 font-semibold text-ink-title">
+            {title}
+            {locked && <span aria-label="locked" className="text-xs">🔒</span>}
+          </span>
           <span className="mt-1 block text-xs text-ink-muted">{description}</span>
           <span className="mt-2 block text-xs font-medium text-brand-700">
             {summary}
           </span>
         </span>
-        <span
-          className={`mt-0.5 rounded-lg border border-surface-overlay px-2 py-1 text-xs font-semibold text-ink-muted transition-transform ${
+        <svg
+          aria-hidden
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          className={`mt-1 h-5 w-5 shrink-0 text-ink-muted transition-transform ${
             expanded ? "rotate-180" : ""
           }`}
         >
-          ˅
-        </span>
+          <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
-      {expanded && <div className="mt-4">{children}</div>}
+      {expanded && (
+        <fieldset disabled={locked} className="m-0 mt-4 min-w-0 border-0 p-0 disabled:opacity-60">
+          {children}
+        </fieldset>
+      )}
     </section>
   );
 }
@@ -1391,7 +1589,7 @@ function DangerActionCard({
   onClick: () => void;
 }) {
   return (
-    <div className="rounded-xl border border-red-100 bg-red-50/40 px-3 py-3">
+    <div className="rounded-xl border border-red-300/40 bg-surface-muted px-3 py-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-ink-title">{title}</p>
@@ -1401,7 +1599,7 @@ function DangerActionCard({
           type="button"
           onClick={onClick}
           disabled={busy}
-          className="shrink-0 rounded-lg border border-red-200 bg-surface-card px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:text-red-300"
+          className="shrink-0 rounded-lg border border-red-300/60 bg-surface-card px-3 py-2 text-xs font-semibold text-red-500 transition-colors hover:bg-surface-overlay disabled:text-red-300"
         >
           {busy ? "Working..." : buttonLabel}
         </button>
@@ -1472,9 +1670,8 @@ function getSeasonOptions(activeSeason: number) {
 }
 
 function getPointsSummary(pointsTable: GroupSettings["pointsTable"]) {
-  return Array.from({ length: 4 }, (_, index) => pointsTable[String(index + 1)] ?? 0)
-    .join(", ")
-    .concat(" ...");
+  const values = Array.from({ length: 10 }, (_, index) => pointsTable[String(index + 1)] ?? 0);
+  return `${values.slice(0, 3).join(", ")} … ${values[values.length - 1]} (top 10)`;
 }
 
 function getHandicapSummary(settings: GroupSettings) {
@@ -1486,5 +1683,5 @@ function getHandicapSummary(settings: GroupSettings) {
     settings.handicapBestX < settings.handicapRoundsWindow
       ? `Best ${settings.handicapBestX} of ${settings.handicapRoundsWindow}`
       : `${settings.handicapRoundsWindow} cards`;
-  return `${windowLabel}, ${handicapModeLabel}`;
+  return `${windowLabel} · ${handicapModeLabel} · new players: ${DEFAULT_CARDS_TO_ESTABLISH_HANDICAP} cards`;
 }
