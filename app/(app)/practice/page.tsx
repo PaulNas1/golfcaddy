@@ -126,7 +126,7 @@ export default function PracticePage() {
 
   return (
     <div>
-      <div className="sticky top-0 z-40 flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-white shadow">
+      <div className="flex items-center justify-between gap-3 bg-amber-500 px-4 py-2 text-white shadow">
         <p className="min-w-0 truncate text-xs font-bold">
           PRACTICE · nothing is saved · R{chosen.roundNumber} {chosen.courseName}
         </p>

@@ -893,6 +893,13 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
           : "Scores save on this phone first and sync automatically.",
       };
 
+  const syncCalm = !hasPendingSync && isOnline;
+  const syncChip = api.practice
+    ? "Practice · nothing is saved"
+    : lastSyncedAt
+    ? `✓ Synced ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : "✓ Ready to score";
+
   return (
     <div className="px-4 py-6 space-y-4 pb-20">
       <button
@@ -905,11 +912,16 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wide text-brand-600">
-            Round {round.roundNumber} · Live scoring
+            {api.practice ? "Practice · " : ""}Round {round.roundNumber} · Live scoring
           </p>
           <h1 className="text-2xl font-extrabold text-ink-title">
             {round.courseName}
           </h1>
+          {syncCalm && (
+            <p className={`mt-0.5 text-xs ${api.practice ? "font-semibold text-amber-500" : "text-ink-hint"}`}>
+              {syncChip}
+            </p>
+          )}
         </div>
         {round.status === "live" && (
           <div className="flex shrink-0 flex-col items-end gap-2">
@@ -927,10 +939,13 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
         )}
       </div>
 
-      <div className={`rounded-2xl border px-4 py-3 text-sm ${syncStatus.tone}`}>
-        <p className="font-semibold">{syncStatus.title}</p>
-        <p className="mt-1 text-xs opacity-90">{syncStatus.body}</p>
-      </div>
+      {/* Only interrupt when something needs attention (pending / offline). */}
+      {!syncCalm && (
+        <div className={`rounded-2xl border px-4 py-3 text-sm ${syncStatus.tone}`}>
+          <p className="font-semibold">{syncStatus.title}</p>
+          <p className="mt-1 text-xs opacity-90">{syncStatus.body}</p>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
@@ -988,7 +1003,7 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
                 type="button"
                 onClick={handleStartCard}
                 disabled={starting || !playerToMarkId}
-                className="w-full bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white text-sm font-semibold py-3 rounded-xl transition-colors"
+                className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-surface-muted disabled:text-ink-hint text-white text-sm font-semibold py-3 rounded-xl transition-colors"
               >
                 {starting ? (
                   <span className="flex items-center justify-center gap-2">
@@ -1063,7 +1078,7 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
           course data, giving players something useful to look at while the
           scorecard data loads in the background.
       ─────────────────────────────────────────────────────────────────────── */}
-      {(() => {
+      {(scorecardLoading || scorecard) && (() => {
         const heroDisabled = !canEdit || scorecardLoading;
         const allHoles = holesForNine(holes, courseLayout, 1, 18, round);
         const frontNine = allHoles.slice(0, 9);
@@ -1184,7 +1199,9 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
 
               <div className="mt-6 text-center">
                 <p className="text-sm text-ink-muted mb-3">
-                  Your gross score
+                  {scorecard && scorecard.playerId !== appUser?.uid && playerName
+                    ? `${playerName.split(" ")[0]}'s gross score`
+                    : "Your gross score"}
                   {savingHole === activeHoleData.holeNumber && (
                     <span className="ml-2 text-xs text-ink-hint">Saving…</span>
                   )}
@@ -1655,23 +1672,30 @@ function HoleStripCell({
   isActive: boolean;
   onSelect: () => void;
 }) {
-  const display =
-    hole.grossScore != null
-      ? hole.stablefordPoints ?? "–"
-      : isActive
-      ? "•"
-      : "–";
+  const scored = hole.grossScore != null;
+  const display = scored ? hole.grossScore : isActive ? "•" : "–";
+  const pts = hole.stablefordPoints;
+  // Tint by Stableford points: 3+ good, 2 par-ish, 1 meh, 0 blob.
+  const tone = !scored || pts == null
+    ? "bg-surface-muted text-ink-body"
+    : pts >= 3
+    ? "bg-brand-500/25 text-ink-title"
+    : pts === 2
+    ? "bg-surface-muted text-ink-title"
+    : pts === 1
+    ? "bg-amber-500/20 text-ink-title"
+    : "bg-red-500/20 text-ink-title";
   const tag = getSidePrizeTag(hole);
 
   return (
     <button
       type="button"
       onClick={onSelect}
-      aria-label={`Hole ${hole.holeNumber}${tag ? `, ${tag.label}` : ""}`}
+      aria-label={`Hole ${hole.holeNumber}${tag ? `, ${tag.label}` : ""}${
+        scored ? `, ${hole.grossScore} strokes, ${pts ?? 0} points` : ""
+      }`}
       className={`relative rounded-lg py-1.5 text-center transition-colors ${
-        isActive
-          ? "bg-brand-500 text-white"
-          : "bg-surface-muted text-ink-body hover:bg-surface-overlay"
+        isActive ? "bg-brand-500 text-white" : `${tone} hover:brightness-110`
       }`}
     >
       {tag && (
@@ -1685,6 +1709,11 @@ function HoleStripCell({
         {hole.holeNumber}
       </span>
       <span className="block text-sm font-bold font-mono">{display}</span>
+      {scored && pts != null && (
+        <span className={`block text-[9px] font-semibold leading-none ${isActive ? "text-white/80" : "text-ink-hint"}`}>
+          {pts}p
+        </span>
+      )}
     </button>
   );
 }
