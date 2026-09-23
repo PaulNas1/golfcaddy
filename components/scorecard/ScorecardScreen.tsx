@@ -5,6 +5,8 @@ import { sidePrizeLabel } from "@/lib/sidePrizes";
 import { useRouter } from "next/navigation";
 import { waitForPendingWrites } from "firebase/firestore";
 import { useScorecardApi } from "@/lib/scorecardApi";
+import { useLiveStandings } from "@/hooks/useLiveStandings";
+import LiveStandingsCard from "@/components/rounds/LiveStandingsCard";
 import {
   getEffectiveCourseHoles,
   getEffectiveSpecialHoles,
@@ -80,6 +82,17 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
   // Hole numbers with Firestore writes still in flight. The hole-scores
   // snapshot listener must not clobber these with older server data.
   const dirtyHolesRef = useRef<Map<number, number>>(new Map());
+
+  // ── Standings quick view (bottom sheet) ──
+  // Only subscribes while the sheet is open, so it costs nothing otherwise.
+  const [showStandings, setShowStandings] = useState(false);
+  const standings = useLiveStandings({
+    round,
+    members,
+    subscribeScorecardsForRound: api.subscribeScorecardsForRound,
+    subscribeHoleScores: api.subscribeHoleScores,
+    enabled: showStandings,
+  });
 
   const applyHoles = (
     updater: (prev: HoleScore[]) => HoleScore[]
@@ -875,7 +888,9 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
     : {
         tone: "border-green-200 bg-green-50 text-green-800",
         title: "Ready to score",
-        body: "Scores save on this phone first and sync automatically.",
+        body: api.practice
+          ? "Practice: scores stay on this screen and are thrown away when you leave."
+          : "Scores save on this phone first and sync automatically.",
       };
 
   return (
@@ -897,9 +912,18 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
           </h1>
         </div>
         {round.status === "live" && (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-live-bg px-2.5 py-1 text-xs font-bold text-live-text">
-            ● LIVE
-          </span>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-live-bg px-2.5 py-1 text-xs font-bold text-live-text">
+              ● LIVE
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowStandings(true)}
+              className="inline-flex items-center gap-1 rounded-full border border-surface-overlay bg-surface-card px-3 py-1 text-xs font-semibold text-ink-body hover:bg-surface-muted"
+            >
+              🏆 Standings
+            </button>
+          </div>
         )}
       </div>
 
@@ -1047,7 +1071,18 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
         const activeHoleData =
           allHoles.find((h) => h.holeNumber === activeHole) ?? allHoles[0];
         const displayScore = activeHoleData.grossScore ?? activeHoleData.par;
-        const hasPoints = activeHoleData.stablefordPoints != null;
+        // The stepper shows par before anything is saved; show the points that
+        // score WOULD earn, so a par needs no fiddling to see its points.
+        const previewPoints =
+          activeHoleData.grossScore == null && scorecard && !heroDisabled
+            ? calculateStablefordPoints(
+                activeHoleData.par,
+                displayScore,
+                calculateStrokesReceived(scorecard.handicapAtTime, activeHoleData.strokeIndex)
+              )
+            : null;
+        const shownPoints = activeHoleData.stablefordPoints ?? previewPoints;
+        const hasPoints = shownPoints != null;
         const activeHoleTag = getSidePrizeTag(activeHoleData);
 
         const adjustScore = (delta: number) => {
@@ -1141,7 +1176,7 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
                       Pts
                     </p>
                     <p className="text-lg font-bold text-white font-mono">
-                      {hasPoints ? activeHoleData.stablefordPoints : "–"}
+                      {hasPoints ? shownPoints : "–"}
                     </p>
                   </button>
                 </div>
@@ -1219,16 +1254,45 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
       {/* Submit / reopen — only shown once scorecard is loaded */}
       {!scorecardLoading && scorecard && (
         <>
-          {scorecard.status === "in_progress" && round.status === "live" && (
-            <button
-              type="button"
-              onClick={handleSignOff}
-              disabled={signing}
-              className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-brand-400 text-white font-semibold py-4 rounded-2xl text-base transition-colors"
-            >
-              {signing ? "Submitting card..." : "Sign & submit card"}
-            </button>
-          )}
+          {scorecard.status === "in_progress" && round.status === "live" && activeHole === 18 && (() => {
+            const scored = new Set(
+              holes.filter((h) => h.grossScore != null).map((h) => h.holeNumber)
+            );
+            const missing = Array.from({ length: 17 }, (_, i) => i + 1).filter((n) => !scored.has(n));
+            const ready = missing.length === 0;
+            return (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Hole 18 shows par until saved: commit what's on screen first.
+                    if (!scored.has(18)) {
+                      const par18 = buildCourseLayout(round, scorecard)[17]?.par;
+                      const shown = holes.find((h) => h.holeNumber === 18)?.grossScore ?? par18;
+                      if (shown) handleHoleChange(18, String(shown));
+                    }
+                    void handleSignOff();
+                  }}
+                  disabled={signing || !ready}
+                  className="w-full bg-brand-600 hover:bg-brand-700 disabled:bg-surface-muted disabled:text-ink-hint text-white font-semibold py-4 rounded-2xl text-base transition-colors"
+                >
+                  {signing ? "Submitting card..." : "Sign & submit card"}
+                </button>
+                {!ready && (
+                  <p className="text-center text-xs text-ink-muted">
+                    Still to score: hole{missing.length === 1 ? "" : "s"} {missing.join(", ")} ·{" "}
+                    <button
+                      type="button"
+                      onClick={() => setActiveHole(missing[0])}
+                      className="font-semibold text-ink-action underline"
+                    >
+                      Go to hole {missing[0]}
+                    </button>
+                  </p>
+                )}
+              </div>
+            );
+          })()}
 
           {scorecard.status === "in_progress" && round.status !== "live" && (
             <div className="bg-surface-muted border border-surface-overlay rounded-2xl p-4 text-sm text-ink-muted">
@@ -1356,6 +1420,44 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
                 Save override
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {showStandings && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Live standings"
+          onClick={() => setShowStandings(false)}
+        >
+          <div
+            className="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-surface-page p-4 pb-8 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-surface-overlay" />
+            {standings.liveCards.length === 0 ? (
+              <p className="py-8 text-center text-sm text-ink-muted">
+                No cards started yet.
+              </p>
+            ) : (
+              <LiveStandingsCard
+                rankings={standings.rankings}
+                format={round.format}
+                playedHolesByPlayerId={standings.playedHolesByPlayerId}
+                lastHolePointsByPlayerId={standings.lastHolePointsByPlayerId}
+                prevRankById={standings.prevRankById}
+                roundComplete={standings.roundComplete}
+                currentUserId={appUser?.uid}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setShowStandings(false)}
+              className="mt-3 w-full rounded-xl border border-surface-overlay bg-surface-card py-3 text-sm font-semibold text-ink-body"
+            >
+              Back to scoring
+            </button>
           </div>
         </div>
       )}

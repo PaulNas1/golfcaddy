@@ -31,14 +31,17 @@ export function createPracticeScorecardApi(
   const markerListeners: { markerId: string; cb: Listener<Scorecard | null> }[] = [];
   const holeListeners: { cardId: string; cb: Listener<HoleScore[]> }[] = [];
   const claimListeners: Listener<SideClaim[]>[] = [];
+  const roundCardListeners: Listener<Scorecard[]>[] = [];
   let nextId = 1;
 
   const cardForMarker = (markerId: string) =>
     Array.from(cards.values()).find((c) => c.markerId === markerId) ?? null;
   const holeList = (cardId: string) =>
     Array.from(holes.get(cardId)?.values() ?? []).sort((a, b) => a.holeNumber - b.holeNumber);
-  const emitCard = (card: Scorecard) =>
+  const emitCard = (card: Scorecard) => {
     markerListeners.filter((l) => l.markerId === card.markerId).forEach((l) => l.cb(card));
+    roundCardListeners.forEach((cb) => cb(Array.from(cards.values())));
+  };
   const emitHoles = (cardId: string) =>
     holeListeners.filter((l) => l.cardId === cardId).forEach((l) => l.cb(holeList(cardId)));
   const emitClaims = () => claimListeners.forEach((cb) => cb(Array.from(claims.values())));
@@ -74,6 +77,11 @@ export function createPracticeScorecardApi(
       markerListeners.push(entry);
       cb(cardForMarker(markerId));
       return remove(markerListeners, entry);
+    },
+    subscribeScorecardsForRound: (_r: string, cb: Listener<Scorecard[]>) => {
+      roundCardListeners.push(cb);
+      cb(Array.from(cards.values()));
+      return remove(roundCardListeners, cb);
     },
     createScorecard: async (data: Omit<Scorecard, "id" | "createdAt" | "updatedAt">) => {
       const id = `practice-card-${nextId++}`;
