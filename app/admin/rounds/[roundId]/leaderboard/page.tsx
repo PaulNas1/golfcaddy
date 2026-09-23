@@ -27,6 +27,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getEffectiveSpecialHoles } from "@/lib/courseData";
 import { getRoundLabel } from "@/lib/roundDisplay";
 import { buildPlayerRankings } from "@/lib/results";
+import { placeholderPlayerName } from "@/lib/memberNames";
 import type {
   Round,
   Scorecard,
@@ -246,7 +247,7 @@ export default function AdminRoundLeaderboardPage() {
 
   const getPlayerName = (playerId: string) =>
     members.find((u) => u.uid === playerId)?.displayName ??
-    `Player ${playerId.slice(0, 6)}`;
+    placeholderPlayerName(playerId);
 
   const playerOptions = members
     .map((member) => ({
