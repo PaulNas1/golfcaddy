@@ -1230,6 +1230,34 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
                   </button>
                 </div>
               </div>
+
+              {/* Side prize on THIS hole — claim it where it happens */}
+              {scorecard && round.status === "live" && (() => {
+                const sh = getEffectiveSpecialHoles(round);
+                const n = activeHoleData.holeNumber;
+                const prizes: { type: SidePrizeType; label: string; key: string }[] = [
+                  ...(sh.ntp.includes(n) ? [{ type: "ntp" as const, label: "Nearest the pin", key: `ntp-${n}` }] : []),
+                  ...(sh.ld === n ? [{ type: "ld" as const, label: "Longest drive", key: "ld" }] : []),
+                  ...(sh.t2 === n ? [{ type: "t2" as const, label: sidePrizeLabel("t2", n), key: "t2" }] : []),
+                  ...(sh.t3 === n ? [{ type: "t3" as const, label: sidePrizeLabel("t3", n), key: "t3" }] : []),
+                ];
+                if (prizes.length === 0) return null;
+                return (
+                  <div className="mt-5 space-y-2">
+                    {prizes.map((prize) => (
+                      <SideClaimSelect
+                        key={prize.key}
+                        label={prize.label}
+                        claim={getClaim(prize.type, n)}
+                        members={members}
+                        disabled={false}
+                        saving={savingClaim === prize.key}
+                        onChange={(winnerId) => handleClaim(prize.type, n, winnerId)}
+                      />
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
 
             <HoleStrip
@@ -1337,66 +1365,6 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
         </>
       )}
 
-      {/* Side prizes — only shown once scorecard is loaded */}
-      {!scorecardLoading && (() => {
-        const specialHoles = getEffectiveSpecialHoles(round);
-        const hasAny =
-          specialHoles.ntp.length > 0 ||
-          specialHoles.ld ||
-          specialHoles.t2 ||
-          specialHoles.t3;
-        if (!hasAny) return null;
-        return (
-          <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4 space-y-3">
-            <h2 className="font-semibold text-ink-title">Side Prizes</h2>
-            <p className="text-sm text-ink-muted">
-              Claim the winner for each side prize on this round.
-            </p>
-            {specialHoles.ntp.map((holeNumber) => (
-              <SideClaimSelect
-                key={`ntp-${holeNumber}`}
-                label={`Nearest the Pin - Hole ${holeNumber}`}
-                claim={getClaim("ntp", holeNumber)}
-                members={members}
-                disabled={round.status !== "live"}
-                saving={savingClaim === `ntp-${holeNumber}`}
-                onChange={(winnerId) => handleClaim("ntp", holeNumber, winnerId)}
-              />
-            ))}
-            {specialHoles.ld && (
-              <SideClaimSelect
-                label={sidePrizeLabel("ld", specialHoles.ld)}
-                claim={getClaim("ld", specialHoles.ld)}
-                members={members}
-                disabled={round.status !== "live"}
-                saving={savingClaim === "ld"}
-                onChange={(winnerId) => handleClaim("ld", specialHoles.ld!, winnerId)}
-              />
-            )}
-            {specialHoles.t2 && (
-              <SideClaimSelect
-                label={sidePrizeLabel("t2", specialHoles.t2)}
-                claim={getClaim("t2", specialHoles.t2)}
-                members={members}
-                disabled={round.status !== "live"}
-                saving={savingClaim === "t2"}
-                onChange={(winnerId) => handleClaim("t2", specialHoles.t2!, winnerId)}
-              />
-            )}
-            {specialHoles.t3 && (
-              <SideClaimSelect
-                label={sidePrizeLabel("t3", specialHoles.t3)}
-                claim={getClaim("t3", specialHoles.t3)}
-                members={members}
-                disabled={round.status !== "live"}
-                saving={savingClaim === "t3"}
-                onChange={(winnerId) => handleClaim("t3", specialHoles.t3!, winnerId)}
-              />
-            )}
-          </div>
-        );
-      })()}
-
       {pointsOverrideHole != null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
           <div className="w-full max-w-sm rounded-2xl bg-surface-card p-5 shadow-xl">
@@ -1468,6 +1436,31 @@ export default function ScorecardScreen({ roundId }: { roundId: string }) {
                 currentUserId={appUser?.uid}
               />
             )}
+            {(() => {
+              const sh = getEffectiveSpecialHoles(round);
+              const rows = [
+                ...sh.ntp.map((h) => ({ key: `ntp-${h}`, label: `NTP ${h}`, claim: getClaim("ntp", h) })),
+                ...(sh.ld ? [{ key: "ld", label: `LD ${sh.ld}`, claim: getClaim("ld", sh.ld) }] : []),
+                ...(sh.t2 ? [{ key: "t2", label: `T2 ${sh.t2}`, claim: getClaim("t2", sh.t2) }] : []),
+                ...(sh.t3 ? [{ key: "t3", label: `T3 ${sh.t3}`, claim: getClaim("t3", sh.t3) }] : []),
+              ];
+              if (rows.length === 0) return null;
+              return (
+                <div className="mt-3 rounded-2xl border border-surface-overlay bg-surface-card p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-ink-title">Side prizes</h3>
+                  <div className="divide-y divide-surface-overlay text-sm">
+                    {rows.map((row) => (
+                      <div key={row.key} className="flex items-center justify-between py-2">
+                        <span className="font-medium text-ink-body">{row.label}</span>
+                        <span className={row.claim?.winnerName ? "font-semibold text-ink-title" : "text-ink-hint"}>
+                          {row.claim?.winnerName ?? "—"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             <button
               type="button"
               onClick={() => setShowStandings(false)}
@@ -1745,7 +1738,7 @@ function SideClaimSelect({
         disabled={disabled || saving}
         className="w-full rounded-lg border border-surface-overlay bg-surface-card px-3 py-2 text-sm text-ink-title disabled:bg-surface-muted disabled:text-ink-hint"
       >
-        <option value="">No winner selected</option>
+        <option value="">Who got it?</option>
         {members.map((member) => (
           <option key={member.uid} value={member.uid}>
             {member.displayName}
