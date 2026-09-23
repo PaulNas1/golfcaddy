@@ -11,6 +11,7 @@ import {
   setRoundRsvp,
 } from "@/lib/firestore";
 import { getVisibleSeasonStandings, type VisibleSeasonStanding } from "@/lib/standingsDisplay";
+import { buildAroundYou } from "@/lib/aroundYou";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
 import { getEffectiveSpecialHoles, getViewerHoles } from "@/lib/courseData";
 import { CourseCardPreview } from "@/components/CourseCardPreview";
@@ -120,6 +121,15 @@ export default function HomePage() {
   const myMember = useMemo(
     () => groupMembers.find((m) => m.userId === appUser?.uid) ?? null,
     [groupMembers, appUser?.uid]
+  );
+
+  // "Around you" ladder strip: the rank above, you, the rank below.
+  const aroundYou = useMemo(
+    () =>
+      buildAroundYou(visibleStandings, appUser?.uid, {
+        onProbation: myMember?.handicapStatus === "provisional",
+      }),
+    [visibleStandings, appUser?.uid, myMember?.handicapStatus]
   );
 
   // My RSVP + the going / can't-make-it roster for the next round
@@ -473,51 +483,61 @@ export default function HomePage() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <h3 className="font-semibold text-ink-title">Season Ladder</h3>
-            <p className="text-xs text-ink-hint">{currentSeason} standings</p>
+            <p className="text-xs text-ink-hint">{currentSeason} · around you</p>
           </div>
           <Link href="/leaderboard" className="text-brand-600 text-sm font-medium">
             View all
           </Link>
         </div>
-        {visibleStandings.length === 0 ? (
+        {aroundYou.kind === "empty" ? (
           <div className="flex items-center justify-center py-6 text-ink-hint">
             <div className="text-center">
               <div className="text-3xl mb-1">🏌️</div>
               <p className="text-sm">Leaderboard live after Round 1</p>
             </div>
           </div>
+        ) : aroundYou.kind === "notOnLadder" ? (
+          <p className="rounded-xl bg-surface-muted px-3 py-3 text-sm text-ink-body">
+            Play your first 4 cards to set your handicap and join the ladder.
+          </p>
         ) : (
-          <div className="divide-y divide-surface-overlay">
-            {visibleStandings.slice(0, 3).map((standing) => {
-              const isMe = standing.memberId === appUser?.uid;
-              return (
+          <>
+            <div className="space-y-1">
+              {aroundYou.rows.map((row) => (
                 <div
-                  key={standing.id}
-                  className="flex items-center justify-between py-2.5 text-sm"
+                  key={row.key}
+                  className={`flex items-center justify-between gap-3 text-sm ${
+                    row.isMe
+                      ? "rounded-xl border border-surface-selectedBorder bg-surface-selected px-3 py-2.5"
+                      : "px-3 py-2"
+                  }`}
                 >
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="w-7 text-xs font-semibold text-ink-hint">
-                      #{standing.displayCurrentRank}
+                    <span className={`w-9 shrink-0 text-xs font-semibold ${row.isMe ? "text-ink-action" : "text-ink-hint"}`}>
+                      {row.rankLabel}
                     </span>
                     <div className="min-w-0">
-                      <p className={`font-medium truncate ${isMe ? "text-ink-action font-semibold" : "text-ink-title"}`}>
-                        {standing.memberName}{isMe ? " (you)" : ""}
+                      <p className={`truncate ${row.isMe ? "font-bold text-ink-title" : "font-medium text-ink-title"}`}>
+                        {row.label}
                       </p>
-                      <p className="text-xs text-ink-hint">
-                        {standing.roundsPlayed} round{standing.roundsPlayed === 1 ? "" : "s"}
+                      <p className={`text-xs truncate ${row.isMe ? "font-semibold text-ink-action" : "text-ink-hint"}`}>
+                        {row.meta}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-bold ${isMe ? "text-ink-action" : "text-ink-title"}`}>
-                      {standing.totalPoints}
-                    </p>
+                  <div className="shrink-0 text-right">
+                    <p className="font-bold text-ink-title">{row.points}</p>
                     <p className="text-xs text-ink-hint">pts</p>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+            {aroundYou.leader && (
+              <p className="mt-2 border-t border-surface-overlay pt-2 text-center text-xs text-ink-hint">
+                Leader: {aroundYou.leader}
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>
