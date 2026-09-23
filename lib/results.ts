@@ -7,6 +7,7 @@ import type {
   Scorecard,
 } from "@/types";
 import { getPointsForRank } from "./settings.ts";
+import { placeholderPlayerName } from "./memberNames.ts";
 
 type BuildPlayerRankingsInput = {
   round: Round;
@@ -61,6 +62,9 @@ export function buildPlayerRankings({
       handicap: rankedCard.card.handicapAtTime,
       pointsAwarded: getPointsForRank(rank, settings?.pointsTable),
       countbackDetail: getCountbackDetail(rankedCard, rankedCards, round.format),
+      coursePar: rankedCard.card.coursePar ?? round.coursePar ?? null,
+      courseRating: rankedCard.card.courseRating ?? round.courseRating ?? null,
+      slopeRating: rankedCard.card.slopeRating ?? round.slopeRating ?? null,
     };
   });
 }
@@ -214,6 +218,76 @@ function getHoleScoreValue(hole: HoleScore, format: Round["format"]) {
 function getPlayerName(playerId: string, members: AppUser[]) {
   return (
     members.find((member) => member.uid === playerId)?.displayName ??
-    `Player ${playerId.slice(0, 6)}`
+    placeholderPlayerName(playerId)
   );
+}
+
+export const PROBATION_POINTS_REASON =
+  "Probation - stroke only, no ladder points until handicap is set";
+
+/**
+ * FourPlay ladder rule: only players with an official handicap compete for
+ * points. Probationary players are listed (stroke only) but do NOT take a
+ * placing — so if one of them has the 2nd-best score, the next official
+ * player is still 2nd and still gets 2nd-place points.
+ *
+ * Countback order from buildPlayerRankings is kept; genuinely tied official
+ * players still share the placing and the points.
+ */
+export function applyPointsEligibility(
+  rankings: PlayerRanking[],
+  isEligible: (playerId: string) => boolean,
+  pointsTable?: Record<string, number>
+): PlayerRanking[] {
+  const ordered = rankings
+    .map((ranking, index) => ({ ranking, index }))
+    .sort((a, b) => a.ranking.rank - b.ranking.rank || a.index - b.index)
+    .map((entry) => entry.ranking);
+
+  const eligible = ordered.filter((r) => isEligible(r.playerId));
+  const ineligible = ordered.filter((r) => !isEligible(r.playerId));
+
+  let previousOriginalRank: number | null = null;
+  let previousNewRank = 0;
+  const rankedEligible = eligible.map((ranking, position) => {
+    const rank =
+      previousOriginalRank === ranking.rank ? previousNewRank : position + 1;
+    previousOriginalRank = ranking.rank;
+    previousNewRank = rank;
+    return {
+      ...ranking,
+      rank,
+      pointsAwarded: getPointsForRank(rank, pointsTable),
+      pointsEligible: true,
+      pointsIneligibleReason: null,
+    };
+  });
+
+  const listedIneligible = ineligible.map((ranking, i) => ({
+    ...ranking,
+    rank: rankedEligible.length + i + 1,
+    pointsAwarded: 0,
+    pointsEligible: false,
+    pointsIneligibleReason: PROBATION_POINTS_REASON,
+  }));
+
+  return [...rankedEligible, ...listedIneligible];
+}
+
+/**
+ * Sanity check shown before publishing: the points handed out should equal
+ * the points table for the number of official players (55 for a full 10→1
+ * table). A mismatch usually means an unresolved tie or a missing player.
+ */
+export function getLadderPointsCheck(
+  rankings: PlayerRanking[],
+  pointsTable?: Record<string, number>
+) {
+  const eligibleCount = rankings.filter((r) => r.pointsEligible !== false).length;
+  const awarded = rankings.reduce((sum, r) => sum + (r.pointsAwarded ?? 0), 0);
+  let expected = 0;
+  for (let rank = 1; rank <= eligibleCount; rank += 1) {
+    expected += getPointsForRank(rank, pointsTable);
+  }
+  return { awarded, expected, ok: awarded === expected };
 }

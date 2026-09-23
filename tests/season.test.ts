@@ -34,41 +34,23 @@ test("recent handicap average uses all available qualifying rounds when below th
   assert.equal(average, 33);
 });
 
-test("handicap stays provisional until the configured window is reached", () => {
+test("probation: no handicap until 4 stroke cards (Stableford average is ignored)", () => {
+  // Replaces the old rule that set a provisional handicap to the average
+  // Stableford POINTS (a 38-point round gave a handicap of 38).
   const transition = calculateHandicapTransition({
     currentHandicap: 0,
     handicapStatus: "provisional",
     roundResults: [
-      roundResult({ roundId: "r2", date: "2026-02-10", stableford: 35 }),
-      roundResult({ roundId: "r1", date: "2026-01-10", stableford: 31 }),
+      { ...roundResult({ roundId: "r2", date: "2026-02-10", stableford: 35 }), differential: 24.4 },
+      { ...roundResult({ roundId: "r1", date: "2026-01-10", stableford: 31 }), differential: 28 },
     ],
-    window: 3,
     effectiveAt: new Date("2026-02-10"),
   });
 
-  assert.equal(transition.nextHandicap, 33);
+  assert.equal(transition.nextHandicap, 0);
   assert.equal(transition.handicapStatus, "provisional");
   assert.equal(transition.changeType, "provisional_update");
-  assert.deepEqual(transition.calculationRoundIds, ["r2", "r1"]);
-});
-
-test("handicap becomes official once the configured window is reached", () => {
-  const transition = calculateHandicapTransition({
-    currentHandicap: 33,
-    handicapStatus: "provisional",
-    roundResults: [
-      roundResult({ roundId: "r3", date: "2026-03-10", stableford: 36 }),
-      roundResult({ roundId: "r2", date: "2026-02-10", stableford: 35 }),
-      roundResult({ roundId: "r1", date: "2026-01-10", stableford: 31 }),
-    ],
-    window: 3,
-    effectiveAt: new Date("2026-03-10"),
-  });
-
-  assert.equal(transition.nextHandicap, 34);
-  assert.equal(transition.handicapStatus, "official");
-  assert.equal(transition.changeType, "initial_allocation");
-  assert.equal(transition.qualifyingRoundCount, 3);
+  assert.equal(transition.qualifyingRoundCount, 2);
 });
 
 test("handicap uses the most recent qualifying rounds once the sample exceeds the window", () => {

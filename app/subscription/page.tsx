@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BILLING_ENABLED } from "@/lib/subscription";
+import BillingDisabledRedirect from "@/components/BillingDisabledRedirect";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { getGroup } from "@/lib/firestore";
@@ -26,6 +28,11 @@ function detectReason(group: Group | null): SuspendReason {
 }
 
 export default function SubscriptionWallPage() {
+  if (!BILLING_ENABLED) return <BillingDisabledRedirect to="/" />;
+  return <SubscriptionWallPageInner />;
+}
+
+function SubscriptionWallPageInner() {
   const { appUser, loading, signOut } = useAuth();
   const router = useRouter();
   const [group, setGroup] = useState<Group | null>(null);

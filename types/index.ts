@@ -379,6 +379,10 @@ export interface PlayerRanking {
   pointsEligible?: boolean;
   pointsIneligibleReason?: string | null;
   countbackDetail: string | null;
+  /** Tee actually played — used to slope-adjust probation stroke cards. */
+  coursePar?: number | null;
+  courseRating?: number | null;
+  slopeRating?: number | null;
 }
 
 export interface SideResult {
@@ -431,6 +435,11 @@ export interface RoundResult {
   pointsEligible?: boolean;
   pointsIneligibleReason?: string | null;
   countsForSeason: boolean;
+  grossTotal?: number | null;
+  /** Slope-adjusted score of this card (see calculateScoreDifferential). */
+  differential?: number | null;
+  /** false = played on probation; excluded from official best X of Y. */
+  countsForHandicap?: boolean;
 }
 
 export interface SeasonStanding {

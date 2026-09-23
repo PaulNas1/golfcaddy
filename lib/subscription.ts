@@ -1,5 +1,13 @@
 import type { GroupSubscription, SubscriptionPlan } from "@/types";
 
+// ─── Billing kill switch ──────────────────────────────────────────────────────
+// GolfCaddy is currently a private app for FourPlay, so all subscription &
+// billing features are OFF. Nothing has been deleted — set the env var
+// NEXT_PUBLIC_BILLING_ENABLED=true (Vercel + .env.local) to bring it all back.
+// When off: no plan/billing UI, no member cap, no suspended-group wall,
+// no trial-expiry cron, and the Stripe checkout/portal routes refuse requests.
+export const BILLING_ENABLED = process.env.NEXT_PUBLIC_BILLING_ENABLED === "true";
+
 // ─── Pricing ──────────────────────────────────────────────────────────────────
 
 export const PLAN_PRICES: Record<SubscriptionPlan, { monthly: number; annual: number }> = {
@@ -31,6 +39,7 @@ export const TRIAL_MEMBER_LIMIT = 20;
  * where date fields are serialised as strings).
  */
 export function getMemberLimit(subscription: Pick<GroupSubscription, "status" | "plan"> | null | undefined): number {
+  if (!BILLING_ENABLED) return Infinity; // billing off → no member cap
   if (!subscription) return TRIAL_MEMBER_LIMIT; // no subscription yet → grace at starter cap
 
   switch (subscription.status) {

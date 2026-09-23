@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import { getStripe, isStripeConfigured } from "@/lib/stripeServer";
 import { getFirebaseAdminAuth, getFirebaseAdminDb, isFirebaseAdminConfigured } from "@/lib/firebaseAdmin";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  if (!BILLING_ENABLED) {
+    return NextResponse.json({ error: "Billing is turned off." }, { status: 503 });
+  }
   if (!isStripeConfigured() || !isFirebaseAdminConfigured()) {
     return NextResponse.json({ error: "Billing not configured." }, { status: 503 });
   }

@@ -1,5 +1,37 @@
 export const DEFAULT_HANDICAP_WINDOW = 6;
 export const DEFAULT_HANDICAP_BEST_X = 6;
+/** Stroke cards a probationary player plays before his handicap is set. */
+export const DEFAULT_CARDS_TO_ESTABLISH_HANDICAP = 4;
+
+/**
+ * Slope-adjusted score for one stroke card (WHS "differential"):
+ *   (gross − course rating) × 113 ÷ slope
+ * Takes course difficulty OUT, so cards from easy and hard courses compare
+ * fairly. The daily handicap adds difficulty back in each round.
+ * Falls back to par / slope 113 when the tee has no rating data.
+ */
+export function calculateScoreDifferential({
+  gross,
+  courseRating,
+  slopeRating,
+  coursePar,
+}: {
+  gross: number | null | undefined;
+  courseRating?: number | null;
+  slopeRating?: number | null;
+  coursePar?: number | null;
+}): number | null {
+  if (typeof gross !== "number" || !(gross > 0)) return null;
+  const rating =
+    typeof courseRating === "number" && courseRating > 0
+      ? courseRating
+      : typeof coursePar === "number" && coursePar > 0
+        ? coursePar
+        : null;
+  if (rating == null) return null;
+  const slope = typeof slopeRating === "number" && slopeRating > 0 ? slopeRating : 113;
+  return Number((((gross - rating) * 113) / slope).toFixed(1));
+}
 
 // ── Official handicap movement ──────────────────────────────────────────────
 //
@@ -42,6 +74,13 @@ export type HandicapRound = {
   roundId: string;
   date: Date;
   stableford: number;
+  /** Slope-adjusted score of the stroke card (probation cards). */
+  differential?: number | null;
+  /**
+   * false for rounds played on probation — their Stableford was scored off
+   * no handicap, so they must never feed the official best-X-of-Y.
+   */
+  countsForHandicap?: boolean;
 };
 
 export type HandicapTransition = {
@@ -111,6 +150,7 @@ export function calculateHandicapTransition({
   roundResults,
   window = DEFAULT_HANDICAP_WINDOW,
   bestX = DEFAULT_HANDICAP_BEST_X,
+  cardsToEstablish = DEFAULT_CARDS_TO_ESTABLISH_HANDICAP,
   effectiveAt,
 }: {
   currentHandicap: number;
@@ -119,9 +159,59 @@ export function calculateHandicapTransition({
   roundResults: HandicapRound[];
   window?: number;
   bestX?: number;
+  cardsToEstablish?: number;
   effectiveAt: Date;
 }): HandicapTransition {
-  const computation = getHandicapComputation(roundResults, window, bestX);
+  // ── Probation: no handicap until N stroke cards are in ─────────────────
+  // FourPlay rule: a new player plays stroke only (no points). Once he has
+  // N cards, his handicap = average slope-adjusted score of those cards and
+  // it becomes official. From then on it moves on best X of Y Stableford.
+  if (handicapStatus !== "official") {
+    const cards = roundResults
+      .filter((r) => typeof r.differential === "number")
+      .slice()
+      .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    if (cards.length < cardsToEstablish) {
+      return {
+        nextHandicap: currentHandicap,
+        handicapStatus: "provisional",
+        officialHandicapAssignedAt: null,
+        reason: `Probation: ${cards.length} of ${cardsToEstablish} cards played. Handicap is set after card ${cardsToEstablish}.`,
+        changeType: "provisional_update",
+        qualifyingRoundCount: cards.length,
+        calculationRoundIds: [],
+        calculationWindow: cardsToEstablish,
+        usedAllAvailableRounds: true,
+      };
+    }
+
+    const used = cards.slice(0, cardsToEstablish);
+    const average =
+      used.reduce((sum, r) => sum + (r.differential as number), 0) / used.length;
+    const nextHandicap = Math.max(0, Number(average.toFixed(1)));
+    return {
+      nextHandicap,
+      handicapStatus: "official",
+      officialHandicapAssignedAt: effectiveAt,
+      reason: `Handicap set from the average slope-adjusted score of ${used.length} stroke cards (${used
+        .map((r) => r.differential)
+        .join(", ")}) = ${nextHandicap}.`,
+      changeType: "initial_allocation",
+      qualifyingRoundCount: cards.length,
+      calculationRoundIds: used.map((r) => r.roundId),
+      calculationWindow: cardsToEstablish,
+      usedAllAvailableRounds: cards.length <= cardsToEstablish,
+    };
+  }
+
+  // ── Official: move on best X of the last Y Stableford rounds ───────────
+  // Probation rounds are excluded (scored off no handicap).
+  const computation = getHandicapComputation(
+    roundResults.filter((r) => r.countsForHandicap !== false),
+    window,
+    bestX
+  );
 
   if (!computation) {
     return {
@@ -231,4 +321,18 @@ function getHandicapComputation(
     calculationRoundIds: roundsUsed.map((roundResult) => roundResult.roundId),
     usedAllAvailableRounds,
   };
+}
+
+/**
+ * Handicap outcome for one member when a round is published.
+ * Only players who were IN this round get a handicap movement. Everyone else
+ * is left exactly as they are (returns null) — otherwise each publish would
+ * re-apply the same movement to people who sat the round out.
+ */
+export function getPublishHandicapTransition(
+  playedThisRound: boolean,
+  args: Parameters<typeof calculateHandicapTransition>[0]
+): HandicapTransition | null {
+  if (!playedThisRound) return null;
+  return calculateHandicapTransition(args);
 }

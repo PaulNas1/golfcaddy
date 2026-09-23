@@ -26,7 +26,7 @@ import {
 } from "@/lib/storageUploads";
 import { useAuth } from "@/contexts/AuthContext";
 import { startCheckout, openBillingPortal } from "@/lib/billingClient";
-import { PLAN_LABELS, PLAN_PRICES, getPlanLabel } from "@/lib/subscription";
+import { BILLING_ENABLED, PLAN_LABELS, PLAN_PRICES, getPlanLabel } from "@/lib/subscription";
 import type { AppUser, Group, GroupSettings, HandicapMode, SubscriptionPlan } from "@/types";
 
 type ResetAction =
@@ -43,6 +43,10 @@ type PendingDangerConfig = {
   userIds: string[];
   onSuccess?: () => void;
 };
+
+// Season handicap rules are locked for the season, so the mid-season
+// "Recalculate Season Handicaps" tool is hidden (code kept for later).
+const SHOW_HANDICAP_REBUILD = false;
 
 export default function AdminSettingsPage() {
   const { appUser, isAdmin } = useAuth();
@@ -812,6 +816,9 @@ export default function AdminSettingsPage() {
         </div>
       </CollapsibleSettingsSection>
 
+      {/* Hidden: season rules are locked once set; changes apply from next season.
+          Flip SHOW_HANDICAP_REBUILD to true to bring this tool back. */}
+      {SHOW_HANDICAP_REBUILD && (
       <CollapsibleSettingsSection
         title="Recalculate Season Handicaps"
         description="Use this after changing handicap rules or importing old rounds."
@@ -935,6 +942,7 @@ export default function AdminSettingsPage() {
           </div>
         </div>
       </CollapsibleSettingsSection>
+      )}
 
       {/* ── Account ──────────────────────────────────────────────────────
            Below this line nothing is covered by Save: every control acts the
@@ -946,7 +954,8 @@ export default function AdminSettingsPage() {
         <p className="mt-1 text-xs text-ink-hint">Applied immediately.</p>
       </div>
 
-      {/* ── Subscription & Billing ── */}
+      {/* ── Subscription & Billing ── (hidden while BILLING_ENABLED is off) */}
+      {BILLING_ENABLED && (
       <section className="rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
         <h2 className="font-semibold text-ink-title">Subscription &amp; Billing</h2>
         <p className="mt-1 text-xs text-ink-muted">
@@ -1021,6 +1030,7 @@ export default function AdminSettingsPage() {
           </p>
         )}
       </section>
+      )}
 
       <section className="rounded-2xl border border-red-200 bg-surface-card p-4 shadow-sm">
         <h2 className="font-semibold text-red-700">Danger Zone</h2>

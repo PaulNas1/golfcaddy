@@ -1,4 +1,8 @@
+import { redirect } from "next/navigation";
+import { BILLING_ENABLED } from "@/lib/subscription";
+
 export default function CheckoutSuccessPage() {
+  if (!BILLING_ENABLED) redirect("/");
   return (
     <div className="min-h-screen bg-green-700 flex items-center justify-center px-6">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center space-y-5">

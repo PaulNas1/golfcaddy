@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import { getStripe, isStripeConfigured, STRIPE_PRICE_IDS, type StripePlan } from "@/lib/stripeServer";
 import { getFirebaseAdminAuth, getFirebaseAdminDb, isFirebaseAdminConfigured } from "@/lib/firebaseAdmin";
 
@@ -11,6 +12,9 @@ type CheckoutBody = {
 };
 
 export async function POST(request: NextRequest) {
+  if (!BILLING_ENABLED) {
+    return NextResponse.json({ error: "Billing is turned off." }, { status: 503 });
+  }
   if (!isStripeConfigured() || !isFirebaseAdminConfigured()) {
     return NextResponse.json({ error: "Billing not configured." }, { status: 503 });
   }

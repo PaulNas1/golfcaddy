@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import { useAuth } from "@/contexts/AuthContext";
 import { ChevronRightIcon } from "@/components/ui/icons";
 import { LogoMark } from "@/components/marketing/Logo";
@@ -213,7 +214,7 @@ export default function HelpPage() {
       </div>
 
       {activeTab === "admin" ? (
-        <GuideAccordion guides={ADMIN_GUIDES} />
+        <GuideAccordion guides={BILLING_ENABLED ? ADMIN_GUIDES : ADMIN_GUIDES.filter((g) => g.title !== "Billing & subscription")} />
       ) : (
         <GuideAccordion guides={MEMBER_GUIDES} />
       )}

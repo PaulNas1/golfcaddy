@@ -1,20 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { sidePrizeLabel } from "@/lib/sidePrizes";
+import { placeholderPlayerName } from "@/lib/memberNames";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { describeWriteError } from "@/components/admin/courses/writeError";
 import Link from "next/link";
 import {
   createRound,
+  getMembersForGroup,
   publishRoundResultsWithStage3,
   updateScorecard,
 } from "@/lib/firestore";
 import { getEffectiveSpecialHoles } from "@/lib/courseData";
+import { applyPointsEligibility, getLadderPointsCheck } from "@/lib/results";
+import { inferHandicapStatus } from "@/lib/season";
 import type {
   AppUser,
   Group,
+  Member,
   PlayerRanking,
   Results,
   Round,
@@ -118,6 +123,39 @@ export default function CloseOutSection({
 }: Props) {
   const router = useRouter();
 
+  // Preview exactly what publish will award: probation players listed but no
+  // placing/points (same applyPointsEligibility used by the publish step).
+  const [groupMembers, setGroupMembers] = useState<Member[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getMembersForGroup(round.groupId)
+      .then((list) => { if (!cancelled) setGroupMembers(list); })
+      .catch(() => { if (!cancelled) setGroupMembers(null); });
+    return () => { cancelled = true; };
+  }, [round.groupId]);
+  const previewRankings = useMemo(() => {
+    if (!groupMembers) return rankings;
+    const byId = new Map(groupMembers.map((m) => [m.id, m]));
+    return applyPointsEligibility(
+      rankings,
+      (playerId) => {
+        const member = byId.get(playerId);
+        const ranking = rankings.find((r) => r.playerId === playerId);
+        return (
+          inferHandicapStatus(
+            member?.currentHandicap ?? ranking?.handicap ?? 0,
+            member?.handicapStatus
+          ) === "official"
+        );
+      },
+      group?.settings?.pointsTable
+    );
+  }, [groupMembers, rankings, group?.settings?.pointsTable]);
+  const pointsCheck = useMemo(
+    () => (groupMembers ? getLadderPointsCheck(previewRankings, group?.settings?.pointsTable) : null),
+    [groupMembers, previewRankings, group?.settings?.pointsTable]
+  );
+
   // What actually gates publishing: a card needs a total, not a submission.
   // Saying "waiting for players to submit" when the real blocker is a missing
   // total sends an admin chasing the wrong thing.
@@ -175,7 +213,7 @@ export default function CloseOutSection({
 
   const getPlayerName = (playerId: string) =>
     members.find((u) => u.uid === playerId)?.displayName ??
-    `Player ${playerId.slice(0, 6)}`;
+    placeholderPlayerName(playerId);
 
   const buildSideResult = (key: string, holeNumber: number | null) => {
     const winnerId = sideWinnerIds[key] || null;
@@ -392,7 +430,7 @@ export default function CloseOutSection({
         </p>
       ) : (
         <div className="divide-y divide-gray-100">
-          {rankings.map((ranking) => {
+          {previewRankings.map((ranking) => {
             const card = cardsByPlayerId.get(ranking.playerId);
             return (
               <div
@@ -419,6 +457,13 @@ export default function CloseOutSection({
                       : `${ranking.grossTotal}`}
                   </p>
                   <p className="text-xs text-ink-hint">Hcp {ranking.handicap}</p>
+                  {groupMembers && (
+                    <p className="text-xs text-ink-hint">
+                      {ranking.pointsEligible === false
+                        ? "Probation · no points"
+                        : `${ranking.pointsAwarded} ladder pts`}
+                    </p>
+                  )}
                   {!round.resultsPublished &&
                     card &&
                     card.status !== "in_progress" && (
@@ -515,6 +560,13 @@ export default function CloseOutSection({
                 : `Nothing to publish — none of the ${scorecards.length} scorecards has a ${
                     round.format === "stableford" ? "Stableford" : "gross"
                   } total. Hole scores alone are not enough; run Reconcile scoring to rebuild the totals from them.`}
+            </p>
+          )}
+          {pointsCheck && rankings.length > 0 && !pointsCheck.ok && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Heads up: this round awards {pointsCheck.awarded} ladder points,
+              expected {pointsCheck.expected}. Usually an exact tie the countback
+              couldn&apos;t split, or a missing card. Check before publishing.
             </p>
           )}
           <button

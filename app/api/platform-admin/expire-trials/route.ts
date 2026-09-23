@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import { FieldValue } from "firebase-admin/firestore";
 import { getFirebaseAdminDb, isFirebaseAdminConfigured } from "@/lib/firebaseAdmin";
 import { requirePlatformAdmin } from "../auth";
 
 export async function POST(request: NextRequest) {
+  if (!BILLING_ENABLED) {
+    return NextResponse.json({ skipped: true, reason: "Billing is turned off." });
+  }
   if (!isFirebaseAdminConfigured()) {
     return NextResponse.json({ error: "Admin not configured." }, { status: 503 });
   }

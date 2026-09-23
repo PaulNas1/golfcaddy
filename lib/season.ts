@@ -13,9 +13,11 @@ import {
   calculateInitialHandicap as calculateInitialHandicapCore,
   calculateNextHandicap as calculateNextHandicapCore,
   getRecentStablefordAverage as getRecentStablefordAverageCore,
+  calculateScoreDifferential,
 } from "./handicapEngine.ts";
 import { normaliseGroupSettings } from "./settings.ts";
 export { DEFAULT_HANDICAP_WINDOW };
+export { getPublishHandicapTransition } from "./handicapEngine.ts";
 export type { HandicapTransition } from "./handicapEngine.ts";
 
 export const getSeasonStandingId = (
@@ -162,6 +164,15 @@ export function buildSeasonStandings({
         pointsEligible: ranking.pointsEligible ?? true,
         pointsIneligibleReason: ranking.pointsIneligibleReason ?? null,
         countsForSeason: true,
+        grossTotal: ranking.grossTotal ?? null,
+        differential: calculateScoreDifferential({
+          gross: ranking.grossTotal,
+          courseRating: ranking.courseRating ?? round?.courseRating ?? null,
+          slopeRating: ranking.slopeRating ?? round?.slopeRating ?? null,
+          coursePar: ranking.coursePar ?? round?.coursePar ?? null,
+        }),
+        // Probation rounds (no points) never feed the official best X of Y.
+        countsForHandicap: ranking.pointsEligible !== false,
       });
     });
 
@@ -323,6 +334,7 @@ export function calculateHandicapTransition({
   roundResults,
   window = DEFAULT_HANDICAP_WINDOW,
   bestX = DEFAULT_HANDICAP_BEST_X,
+  cardsToEstablish,
   effectiveAt,
 }: {
   currentHandicap: number;
@@ -331,6 +343,7 @@ export function calculateHandicapTransition({
   roundResults: RoundResult[];
   window?: number;
   bestX?: number;
+  cardsToEstablish?: number;
   effectiveAt: Date;
 }) {
   return calculateHandicapTransitionCore({
@@ -340,6 +353,7 @@ export function calculateHandicapTransition({
     roundResults,
     window,
     bestX,
+    cardsToEstablish,
     effectiveAt,
   });
 }

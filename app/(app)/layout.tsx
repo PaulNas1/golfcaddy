@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -90,6 +91,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   // Subscription gate — redirect suspended groups to the wall page.
   useEffect(() => {
+    if (!BILLING_ENABLED) return; // billing off → never lock players out
     if (!group) return;
     if (appUser?.platformAdmin) return;
     if (group.subscription?.status === "suspended") {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import type Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { getStripe, isStripeConfigured, PRICE_ID_TO_PLAN } from "@/lib/stripeServer";
@@ -180,6 +181,11 @@ async function handleInvoicePaymentFailed(
 }
 
 export async function POST(request: NextRequest) {
+  // Stripe off: acknowledge with 200 so Stripe doesn't retry/flag the endpoint,
+  // but don't touch any group data.
+  if (!BILLING_ENABLED) {
+    return NextResponse.json({ received: true, ignored: "Billing is turned off." });
+  }
   if (!isStripeConfigured() || !isFirebaseAdminConfigured()) {
     return NextResponse.json({ error: "Stripe not configured." }, { status: 503 });
   }

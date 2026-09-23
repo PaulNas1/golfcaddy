@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { BILLING_ENABLED } from "@/lib/subscription";
 import { FieldValue } from "firebase-admin/firestore";
 import { getFirebaseAdminDb, isFirebaseAdminConfigured } from "@/lib/firebaseAdmin";
 import { sendTrialExpiredEmail, sendTrialWarningEmail } from "@/lib/email";
@@ -7,6 +8,9 @@ export const runtime = "nodejs";
 
 // Called daily by Vercel Cron (vercel.json). Secured via CRON_SECRET env var.
 export async function POST(request: NextRequest) {
+  if (!BILLING_ENABLED) {
+    return NextResponse.json({ skipped: true, reason: "Billing is turned off." });
+  }
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = request.headers.get("authorization");
 

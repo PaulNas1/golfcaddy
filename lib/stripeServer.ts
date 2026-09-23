@@ -1,9 +1,15 @@
 import Stripe from "stripe";
+import { BILLING_ENABLED } from "./subscription.ts";
+
+// Stripe is OFF while BILLING_ENABLED is false (see lib/subscription.ts).
+// Nothing talks to Stripe: getStripe() throws and isStripeConfigured() is false,
+// so checkout, portal, webhook and admin cancellations all stand down.
 
 // Lazy singleton — constructed once per cold start, never on the client.
 let _stripe: Stripe | null = null;
 
 export function getStripe(): Stripe {
+  if (!BILLING_ENABLED) throw new Error("Stripe is turned off (billing disabled).");
   if (_stripe) return _stripe;
 
   const key = process.env.STRIPE_SECRET_KEY;
@@ -22,6 +28,7 @@ export function getStripe(): Stripe {
 }
 
 export function isStripeConfigured(): boolean {
+  if (!BILLING_ENABLED) return false;
   return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
 }
 

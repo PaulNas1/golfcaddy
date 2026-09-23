@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BILLING_ENABLED } from "@/lib/subscription";
+import BillingDisabledRedirect from "@/components/BillingDisabledRedirect";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,6 +12,11 @@ import { PLAN_LABELS, PLAN_PRICES } from "@/lib/subscription";
 import type { GroupSubscription } from "@/types";
 
 export default function BillingPage() {
+  if (!BILLING_ENABLED) return <BillingDisabledRedirect to="/admin/settings" />;
+  return <BillingPageInner />;
+}
+
+function BillingPageInner() {
   const { appUser } = useAuth();
   const searchParams = useSearchParams();
   const success = searchParams.get("success") === "1";

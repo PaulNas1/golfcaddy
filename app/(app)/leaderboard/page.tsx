@@ -24,7 +24,6 @@ type LeaderboardEntry = {
 export default function LeaderboardPage() {
   const { appUser } = useAuth();
   const {
-    group,
     activeMembers,
     groupMembers,
     currentSeason,
@@ -76,8 +75,6 @@ export default function LeaderboardPage() {
 
   const leaderboardEntries = useMemo(() => {
     const membersById = new Map(groupMembers.map((m) => [m.id, m]));
-    const handicapRoundsWindow = group?.settings.handicapRoundsWindow ?? 6;
-    const minimumRoundsForPoints = group?.settings.minimumRoundsForPoints ?? 3;
 
     const placeholderMembers = groupMembers.filter((m) => m.isPlaceholder);
     const allVisibleIds = new Set([
@@ -101,14 +98,8 @@ export default function LeaderboardPage() {
       const isOfficial =
         member?.handicapStatus === "official" ||
         (member?.handicapStatus == null && (currentHandicap ?? 0) > 0);
-      const probation =
-        !member ||
-        (!isOfficial &&
-          (roundsPlayed < minimumRoundsForPoints ||
-            member?.handicapStatus === "provisional" ||
-            (member?.handicapStatus == null &&
-              (currentHandicap ?? 0) <= 0 &&
-              roundsPlayed < handicapRoundsWindow)));
+      // Probation = no official handicap yet (stroke only, no points).
+      const probation = !member || !isOfficial;
 
       return {
         memberId: activeMember.uid,
@@ -160,8 +151,6 @@ export default function LeaderboardPage() {
       });
   }, [
     activeMembers,
-    group?.settings.handicapRoundsWindow,
-    group?.settings.minimumRoundsForPoints,
     groupMembers,
     selectedSeason,
     standings,
@@ -362,7 +351,7 @@ function StandingCard({
                 </button>
                 {showProvisionalTip && (
                   <span className="absolute bottom-full left-0 z-10 mb-1.5 w-56 rounded-xl bg-slate-900 px-3 py-2 text-xs text-slate-100 shadow-lg">
-                    This player is still building their handicap. Points won&apos;t count toward the ladder until they&apos;re eligible.
+                    On probation: plays stroke only for their first 4 cards. Their handicap is set from those cards, then they start earning ladder points.
                     <span className="absolute -bottom-1 left-4 h-2 w-2 rotate-45 bg-slate-900" />
                   </span>
                 )}
