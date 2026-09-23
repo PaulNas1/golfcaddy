@@ -396,3 +396,20 @@ input[type="time"]::-webkit-datetime-edit-ampm-field {
 .animate-gc-pulse {
   animation: gc-pulse 1.3s ease-in-out infinite;
 }
+
+/* Social: bottom-sheet composer + reaction picker entrance */
+@keyframes gc-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+@keyframes gc-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes gc-pop {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+.gc-sheet-up { animation: gc-sheet-up 0.22s ease-out; }
+.gc-fade-in  { animation: gc-fade-in 0.2s ease-out; }
+.gc-pop      { animation: gc-pop 0.14s ease-out; transform-origin: bottom left; }

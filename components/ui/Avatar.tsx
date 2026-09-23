@@ -27,6 +27,18 @@ interface AvatarProps {
   className?: string;
 }
 
+// Fallback colours: mid-tone so white initials stay readable in light + dark.
+const FALLBACK_COLOURS = [
+  "#16a34a", "#0ea5e9", "#8b5cf6", "#f97316",
+  "#e11d48", "#14b8a6", "#6366f1", "#ca8a04",
+];
+
+function colourForName(name: string) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return FALLBACK_COLOURS[Math.abs(hash) % FALLBACK_COLOURS.length];
+}
+
 export default function Avatar({ src, name, size = "md", className = "" }: AvatarProps) {
   const sizeClasses = SIZE_CLASSES[size];
   const initial = name.charAt(0).toUpperCase() || "?";
@@ -46,7 +58,8 @@ export default function Avatar({ src, name, size = "md", className = "" }: Avata
 
   return (
     <div
-      className={`${base} flex items-center justify-center bg-brand-100 font-bold text-brand-700`}
+      className={`${base} flex items-center justify-center font-bold text-white`}
+      style={{ backgroundColor: colourForName(name) }}
     >
       {initial}
     </div>

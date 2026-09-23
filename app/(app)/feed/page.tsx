@@ -1,83 +1,80 @@
 "use client";
 
 /**
- * FeedPage
+ * FeedPage (Social)
  *
  * Responsibilities:
- *   - Subscribes to posts, the pinned announcement, and the current user's reactions
- *   - Owns the "new post" composer state (draft, type, linked round, images)
- *   - Delegates all per-post interaction state to <PostCard>
- *
- * By keeping per-post state inside PostCard, a comment draft or open
- * menu in one card no longer re-renders every other card.
+ *   - Subscribes to posts, the pinned announcement, the user's reactions and
+ *     Round Result companion posts; loads this season's published results
+ *   - Merges posts + auto Round Result cards into one timeline
+ *   - Owns all network side-effects; cards only hold local UI state
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroupData } from "@/contexts/GroupDataContext";
 import Avatar from "@/components/ui/Avatar";
 import PostCard from "@/components/feed/PostCard";
+import RoundResultCard from "@/components/feed/RoundResultCard";
+import PostComposerSheet from "@/components/feed/PostComposerSheet";
 import PhotosPage from "@/app/(app)/photos/page";
 import {
-  createFeedPost,
   createPostComment,
-  deletePostComment,
   deleteFeedPost,
+  deletePostComment,
+  getResultsForSeason,
+  makeVirtualRoundResultPost,
   setAnnouncementPinnedState,
   setPostReaction,
   subscribeFeedPosts,
   subscribePinnedAnnouncement,
   subscribePostComments,
+  subscribeRoundResultPosts,
   subscribeUserReactionsForGroup,
   updateFeedPost,
 } from "@/lib/firestore";
-import {
-  deleteStoredImage,
-  uploadFeedPostImages,
-  validateImageFile,
-} from "@/lib/storageUploads";
+import { deleteStoredImage } from "@/lib/storageUploads";
 import type {
   Post,
   PostComment,
   PostReaction,
   PostReactionType,
+  Results,
+  Round,
 } from "@/types";
 
-const MAX_POST_IMAGES = 3;
+/** How many recent published rounds get a result card. */
+const MAX_RESULT_CARDS = 10;
+
+type FeedItem =
+  | { kind: "post"; key: string; date: Date; post: Post }
+  | { kind: "result"; key: string; date: Date; post: Post; round: Round; results: Results };
 
 export default function FeedPage() {
   const { appUser, isAdmin } = useAuth();
-  const { rounds } = useGroupData();
+  const { rounds, currentSeason } = useGroupData();
   const searchParams = useSearchParams();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const groupId = appUser?.groupId ?? null;
 
   // ── Feed data ─────────────────────────────────────────────────────────
   const [posts, setPosts] = useState<Post[]>([]);
   const [pinnedAnnouncement, setPinnedAnnouncement] = useState<Post | null>(null);
+  const [resultPostsByRoundId, setResultPostsByRoundId] = useState<Record<string, Post>>({});
+  const [seasonResults, setSeasonResults] = useState<Results[]>([]);
   const [myReactionsByPostId, setMyReactionsByPostId] = useState<Record<string, PostReaction | null>>({});
   const [feedLoading, setFeedLoading] = useState(true);
   const [feedError, setFeedError] = useState("");
 
-  // ── Sub-tab (posts / photos) ──────────────────────────────────────────
   const [subTab, setSubTab] = useState<"posts" | "photos">("posts");
-
-  // ── Composer state ────────────────────────────────────────────────────
-  const [composerOpen, setComposerOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [postType, setPostType] = useState<Post["type"]>("general");
-  const [linkedRoundId, setLinkedRoundId] = useState("");
-  const [postImages, setPostImages] = useState<File[]>([]);
-  const [postImagePreviews, setPostImagePreviews] = useState<string[]>([]);
-  const [posting, setPosting] = useState(false);
-  const [postError, setPostError] = useState("");
+  const [composer, setComposer] = useState<{ open: boolean; roundId: string }>({ open: false, roundId: "" });
 
   // ── Subscriptions ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (!appUser?.groupId) return;
+    if (!groupId) return;
     setFeedError("");
     return subscribeFeedPosts(
-      appUser.groupId,
+      groupId,
       (feedPosts) => { setPosts(feedPosts); setFeedLoading(false); setFeedError(""); },
       {
         limitCount: 30,
@@ -88,115 +85,80 @@ export default function FeedPage() {
         },
       }
     );
-  }, [appUser?.groupId]);
+  }, [groupId]);
 
   useEffect(() => {
-    if (!appUser?.groupId) return;
-    return subscribePinnedAnnouncement(
-      appUser.groupId,
-      setPinnedAnnouncement,
-      (err) => console.warn("Pinned announcement subscription error", err)
+    if (!groupId) return;
+    return subscribePinnedAnnouncement(groupId, setPinnedAnnouncement, (err) =>
+      console.warn("Pinned announcement subscription error", err)
     );
-  }, [appUser?.groupId]);
+  }, [groupId]);
 
   useEffect(() => {
-    if (!appUser?.uid || !appUser?.groupId) return;
-    return subscribeUserReactionsForGroup(
-      appUser.groupId,
-      appUser.uid,
-      (reactionsByPostId) => setMyReactionsByPostId(reactionsByPostId),
-      (err) => console.warn("Reactions subscription error", err)
+    if (!groupId) return;
+    return subscribeRoundResultPosts(groupId, setResultPostsByRoundId, (err) =>
+      console.warn("Round result posts subscription error", err)
     );
-  }, [appUser?.groupId, appUser?.uid]);
+  }, [groupId]);
 
-  // ── Open composer when deep-linked from a round ───────────────────────
+  useEffect(() => {
+    if (!appUser?.uid || !groupId) return;
+    return subscribeUserReactionsForGroup(groupId, appUser.uid, setMyReactionsByPostId, (err) =>
+      console.warn("Reactions subscription error", err)
+    );
+  }, [groupId, appUser?.uid]);
+
+  // Published results change rarely — load once per season, and again
+  // whenever a round flips to published (so a new card appears).
+  const publishedRoundKey = useMemo(
+    () => rounds.filter((r) => r.resultsPublished).map((r) => r.id).sort().join(","),
+    [rounds]
+  );
+  useEffect(() => {
+    if (!groupId) return;
+    let cancelled = false;
+    getResultsForSeason(groupId, currentSeason)
+      .then((res) => { if (!cancelled) setSeasonResults(res); })
+      .catch((err) => console.warn("Results load error", err));
+    return () => { cancelled = true; };
+  }, [groupId, currentSeason, publishedRoundKey]);
+
+  // ── Deep link from a round → open composer with it linked ─────────────
   const roundsById = useMemo(() => new Map(rounds.map((r) => [r.id, r])), [rounds]);
-
   useEffect(() => {
-    const roundIdFromQuery = searchParams.get("roundId");
-    if (!roundIdFromQuery || !roundsById.has(roundIdFromQuery)) return;
-    setLinkedRoundId((current) => current || roundIdFromQuery);
-    setComposerOpen(true);
+    const roundId = searchParams.get("roundId");
+    if (roundId && roundsById.has(roundId)) setComposer({ open: true, roundId });
   }, [roundsById, searchParams]);
 
-  // ── Deduplicate visible posts (pinned + feed may overlap) ─────────────
-  const visiblePosts = useMemo(() => {
-    const merged = pinnedAnnouncement ? [pinnedAnnouncement, ...posts] : posts;
-    return Array.from(new Map(merged.map((p) => [p.id, p])).values());
-  }, [pinnedAnnouncement, posts]);
+  // ── One timeline: posts + round result cards, newest first ────────────
+  const feedItems = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = posts
+      .filter((p) => p.type !== "round_result" && p.id !== pinnedAnnouncement?.id)
+      .map((p) => ({ kind: "post", key: p.id, date: p.createdAt, post: p }));
 
-  // ── Image blob URL cleanup ────────────────────────────────────────────
-  useEffect(() => {
-    return () => {
-      postImagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    };
-  }, [postImagePreviews]);
-
-  // ── Composer helpers ──────────────────────────────────────────────────
-  const replacePostImages = (files: File[]) => {
-    postImagePreviews.forEach((url) => URL.revokeObjectURL(url));
-    setPostImages(files);
-    setPostImagePreviews(files.map((f) => URL.createObjectURL(f)));
-  };
-
-  const handlePostImagesChange = (files: FileList | null) => {
-    const nextFiles = Array.from(files ?? []);
-    if (nextFiles.length === 0) { if (fileInputRef.current) fileInputRef.current.value = ""; return; }
-    if (nextFiles.length > MAX_POST_IMAGES) {
-      setPostError(`Attach up to ${MAX_POST_IMAGES} images per post.`);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      return;
-    }
-    for (const file of nextFiles) {
-      const err = validateImageFile(file);
-      if (err) { setPostError(err); if (fileInputRef.current) fileInputRef.current.value = ""; return; }
-    }
-    setPostError("");
-    replacePostImages(nextFiles);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleCreatePost = async () => {
-    if (!appUser?.groupId || !appUser) return;
-    setPosting(true);
-    setPostError("");
-    let uploadedImagePaths: string[] = [];
-    try {
-      const uploads = postImages.length > 0
-        ? await uploadFeedPostImages(appUser.groupId, appUser.uid, postImages)
-        : [];
-      uploadedImagePaths = uploads.map((u) => u.path);
-      await createFeedPost({
-        groupId: appUser.groupId,
-        author: appUser,
-        content: draft,
-        type: isAdmin && postType === "announcement" ? "announcement" : linkedRoundId ? "round_linked" : "general",
-        roundId: linkedRoundId || null,
-        photoUrls: uploads.map((u) => u.url),
-        photoPaths: uploads.map((u) => u.path),
+    if (groupId) {
+      seasonResults.slice(0, MAX_RESULT_CARDS).forEach((results) => {
+        const round = roundsById.get(results.roundId);
+        if (!round || !round.resultsPublished || results.rankings.length === 0) return;
+        items.push({
+          kind: "result",
+          key: `result_${round.id}`,
+          date: results.publishedAt,
+          post: resultPostsByRoundId[round.id] ?? makeVirtualRoundResultPost(groupId, round.id),
+          round,
+          results,
+        });
       });
-      setDraft("");
-      setPostType("general");
-      setLinkedRoundId("");
-      replacePostImages([]);
-      setComposerOpen(false);
-    } catch (error) {
-      await Promise.all(uploadedImagePaths.map((p) => deleteStoredImage(p)));
-      setPostError(error instanceof Error && error.message ? error.message : "Failed to publish post.");
-    } finally {
-      setPosting(false);
     }
-  };
+    return items.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [posts, pinnedAnnouncement?.id, seasonResults, roundsById, resultPostsByRoundId, groupId]);
 
-  // ── PostCard callbacks ────────────────────────────────────────────────
-
-  const handleReaction = async (post: Post, type: PostReactionType) => {
+  // ── Callbacks (stable, so cards don't re-subscribe on every render) ───
+  const handleReaction = useCallback(async (post: Post, type: PostReactionType) => {
     if (!appUser) return;
     const previous = myReactionsByPostId[post.id] ?? null;
-    const current = previous?.reactionType ?? null;
-    const next = current === type ? null : type;
+    const next = previous?.reactionType === type ? null : type;
 
-    // Optimistic update
     setMyReactionsByPostId((prev) => ({
       ...prev,
       [post.id]: next ? {
@@ -207,56 +169,68 @@ export default function FeedPage() {
     }));
     try {
       await setPostReaction({ post, user: appUser, reactionType: next });
-    } catch {
-      // Roll back on failure
+    } catch (err) {
+      console.warn("Reaction failed", err);
       setMyReactionsByPostId((prev) => ({ ...prev, [post.id]: previous }));
     }
-  };
+  }, [appUser, myReactionsByPostId]);
 
-  const handleSaveEdit = async (post: Post, newContent: string) => {
-    await updateFeedPost({ postId: post.id, content: newContent });
-  };
+  const handleSaveEdit = useCallback(async (post: Post, content: string) => {
+    await updateFeedPost({ postId: post.id, content });
+  }, []);
 
-  const handleDeletePost = async (post: Post) => {
+  const handleDeletePost = useCallback(async (post: Post) => {
     await deleteFeedPost(post.id);
     await Promise.all((post.photoPaths ?? []).map((p) => deleteStoredImage(p)));
-  };
+  }, []);
 
-  const handleCreateComment = async (post: Post, content: string) => {
+  const handleCreateComment = useCallback(async (post: Post, content: string) => {
     if (!appUser) throw new Error("Not signed in.");
     await createPostComment({ post, author: appUser, content });
-  };
+  }, [appUser]);
 
-  const handleDeleteComment = async (post: Post, comment: PostComment) => {
+  const handleDeleteComment = useCallback(async (post: Post, comment: PostComment) => {
     await deletePostComment({ postId: post.id, commentId: comment.id });
-  };
+  }, []);
 
-  const handleTogglePin = async (post: Post) => {
-    if (!appUser?.groupId || !isAdmin || post.type !== "announcement") return;
+  const handleTogglePin = useCallback(async (post: Post) => {
+    if (!groupId || !isAdmin || post.type !== "announcement") return;
     await setAnnouncementPinnedState({
       postId: post.id,
-      groupId: appUser.groupId,
+      groupId,
       pinned: pinnedAnnouncement?.id !== post.id,
     });
-  };
+  }, [groupId, isAdmin, pinnedAnnouncement?.id]);
 
-  const subscribeToComments = (
-    postId: string,
-    onComments: (comments: PostComment[]) => void
-  ) => {
-    return subscribePostComments(postId, onComments, (err) =>
-      console.warn("Comments subscription error", err)
-    );
+  const subscribeToComments = useCallback(
+    (postId: string, onComments: (comments: PostComment[]) => void) =>
+      subscribePostComments(postId, onComments, (err) =>
+        console.warn("Comments subscription error", err)
+      ),
+    []
+  );
+
+  const closeComposer = useCallback(() => setComposer({ open: false, roundId: "" }), []);
+
+  const engagement = {
+    appUser,
+    isAdmin,
+    onReaction: handleReaction,
+    onCreateComment: handleCreateComment,
+    onDeleteComment: handleDeleteComment,
+    subscribeToComments,
+  };
+  const postActions = {
+    onSaveEdit: handleSaveEdit,
+    onDeletePost: handleDeletePost,
+    onTogglePin: handleTogglePin,
   };
 
   // ── Render ────────────────────────────────────────────────────────────
-  const linkedRound = linkedRoundId ? roundsById.get(linkedRoundId) ?? null : null;
-
   return (
     <div className="px-4 py-6 pb-8">
-      {/* ── Header + sub-tab ──────────────────────────────────────── */}
-      <div className="mb-5 flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-ink-title">Social</h1>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold tracking-tight text-ink-title">Social</h1>
         <div className="inline-flex rounded-xl border border-surface-overlay bg-surface-muted p-1">
           {(["posts", "photos"] as const).map((tab) => (
             <button
@@ -264,9 +238,7 @@ export default function FeedPage() {
               type="button"
               onClick={() => setSubTab(tab)}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                subTab === tab
-                  ? "bg-brand-600 text-white shadow-sm"
-                  : "text-ink-muted"
+                subTab === tab ? "bg-brand-600 text-white shadow-sm" : "text-ink-muted"
               }`}
             >
               {tab}
@@ -275,207 +247,92 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* ── Photos sub-tab ────────────────────────────────────────── */}
       {subTab === "photos" && <div className="-mx-4"><PhotosPage /></div>}
 
-      {/* ── Posts sub-tab ─────────────────────────────────────────── */}
-      {subTab === "posts" && <>
+      {subTab === "posts" && (
+        <>
+          {/* Composer trigger */}
+          <button
+            type="button"
+            onClick={() => setComposer({ open: true, roundId: "" })}
+            className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-surface-overlay bg-surface-card px-3 py-2.5 text-left"
+          >
+            <Avatar src={appUser?.avatarUrl} name={appUser?.displayName ?? "?"} size="sm" />
+            <span className="flex-1 text-[15px] text-ink-hint">Share something with the group…</span>
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-surface-muted text-base">📷</span>
+          </button>
 
-      {/* ── Post composer ─────────────────────────────────────────── */}
-      {!composerOpen ? (
-        <button
-          type="button"
-          onClick={() => setComposerOpen(true)}
-          className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-surface-overlay bg-surface-card px-4 py-3 shadow-sm text-left"
-        >
-          <Avatar src={appUser?.avatarUrl} name={appUser?.displayName ?? "?"} size="sm" />
-          <span className="flex-1 text-sm text-ink-hint">What&apos;s on your mind?</span>
-          <span className="text-ink-hint text-lg">📷</span>
-        </button>
-      ) : (
-        <div className="mb-5 rounded-2xl border border-surface-overlay bg-surface-card p-4 shadow-sm">
-          {/* Composer header */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Avatar src={appUser?.avatarUrl} name={appUser?.displayName ?? "?"} size="sm" />
-              <span className="text-sm font-semibold text-ink-title">{appUser?.displayName}</span>
+          {feedError ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-5 text-center">
+              <p className="text-sm font-medium text-red-700">{feedError}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setComposerOpen(false)}
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-surface-muted text-ink-muted hover:bg-surface-overlay"
-              aria-label="Close composer"
-            >
-              ✕
-            </button>
-          </div>
+          ) : feedLoading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3].map((i) => <div key={i} className="h-28 rounded-2xl bg-surface-card" />)}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {pinnedAnnouncement && (
+                <PostCard
+                  key={`pinned_${pinnedAnnouncement.id}`}
+                  post={pinnedAnnouncement}
+                  pinned
+                  myReaction={myReactionsByPostId[pinnedAnnouncement.id] ?? null}
+                  postRound={null}
+                  {...engagement}
+                  {...postActions}
+                />
+              )}
 
-          {/* Admin post type selector */}
-          {isAdmin && (
-            <div className="mb-3 inline-flex rounded-xl border border-surface-overlay bg-surface-muted p-1">
-              {([{ id: "general", label: "General post" }, { id: "announcement", label: "Announcement" }] as const).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => setPostType(opt.id)}
-                  className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                    postType === opt.id
-                      ? "bg-brand-600 text-white"
-                      : "text-ink-muted hover:bg-surface-card"
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
+              {feedItems.length === 0 && !pinnedAnnouncement ? (
+                <div className="flex flex-col items-center justify-center py-16 text-ink-hint">
+                  <div className="mb-4 text-5xl">⛳</div>
+                  <p className="mb-1 font-medium text-ink-muted">Nothing here yet</p>
+                  <p className="max-w-xs text-center text-sm">
+                    Banter, round photos and results will show up here.
+                  </p>
+                </div>
+              ) : (
+                feedItems.map((item) =>
+                  item.kind === "result" ? (
+                    <RoundResultCard
+                      key={item.key}
+                      round={item.round}
+                      results={item.results}
+                      post={item.post}
+                      myReaction={myReactionsByPostId[item.post.id] ?? null}
+                      {...engagement}
+                    />
+                  ) : (
+                    <PostCard
+                      key={item.key}
+                      post={item.post}
+                      myReaction={myReactionsByPostId[item.post.id] ?? null}
+                      postRound={
+                        item.post.type === "round_linked" && item.post.roundId
+                          ? roundsById.get(item.post.roundId) ?? null
+                          : null
+                      }
+                      {...engagement}
+                      {...postActions}
+                    />
+                  )
+                )
+              )}
             </div>
           )}
-
-          {/* Text area */}
-          <textarea
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={4}
-            placeholder={
-              isAdmin && postType === "announcement"
-                ? "Share an update members should not miss…"
-                : linkedRound
-                ? "Share an update from this round…"
-                : "What's happening in the group?"
-            }
-            className="w-full rounded-xl border border-surface-overlay px-3 py-3 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-
-          {/* Image attachment */}
-          <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-3">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => handlePostImagesChange(e.target.files)}
-              className="block w-full text-xs text-ink-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-brand-700"
-            />
-            <p className="mt-2 text-xs text-ink-hint">
-              Attach up to {MAX_POST_IMAGES} images. JPG or PNG up to 5 MB each.
-            </p>
-            {postImagePreviews.length > 0 && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {postImagePreviews.map((url, index) => (
-                  <div key={url} className="relative overflow-hidden rounded-xl bg-surface-card">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" className="h-24 w-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => replacePostImages(postImages.filter((_, i) => i !== index))}
-                      className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-xs font-semibold text-white"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Round link selector */}
-          <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-card px-3 py-3">
-            <label className="block text-xs font-semibold text-ink-muted">Link to round</label>
-            <p className="mt-1 text-xs text-ink-hint">
-              Optional. Linked photos appear in the photo library under that round.
-            </p>
-            <select
-              value={linkedRoundId}
-              onChange={(e) => setLinkedRoundId(e.target.value)}
-              className="mt-2 w-full rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2.5 text-sm text-ink-body focus:outline-none focus:ring-2 focus:ring-brand-500"
-            >
-              <option value="">No round linked</option>
-              {rounds.map((r) => (
-                <option key={r.id} value={r.id}>{`Round ${r.roundNumber} - ${r.courseName}`}</option>
-              ))}
-            </select>
-            {linkedRound && (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-brand-50 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-700">Round update</p>
-                  <p className="truncate text-sm font-medium text-brand-900">{`Round ${linkedRound.roundNumber} - ${linkedRound.courseName}`}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLinkedRoundId("")}
-                  className="shrink-0 rounded-full border border-brand-200 bg-surface-card px-2.5 py-1 text-xs font-semibold text-brand-700"
-                >
-                  Clear
-                </button>
-              </div>
-            )}
-          </div>
-
-          {postError && <p className="mt-2 text-xs font-medium text-red-600">{postError}</p>}
-
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={handleCreatePost}
-              disabled={posting || (draft.trim().length === 0 && postImages.length === 0)}
-              className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40"
-            >
-              {posting
-                ? "Posting…"
-                : isAdmin && postType === "announcement"
-                ? "Post announcement"
-                : linkedRound
-                ? "Post round update"
-                : "Post"}
-            </button>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* ── Post list ─────────────────────────────────────────────── */}
-      {feedError ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-5 text-center">
-          <p className="text-sm font-medium text-red-700">{feedError}</p>
-        </div>
-      ) : feedLoading ? (
-        <div className="space-y-3 animate-pulse">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-28 rounded-2xl bg-surface-card p-4" />
-          ))}
-        </div>
-      ) : visiblePosts.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-ink-hint">
-          <div className="mb-4 text-5xl">💬</div>
-          <p className="mb-1 font-medium text-ink-muted">No social posts yet</p>
-          <p className="max-w-xs text-center text-sm">
-            Banter, round photos, and general club chat will live here.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {visiblePosts.map((post) => (
-            <PostCard
-              key={post.id}
-              post={post}
-              appUser={appUser}
-              isAdmin={isAdmin}
-              pinnedPostId={pinnedAnnouncement?.id ?? null}
-              myReaction={myReactionsByPostId[post.id] ?? null}
-              postRound={post.roundId ? roundsById.get(post.roundId) ?? null : null}
-              onReaction={handleReaction}
-              onSaveEdit={handleSaveEdit}
-              onDeletePost={handleDeletePost}
-              onCreateComment={handleCreateComment}
-              onDeleteComment={handleDeleteComment}
-              onTogglePin={handleTogglePin}
-              subscribeToComments={subscribeToComments}
-            />
-          ))}
-        </div>
+      {composer.open && appUser && (
+        <PostComposerSheet
+          appUser={appUser}
+          isAdmin={isAdmin}
+          rounds={rounds}
+          initialRoundId={composer.roundId}
+          onClose={closeComposer}
+        />
       )}
-
-      </>}
     </div>
   );
 }

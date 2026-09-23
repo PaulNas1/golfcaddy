@@ -493,12 +493,18 @@ export interface HandicapHistory {
 
 // ─── Posts & Feed ────────────────────────────────────────────────────────────
 
-export type PostType = "announcement" | "general" | "round_linked";
+/**
+ * round_result = the companion post behind an auto-generated Round Result card.
+ * Its doc id is `result_<roundId>`; it only exists once someone reacts or replies.
+ */
+export type PostType = "announcement" | "general" | "round_linked" | "round_result";
 export type PostReactionType =
   | "like"
   | "love"
   | "laugh"
   | "fire"
+  | "golf"
+  /** Legacy — no longer offered in the picker, existing counts still display. */
   | "dislike";
 
 export interface Post {

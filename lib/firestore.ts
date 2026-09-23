@@ -2862,6 +2862,75 @@ export const getFeedPosts = async (
     .slice(0, limitCount);
 };
 
+// ─── Round Result companion posts ───────────────────────────────────────────
+//
+// A Round Result card is drawn from the `results` doc. Reactions and replies
+// on it hang off a normal post doc with a fixed id, created lazily on the
+// first reaction/reply, so rounds with no banter never write anything.
+
+export const roundResultPostId = (roundId: string) => `result_${roundId}`;
+
+const roundResultPostFields = (groupId: string, roundId: string | null) => ({
+  groupId,
+  authorId: "system",
+  authorName: "FourPlay",
+  authorAvatarUrl: null,
+  type: "round_result" as const,
+  content: "",
+  roundId,
+  pinned: false,
+  photoUrls: [],
+  photoPaths: [],
+  reactionCounts: {},
+  commentCount: 0,
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+});
+
+/** Nobody "owns" a Round Result post, so it never notifies an author. */
+const shouldNotifyPostAuthor = (post: Post, actorId: string) =>
+  post.type !== "round_result" && !!post.authorId && post.authorId !== actorId;
+
+/** In-memory stand-in used until the companion post doc exists. */
+export const makeVirtualRoundResultPost = (groupId: string, roundId: string): Post => ({
+  id: roundResultPostId(roundId),
+  groupId,
+  authorId: "system",
+  authorName: "FourPlay",
+  authorAvatarUrl: null,
+  type: "round_result",
+  content: "",
+  roundId,
+  pinned: false,
+  photoUrls: [],
+  photoPaths: [],
+  reactionCounts: {},
+  commentCount: 0,
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+});
+
+export const subscribeRoundResultPosts = (
+  groupId: string,
+  onChange: (postsByRoundId: Record<string, Post>) => void,
+  onError?: (error: Error) => void
+) =>
+  onSnapshot(
+    query(
+      collection(db, "posts"),
+      where("groupId", "==", groupId),
+      where("type", "==", "round_result")
+    ),
+    (snap) => {
+      const result: Record<string, Post> = {};
+      snap.docs.map(mapPost).forEach((p) => {
+        if (p.roundId) result[p.roundId] = p;
+      });
+      onChange(result);
+    },
+    onError
+  );
+
 export const subscribeFeedPosts = (
   groupId: string,
   onChange: (posts: Post[], hasMore: boolean) => void,
@@ -3268,18 +3337,18 @@ export const createPostComment = async ({
 
   const postRef = doc(db, "posts", post.id);
   const commentRef = doc(collection(db, "posts", post.id, "comments"));
-  const notificationRef =
-    post.authorId !== author.uid
-      ? doc(db, "notifications", `${post.id}_comment_${commentRef.id}`)
-      : null;
+  const notifyAuthor = shouldNotifyPostAuthor(post, author.uid);
+  const notificationRef = notifyAuthor
+    ? doc(db, "notifications", `${post.id}_comment_${commentRef.id}`)
+    : null;
 
   await runTransaction(db, async (transaction) => {
     const postSnap = await transaction.get(postRef);
-    if (!postSnap.exists()) {
+    if (!postSnap.exists() && post.type !== "round_result") {
       throw new Error("Post not found.");
     }
 
-    const currentPost = mapPost(postSnap);
+    const currentPost = postSnap.exists() ? mapPost(postSnap) : post;
     transaction.set(commentRef, {
       postId: post.id,
       groupId: post.groupId,
@@ -3290,10 +3359,18 @@ export const createPostComment = async ({
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    transaction.update(postRef, {
-      commentCount: currentPost.commentCount + 1,
-      updatedAt: serverTimestamp(),
-    });
+    if (postSnap.exists()) {
+      transaction.update(postRef, {
+        commentCount: currentPost.commentCount + 1,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // First interaction on a Round Result card — create its companion post.
+      transaction.set(postRef, {
+        ...roundResultPostFields(post.groupId, post.roundId),
+        commentCount: 1,
+      });
+    }
 
     if (notificationRef) {
       transaction.set(notificationRef, {
@@ -3311,7 +3388,7 @@ export const createPostComment = async ({
     }
   });
 
-  if (post.authorId !== author.uid) {
+  if (notifyAuthor) {
     await maybeSendPushNotification({
       recipientUserIds: [post.authorId],
       title: "New reply on your post",
@@ -3365,6 +3442,8 @@ function getReactionSummary(reactionType: PostReactionType) {
       return "😂 reacted";
     case "fire":
       return "🔥 reacted";
+    case "golf":
+      return "⛳ reacted";
     case "dislike":
       return "👎 disliked";
     default:
@@ -3423,10 +3502,8 @@ export const setPostReaction = async ({
 }) => {
   const postRef = doc(db, "posts", post.id);
   const reactionRef = doc(db, "posts", post.id, "reactions", user.uid);
-  const notificationRef =
-    reactionType && post.authorId !== user.uid
-      ? doc(collection(db, "notifications"))
-      : null;
+  const notifyAuthor = !!reactionType && shouldNotifyPostAuthor(post, user.uid);
+  const notificationRef = notifyAuthor ? doc(collection(db, "notifications")) : null;
 
   await runTransaction(db, async (transaction) => {
     const [postSnap, reactionSnap] = await Promise.all([
@@ -3434,11 +3511,11 @@ export const setPostReaction = async ({
       transaction.get(reactionRef),
     ]);
 
-    if (!postSnap.exists()) {
+    if (!postSnap.exists() && post.type !== "round_result") {
       throw new Error("Post not found.");
     }
 
-    const currentPost = mapPost(postSnap);
+    const currentPost = postSnap.exists() ? mapPost(postSnap) : post;
     const currentCounts = { ...(currentPost.reactionCounts ?? {}) };
     const previousReaction = reactionSnap.exists()
       ? mapPostReaction(reactionSnap).reactionType
@@ -3488,13 +3565,21 @@ export const setPostReaction = async ({
       transaction.delete(reactionRef);
     }
 
-    transaction.update(postRef, {
-      reactionCounts: currentCounts,
-      updatedAt: serverTimestamp(),
-    });
+    if (postSnap.exists()) {
+      transaction.update(postRef, {
+        reactionCounts: currentCounts,
+        updatedAt: serverTimestamp(),
+      });
+    } else {
+      // First interaction on a Round Result card — create its companion post.
+      transaction.set(postRef, {
+        ...roundResultPostFields(post.groupId, post.roundId),
+        reactionCounts: currentCounts,
+      });
+    }
   });
 
-  if (reactionType && post.authorId !== user.uid) {
+  if (notifyAuthor) {
     await maybeSendPushNotification({
       recipientUserIds: [post.authorId],
       title: "New reaction on your post",
