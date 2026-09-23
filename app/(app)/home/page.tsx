@@ -233,7 +233,7 @@ export default function HomePage() {
 
       {/* ── Live round banner ─────────────────────────────────────── */}
       {liveRound && (() => {
-        const { holes: liveHoles, note: liveNote } = getViewerHoles(liveRound, appUser ?? null);
+        const { holes: liveHoles, note: liveNote, teeSet: liveTee } = getViewerHoles(liveRound, appUser ?? null);
         return (
           <div className="space-y-2">
             <div className="bg-red-500 text-white rounded-2xl shadow-md overflow-hidden">
@@ -276,7 +276,7 @@ export default function HomePage() {
                 holes={liveHoles}
                 distanceUnit={appUser?.distanceUnit ?? "meters"}
                 specialHoles={getEffectiveSpecialHoles(liveRound)}
-                teeSetName={liveRound.teeSetName ?? undefined}
+                teeSetName={liveTee?.name ?? liveRound.teeSetName ?? undefined}
                 note={liveNote ?? undefined}
               />
             )}
@@ -417,7 +417,7 @@ export default function HomePage() {
 
               {/* Course card preview — collapsed by default */}
               {(() => {
-                const { holes: nextHoles, note: nextNote } = getViewerHoles(nextRound, appUser ?? null);
+                const { holes: nextHoles, note: nextNote, teeSet: nextTee } = getViewerHoles(nextRound, appUser ?? null);
                 if (nextHoles.length !== 18) return null;
                 return (
                   <div className="mt-3">
@@ -425,7 +425,7 @@ export default function HomePage() {
                       holes={nextHoles}
                       distanceUnit={appUser?.distanceUnit ?? "meters"}
                       specialHoles={getEffectiveSpecialHoles(nextRound)}
-                      teeSetName={nextRound.teeSetName ?? undefined}
+                      teeSetName={nextTee?.name ?? nextRound.teeSetName ?? undefined}
                       note={nextNote ?? undefined}
                     />
                   </div>

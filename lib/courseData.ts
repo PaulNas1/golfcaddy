@@ -136,16 +136,48 @@ export function getRoundDefaultTeeSet(round: Round) {
   );
 }
 
-export function getPlayerTeeSet(round: Round, playerId?: string | null) {
+/** The bits of a player that decide which tee they play from. */
+export type TeePlayer = Pick<AppUser, "gender" | "usesSeniorTees" | "usesProBackTees">;
+
+/**
+ * The ladies' tee a woman plays from when the admin hasn't assigned one.
+ * Only picks when it's unambiguous: the default tee is already a women's tee,
+ * or the course has exactly one women's tee. Otherwise null (admin decides).
+ */
+function getAutoWomensTeeSet(round: Round): CourseTeeSet | null {
+  const defaultTee = getRoundDefaultTeeSet(round);
+  if (defaultTee?.gender === "women") return defaultTee;
+  const womens = getRoundTeeSets(round).filter((teeSet) => teeSet.gender === "women");
+  return womens.length === 1 ? womens[0] : null;
+}
+
+/**
+ * The tee a player actually plays from — ONE rule for the round page, the
+ * course card, the playing handicap and the scorecard, so they never disagree:
+ *   1. the admin's assignment for this player, if any
+ *   2. women → the ladies' tee (when unambiguous)
+ *   3. the round's default tee
+ * Senior / pro-back tees aren't labelled in course data, so those players
+ * stay on the default until an admin assigns them (see getViewerHoles note).
+ */
+export function getPlayerTeeSet(
+  round: Round,
+  playerId?: string | null,
+  player?: TeePlayer | null
+) {
   const teeSets = getRoundTeeSets(round);
   const assignedTeeSetId = playerId
     ? round.playerTeeAssignments?.[playerId]
     : null;
+  const assigned = teeSets.find((teeSet) => teeSet.id === assignedTeeSetId);
+  if (assigned) return assigned;
 
-  return (
-    teeSets.find((teeSet) => teeSet.id === assignedTeeSetId) ??
-    getRoundDefaultTeeSet(round)
-  );
+  if (player?.gender === "female") {
+    const womens = getAutoWomensTeeSet(round);
+    if (womens) return womens;
+  }
+
+  return getRoundDefaultTeeSet(round);
 }
 
 export function applyHoleOverrides(
@@ -174,9 +206,10 @@ export function applyHoleOverrides(
 
 export function getEffectiveCourseHoles(
   round: Round,
-  playerId?: string | null
+  playerId?: string | null,
+  player?: TeePlayer | null
 ) {
-  const playerTeeSet = getPlayerTeeSet(round, playerId);
+  const playerTeeSet = getPlayerTeeSet(round, playerId, player);
   const baseHoles =
     playerTeeSet?.holes && playerTeeSet.holes.length === 18
       ? playerTeeSet.holes
@@ -267,36 +300,29 @@ export function withSeededCourseData(round: Round): Round {
 export function getViewerHoles(
   round: Round,
   viewer: AppUser | null
-): { holes: CourseHole[]; note: string | null } {
-  const assignedTeeSetId =
-    viewer?.uid ? (round.playerTeeAssignments ?? {})[viewer.uid] : null;
+): { holes: CourseHole[]; note: string | null; teeSet: CourseTeeSet | null } {
+  const teeSet = getPlayerTeeSet(round, viewer?.uid ?? null, viewer);
+  const holes =
+    teeSet && teeSet.holes.length > 0 ? teeSet.holes : getRoundDefaultHoles(round);
+  if (!holes.length) return { holes: [], note: null, teeSet: null };
 
-  if (assignedTeeSetId) {
-    const assigned = getRoundTeeSets(round).find(
-      (ts) => ts.id === assignedTeeSetId
-    );
-    if (assigned && assigned.holes.length > 0) {
-      return { holes: assigned.holes, note: null };
-    }
-  }
-
-  const holes = getRoundDefaultHoles(round);
-  if (!holes.length) return { holes: [], note: null };
-
-  // If this user typically plays a different tee set (female / senior / pro)
-  // but hasn't been assigned one yet, show a note.
+  // Still on the default tee but might not belong there (a woman on a course
+  // with no clear ladies' tee, or a senior / pro-back player): say so.
+  const assigned = Boolean(viewer?.uid && round.playerTeeAssignments?.[viewer.uid]);
+  const onDefault = teeSet?.id === getRoundDefaultTeeSet(round)?.id;
   const mightDiffer =
-    viewer &&
-    !assignedTeeSetId &&
-    (viewer.gender === "female" ||
+    viewer != null &&
+    !assigned &&
+    onDefault &&
+    ((viewer.gender === "female" && teeSet?.gender !== "women") ||
       viewer.usesSeniorTees === true ||
       viewer.usesProBackTees === true);
 
   const note = mightDiffer
-    ? "Showing default tee set · your tee assignment may be updated once you RSVP and admin confirms."
+    ? "Showing the default tee · admin will confirm your tee before the round."
     : null;
 
-  return { holes, note };
+  return { holes, note, teeSet: teeSet ?? null };
 }
 
 /**

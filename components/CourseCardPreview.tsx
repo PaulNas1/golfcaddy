@@ -138,6 +138,7 @@ export function CourseCardPreview({
   defaultOpen = false,
   tees,
   activeTeeId,
+  embedded = false,
 }: {
   holes: CourseHole[];
   distanceUnit?: DistanceUnit;
@@ -147,6 +148,8 @@ export function CourseCardPreview({
   defaultOpen?: boolean;
   tees?: CourseCardTee[];
   activeTeeId?: string | null;
+  /** Sits inside another card (e.g. Course Info) — lighter frame, no shadow. */
+  embedded?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const [selectedTeeId, setSelectedTeeId] = useState(activeTeeId ?? "");
@@ -169,7 +172,13 @@ export function CourseCardPreview({
   const totalPar = shownHoles.reduce((s, h) => s + h.par, 0);
 
   return (
-    <div className="rounded-2xl border border-surface-overlay bg-surface-card shadow-sm overflow-hidden">
+    <div
+      className={
+        embedded
+          ? "rounded-xl border border-surface-overlay bg-surface-muted overflow-hidden"
+          : "rounded-2xl border border-surface-overlay bg-surface-card shadow-sm overflow-hidden"
+      }
+    >
       {canSwitch ? (
         // A select cannot live inside the toggle button, so the header splits:
         // the tee picker is its own control, the toggle keeps the right side.

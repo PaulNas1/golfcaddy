@@ -96,11 +96,9 @@ const SECTIONS_BY_STATUS: Record<RoundStatus, SectionKey[]> = {
     "teeTimes",
     "courseInfo",
     "specialHoles",
-    "courseCard",
     "holeOverrides",
     "notes",
     "activity",
-    "adminLink",
   ],
   // ── Live ── Primary scoring CTA first, then standings, then course context
   live: [
@@ -108,13 +106,11 @@ const SECTIONS_BY_STATUS: Record<RoundStatus, SectionKey[]> = {
     "rsvp",
     "liveStandings",
     "courseInfo",
-    "courseCard",
     "teeTimes",
     "specialHoles",
     "holeOverrides",
     "notes",
     "activity",
-    "adminLink",
   ],
   // ── Completed ── Results lead; tee times / side-claim selectors are omitted
   // because results already surface side winners via SideResultsList.
@@ -122,11 +118,9 @@ const SECTIONS_BY_STATUS: Record<RoundStatus, SectionKey[]> = {
     "results",
     "historicalImport",
     "courseInfo",
-    "courseCard",
     "holeOverrides",
     "notes",
     "activity",
-    "adminLink",
   ],
 };
 
@@ -433,7 +427,14 @@ export default function RoundDetailPage() {
     }
   };
   const specialHoles = getEffectiveSpecialHoles(round);
-  const { holes: viewerHoles, note: viewerNote } = getViewerHoles(round, appUser ?? null);
+  // ONE tee drives the card, the tee line and the playing HCP (same rule the
+  // scorecard uses): admin assignment → ladies' tee for women → default.
+  const { holes: viewerHoles, note: viewerNote, teeSet: viewerTeeSet } =
+    getViewerHoles(round, appUser ?? null);
+  const viewerTeeName = viewerTeeSet?.name ?? round.teeSetName;
+  const viewerPar = viewerTeeSet?.par ?? round.coursePar;
+  const viewerSlope = viewerTeeSet?.slopeRating ?? round.slopeRating;
+  const viewerCR = viewerTeeSet?.courseRating ?? round.courseRating;
   const groupSettings = normaliseGroupSettings(group?.settings);
   const myMember = appUser ? groupMembers.find((m) => m.userId === appUser.uid) : null;
   const myPlayingHandicap =
@@ -441,9 +442,9 @@ export default function RoundDetailPage() {
       ? calculatePlayingHandicap({
           handicap: myMember.currentHandicap,
           mode: groupSettings.handicapMode,
-          slopeRating: round.slopeRating,
-          courseRating: round.courseRating,
-          coursePar: round.coursePar,
+          slopeRating: viewerSlope,
+          courseRating: viewerCR,
+          coursePar: viewerPar,
           gender: appUser?.gender,
         })
       : null;
@@ -643,11 +644,12 @@ export default function RoundDetailPage() {
         <h2 className="font-semibold text-ink-title">Course Info</h2>
         <div className="text-sm text-ink-body space-y-2">
           <p className="font-medium text-ink-title">{round.courseName}</p>
-          {round.teeSetName && (
+          {viewerTeeName && (
             <p className="text-xs text-ink-muted">
-              {round.teeSetName} tees · Par {round.coursePar ?? "—"}
-              {round.slopeRating ? ` · Slope ${round.slopeRating}` : ""}
-              {round.courseRating ? ` · CR ${round.courseRating}` : ""}
+              <span className="font-medium text-ink-body">Your tee:</span>{" "}
+              {viewerTeeName} · Par {viewerPar ?? "—"}
+              {viewerSlope ? ` · Slope ${viewerSlope}` : ""}
+              {viewerCR ? ` · CR ${viewerCR}` : ""}
             </p>
           )}
           {myPlayingHandicap != null && (
@@ -673,6 +675,16 @@ export default function RoundDetailPage() {
             📍 Open in Maps
           </a>
         </div>
+        {viewerHoles.length === 18 && (
+          <CourseCardPreview
+            embedded
+            holes={viewerHoles}
+            distanceUnit={appUser?.distanceUnit ?? "meters"}
+            specialHoles={specialHoles}
+            teeSetName={viewerTeeName ?? undefined}
+            note={viewerNote ?? undefined}
+          />
+        )}
       </div>
     ),
 
@@ -683,7 +695,7 @@ export default function RoundDetailPage() {
           holes={viewerHoles}
           distanceUnit={appUser?.distanceUnit ?? "meters"}
           specialHoles={specialHoles}
-          teeSetName={round.teeSetName ?? undefined}
+          teeSetName={viewerTeeName ?? undefined}
           note={viewerNote ?? undefined}
         />
       );
@@ -735,6 +747,33 @@ export default function RoundDetailPage() {
         specialHoles.t2 ||
         specialHoles.t3;
       if (!hasSpecial) return null;
+      // Before (and after) play, pickers can't be used — show a one-line summary.
+      if (round.status !== "live" || round.resultsPublished) {
+        const extras = [
+          specialHoles.ld ? `LD ${specialHoles.ld}` : null,
+          specialHoles.t2 ? `T2 ${specialHoles.t2}` : null,
+          specialHoles.t3 ? `T3 ${specialHoles.t3}` : null,
+        ].filter(Boolean);
+        return (
+          <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay px-4 py-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-semibold text-ink-title">Special Holes</h2>
+              <p className="text-right text-sm text-ink-body">
+                {specialHoles.ntp.length > 0 && (
+                  <span>NTP {specialHoles.ntp.join(" · ")}</span>
+                )}
+                {extras.length > 0 && (
+                  <span className="text-ink-muted">
+                    {specialHoles.ntp.length > 0 ? "  |  " : ""}
+                    {extras.join(" · ")}
+                  </span>
+                )}
+              </p>
+            </div>
+            <p className="mt-1 text-xs text-ink-hint">Winners are claimed once the round is live.</p>
+          </div>
+        );
+      }
       return (
         <div className="bg-surface-card rounded-2xl shadow-sm border border-surface-overlay p-4">
           <h2 className="font-semibold text-ink-title mb-3">Special Holes</h2>
@@ -903,6 +942,15 @@ export default function RoundDetailPage() {
             {statusLabel}
           </span>
           <span className="text-xs text-ink-hint">{getRoundLabel(round)} · {round.season}</span>
+          {canAccessAdmin && (
+            <Link
+              href={`/admin/rounds/${round.id}`}
+              aria-label="Edit round in admin"
+              className="ml-auto inline-flex items-center gap-1 rounded-full border border-surface-overlay bg-surface-card px-3 py-1 text-xs font-semibold text-ink-body hover:bg-surface-muted"
+            >
+              <span aria-hidden>✎</span> Edit
+            </Link>
+          )}
         </div>
         <h1 className="text-2xl font-bold text-ink-title leading-tight">{round.courseName}</h1>
         <p className="text-ink-muted mt-1">
@@ -913,8 +961,10 @@ export default function RoundDetailPage() {
 
       {/* ── Scoring format badge — always shown ─────────────────────────── */}
       <div className="flex gap-2">
-        <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${
-          round.format === "stableford" ? "bg-brand-100 text-brand-700" : "bg-blue-100 text-blue-700"
+        <span className={`text-sm font-semibold px-3 py-1 rounded-full border ${
+          round.format === "stableford"
+            ? "border-brand-500 bg-transparent text-brand-600"
+            : "border-blue-400 bg-transparent text-blue-500"
         }`}>
           {round.format === "stableford" ? "🏌️ Stableford" : "📊 Stroke Play"}
         </span>

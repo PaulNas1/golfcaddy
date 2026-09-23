@@ -259,7 +259,8 @@ export default function ScorecardPage() {
             : buildInitialHoles(
                 round,
                 playerMember?.currentHandicap ?? 0,
-                existing.playerId
+                existing.playerId,
+                existing.courseHoles
               )
         );
       } catch {
@@ -423,6 +424,8 @@ export default function ScorecardPage() {
     }
     setError("");
     setStarting(true);
+    // The player being marked decides their tee (ladies' tee for women).
+    const playerUser = eligiblePlayers.find((member) => member.uid === playerToMarkId) ?? null;
     try {
       const existingPlayerCard = await getScorecardForPlayer(
         round.id,
@@ -439,7 +442,8 @@ export default function ScorecardPage() {
               : buildInitialHoles(
                   round,
                   existingPlayerCard.handicapAtTime,
-                  existingPlayerCard.playerId
+                  existingPlayerCard.playerId,
+                  existingPlayerCard.courseHoles
                 )
           );
           setStarting(false);
@@ -460,8 +464,8 @@ export default function ScorecardPage() {
       ]);
       const groupSettings = normaliseGroupSettings(group?.settings);
       const baseHandicap = playerMember?.currentHandicap ?? 0;
-      const playerTeeSet = getPlayerTeeSet(round, playerToMarkId);
-      const playerCourseHoles = getEffectiveCourseHoles(round, playerToMarkId);
+      const playerTeeSet = getPlayerTeeSet(round, playerToMarkId, playerUser);
+      const playerCourseHoles = getEffectiveCourseHoles(round, playerToMarkId, playerUser);
       const playerCoursePar =
         playerTeeSet?.par ??
         playerCourseHoles.reduce((total, hole) => total + hole.par, 0);
@@ -471,6 +475,7 @@ export default function ScorecardPage() {
         slopeRating: playerTeeSet?.slopeRating ?? round.slopeRating,
         courseRating: playerTeeSet?.courseRating ?? round.courseRating,
         coursePar: playerCoursePar,
+        gender: playerUser?.gender ?? null,
       });
 
       const id = await createScorecard({
@@ -520,7 +525,7 @@ export default function ScorecardPage() {
         updatedAt: new Date(),
       };
       setScorecard(card);
-      setHoles(buildInitialHoles(round, playingHandicap, playerToMarkId));
+      setHoles(buildInitialHoles(round, playingHandicap, playerToMarkId, playerCourseHoles));
       markSyncPending();
     } catch {
       setError("Failed to start scorecard. Please try again.");
@@ -1407,9 +1412,15 @@ function getAcceptedMemberIds(round: Round, rsvps: RoundRsvp[]) {
 function buildInitialHoles(
   round: Round,
   handicap: number,
-  playerId?: string
+  playerId?: string,
+  // The card's own frozen holes win — they're the tee it was created on.
+  cardHoles?: CourseHoleLite[] | null
 ): HoleScore[] {
-  const layout = mapCourseHoles(getEffectiveCourseHoles(round, playerId));
+  const layout = mapCourseHoles(
+    cardHoles && cardHoles.length === 18
+      ? cardHoles
+      : getEffectiveCourseHoles(round, playerId)
+  );
   const specialHoles = getEffectiveSpecialHoles(round);
   return layout.map((h) => ({
     holeNumber: h.number,
