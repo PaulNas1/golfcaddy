@@ -6,6 +6,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getCourseTees, subscribeCourses } from "@/lib/firestore";
 import type { Course } from "@/types";
 
+// The one-time course migration has been run; new rounds get course data on
+// creation. Card hidden (code + /admin/courses/migrate route kept). Flip to
+// true to show it again.
+const SHOW_COURSE_MIGRATION = false;
+
 export default function AdminCoursesPage() {
   const { appUser, isAdmin } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -106,7 +111,7 @@ export default function AdminCoursesPage() {
         </div>
       )}
 
-      {isAdmin && (
+      {SHOW_COURSE_MIGRATION && isAdmin && (
         <div className="rounded-2xl border border-surface-overlay bg-surface-muted p-4">
           <p className="text-xs font-semibold text-ink-body">
             Migrating existing rounds
