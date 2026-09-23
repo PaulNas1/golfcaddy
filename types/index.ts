@@ -293,6 +293,8 @@ export interface Round {
   teeTimes: TeeTime[];
   rsvpOpen: boolean;
   rsvpNotifiedAt: Date | null;
+  /** Last dashboard "Nudge" to members who hadn't replied. */
+  rsvpNudgedAt?: Date | null;
   holeOverrides: HoleOverride[];
   specialHoles: SpecialHoles;
   scorecardsAvailable: boolean;

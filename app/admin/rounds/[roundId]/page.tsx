@@ -374,6 +374,16 @@ export default function AdminRoundDetailPage() {
    * of save. It opens RSVPs, creates a pending RSVP for anyone without one,
    * and sends a notification to every active member.
    */
+  // Dashboard checklist links land on a section (#tee-times, #prize-holes,
+  // #tee-assignments). Those only exist once the round has loaded.
+  useEffect(() => {
+    if (loading || typeof window === "undefined" || !window.location.hash) return;
+    const target = document.getElementById(window.location.hash.slice(1));
+    if (target) {
+      window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    }
+  }, [loading]);
+
   const handleNotifyPlayers = async () => {
     if (!round) return;
     setSaving(true);

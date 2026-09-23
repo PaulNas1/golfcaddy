@@ -621,7 +621,7 @@ export default function RoundDetailsForm({
 
           {/* Edit mode: player tee assignments panel */}
           {existingRound && assignmentTeeSets.length > 0 && playerTeeAssignments && (
-            <div className="mt-3 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2">
+            <div id="tee-assignments" className="mt-3 scroll-mt-24 rounded-xl border border-surface-overlay bg-surface-muted px-3 py-2">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-ink-body">Player tee assignments</p>
@@ -799,6 +799,7 @@ export default function RoundDetailsForm({
       </div>
 
       {/* Tee times editor */}
+      <div id="tee-times" className="scroll-mt-24" />
       <TeeTimesEditor
         teeTimes={activeTeeTimes}
         members={members}
@@ -816,7 +817,7 @@ export default function RoundDetailsForm({
       />
 
       {/* Special holes */}
-      <div className="border-t border-surface-overlay pt-3 mt-2 space-y-3">
+      <div id="prize-holes" className="scroll-mt-24 border-t border-surface-overlay pt-3 mt-2 space-y-3">
         <h3 className="text-xs font-semibold text-ink-body">Prize holes</h3>
         <div className="flex items-baseline gap-2 rounded-lg bg-surface-muted px-3 py-2">
           <span className="text-xs font-semibold text-ink-body">

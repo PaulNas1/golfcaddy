@@ -312,6 +312,7 @@ const mapRound = (
     rsvpNotifiedAt: data.rsvpNotifiedAt
       ? toDate(data.rsvpNotifiedAt)
       : null,
+    rsvpNudgedAt: data.rsvpNudgedAt ? toDate(data.rsvpNudgedAt) : null,
     specialHoles: data.specialHoles ?? {
       ntp: [],
       ld: null,
@@ -1432,6 +1433,62 @@ export const notifyRoundPlayers = async ({
     deepLink: `/rounds/${round.id}`,
     type: mode === "created" ? "round_announced" : "tee_times_published",
   });
+};
+
+/**
+ * Admin dashboard "Nudge": remind ONLY the active members who haven't
+ * answered the round's RSVP yet (in-app notification + push). Returns how
+ * many were nudged.
+ */
+export const nudgeRoundNonResponders = async ({
+  round,
+  activeUsers,
+}: {
+  round: Round;
+  activeUsers: AppUser[];
+}) => {
+  const rsvps = await getRoundRsvps(round.id);
+  const answered = new Set(
+    rsvps.filter((r) => r.status === "accepted" || r.status === "declined").map((r) => r.memberId)
+  );
+  const targets = activeUsers.filter((user) => !answered.has(user.uid));
+  if (targets.length === 0) return 0;
+
+  const title = `Round ${round.roundNumber}: are you in?`;
+  const body = `${round.courseName} · ${round.date.toLocaleDateString("en-AU", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  })}. Tap to RSVP.`;
+  const batch = writeBatch(db);
+  const baseId = `${round.id}_nudge_${Date.now()}`;
+  targets.forEach((user) => {
+    batch.set(doc(db, "notifications", `${baseId}_${user.uid}`), {
+      recipientId: user.uid,
+      groupId: round.groupId,
+      type: "round_announced",
+      title,
+      body,
+      deepLink: `/rounds/${round.id}`,
+      read: false,
+      roundId: round.id,
+      postId: null,
+      createdAt: serverTimestamp(),
+    });
+  });
+  batch.update(doc(db, "rounds", round.id), {
+    rsvpNudgedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  await batch.commit();
+  await maybeSendPushNotification({
+    recipientUserIds: targets.map((user) => user.uid),
+    title,
+    body,
+    deepLink: `/rounds/${round.id}`,
+    type: "round_announced",
+  });
+  return targets.length;
 };
 
 const mapSideClaim = (

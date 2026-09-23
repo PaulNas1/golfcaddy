@@ -1,33 +1,31 @@
 "use client";
 
 /**
- * AdminDashboard
+ * AdminDashboard — "what needs doing next".
  *
- * Overview screen for group admins. Shows live stats, a pending-approval
- * alert, an active-round banner, and four quick-action tiles.
- *
- * Quick actions:
- *   - Create round  (primary CTA)
- *   - Manage rounds (nav shortcut kept — different context than the dashboard)
- *   - Invite to join (QR code modal — scan-to-signup on the course)
- *   - Course corrections
- *
- * Members and Settings are in the nav bar and are NOT duplicated here.
+ * NEXT UP: the next round as a checklist (course, RSVPs, tee groups,
+ * LD/T2/T3, tees), each item one tap from done. Switches to a live card on
+ * round day and a close-out card once the round has been played.
+ * NEEDS ATTENTION: approvals, unpublished rounds, nothing scheduled — only
+ * shown when something's there. Logic lives in lib/adminChecklist.ts.
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import Link from "next/link";
 import {
   createMemberInvite,
+  getActiveMembers,
   getPendingMembers,
+  nudgeRoundNonResponders,
   subscribeGroup,
+  subscribeRoundRsvps,
   subscribeRoundsForGroup,
 } from "@/lib/firestore";
 import { getFirstTeeTimeLabel } from "@/lib/teeTimes";
+import { buildNeedsAttention, buildNextUp, pickNextRound } from "@/lib/adminChecklist";
+import { format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { ChevronRightIcon } from "@/components/ui/icons";
-import type { AppUser, Group, MemberInvite, Round } from "@/types";
+import type { AppUser, Group, MemberInvite, Round, RoundRsvp } from "@/types";
 
 function uniqueRoundsById(rounds: Round[]) {
   return Array.from(new Map(rounds.map((r) => [r.id, r])).values());
@@ -39,6 +37,10 @@ export default function AdminDashboard() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [group, setGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeMembers, setActiveMembers] = useState<AppUser[]>([]);
+  const [rsvps, setRsvps] = useState<RoundRsvp[]>([]);
+  const [nudging, setNudging] = useState(false);
+  const [nudgeMessage, setNudgeMessage] = useState("");
 
   // ── Invite QR modal state ─────────────────────────────────────────────────
   const [qrOpen, setQrOpen] = useState(false);
@@ -60,6 +62,10 @@ export default function AdminDashboard() {
 
     setLoading(true);
 
+    getActiveMembers(appUser.groupId)
+      .then(setActiveMembers)
+      .catch((err) => console.warn("Unable to load active members", err));
+
     getPendingMembers(appUser.groupId)
       .then((members) => setPending(members))
       .catch((err) => console.warn("Unable to load pending members", err))
@@ -79,6 +85,17 @@ export default function AdminDashboard() {
 
     return () => { groupUnsub(); roundsUnsub(); };
   }, [appUser?.groupId]);
+
+  // RSVPs for the round the checklist is about.
+  const rsvpRoundId =
+    pickNextRound(rounds, group?.currentSeason ?? new Date().getFullYear())?.id ?? null;
+  useEffect(() => {
+    if (!rsvpRoundId) {
+      setRsvps([]);
+      return;
+    }
+    return subscribeRoundRsvps(rsvpRoundId, setRsvps);
+  }, [rsvpRoundId]);
 
   const handleOpenQR = async () => {
     if (!appUser || !group) return;
@@ -113,8 +130,36 @@ export default function AdminDashboard() {
   };
 
   const activeSeason = group?.currentSeason ?? new Date().getFullYear();
-  const activeSeasonRounds = rounds.filter((r) => r.season === activeSeason);
-  const liveRound = rounds.find((r) => r.status === "live");
+  const now = new Date();
+  const focusRound = pickNextRound(rounds, activeSeason);
+  const focusRoundId = focusRound?.id ?? null;
+
+  const nextUp = buildNextUp({ rounds, season: activeSeason, rsvps, activeMembers, now });
+  const attention = buildNeedsAttention({
+    rounds,
+    season: activeSeason,
+    pendingCount: pending.length,
+    now,
+    nextUpRoundId: focusRoundId,
+  });
+
+  const handleNudge = async () => {
+    if (!focusRound || nudging) return;
+    const noReply = nextUp.mode === "prep"
+      ? nextUp.items.find((i) => i.key === "rsvps")?.detail.match(/(\d+) no reply/)?.[1]
+      : null;
+    if (!window.confirm(`Send an RSVP reminder to the ${noReply ?? ""} member(s) who haven't replied?`)) return;
+    setNudging(true);
+    setNudgeMessage("");
+    try {
+      const sent = await nudgeRoundNonResponders({ round: focusRound, activeUsers: activeMembers });
+      setNudgeMessage(sent > 0 ? `Reminder sent to ${sent} member${sent === 1 ? "" : "s"}.` : "Everyone has already replied.");
+    } catch {
+      setNudgeMessage("Couldn't send the reminder. Try again.");
+    } finally {
+      setNudging(false);
+    }
+  };
 
   // Build signup URL from invite
   const inviteUrl = qrInvite
@@ -124,94 +169,68 @@ export default function AdminDashboard() {
   return (
     <>
       <div className="space-y-5">
-        {/* Page heading */}
-        <div>
-          <h1 className="text-2xl font-bold text-ink-title">Admin Dashboard</h1>
-          <p className="text-ink-muted text-sm">{group?.name ?? "Golf group"}</p>
-        </div>
-
-        {/* Pending-approval alert */}
-        {pending.length > 0 && (
-          <Link href="/admin/members">
-            <div className="bg-announce-bg border border-announce-border rounded-2xl p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">⏳</span>
-                <div>
-                  <p className="font-semibold text-announce-label text-sm">
-                    {pending.length} pending approval{pending.length > 1 ? "s" : ""}
-                  </p>
-                  <p className="text-announce-muted text-xs">Tap to review</p>
-                </div>
-              </div>
-              <ChevronRightIcon className="w-5 h-5 text-announce-muted" />
-            </div>
-          </Link>
-        )}
-
-        {/* Quick stats strip */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatPill label="Rounds"  value={loading ? "—" : String(activeSeasonRounds.length)} />
-          <StatPill label="Pending" value={loading ? "—" : String(pending.length)} />
-          <StatPill label="Season"  value={loading ? "—" : String(activeSeason)} />
-        </div>
-
-        {/* Live round banner */}
-        {liveRound && (
-          <div className="bg-live-bg border border-live-text/20 rounded-2xl p-4">
-            <p className="text-xs font-semibold text-live-text uppercase tracking-wide mb-1">
-              ● Round Live
+        {/* Header: title + the two things you start from scratch */}
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-ink-title">Admin</h1>
+            <p className="text-sm text-ink-muted">
+              {group?.name ?? "Golf group"} · {activeSeason} season
             </p>
-            <p className="font-bold text-ink-title">{liveRound.courseName}</p>
-            {getFirstTeeTimeLabel(liveRound) && (
-              <p className="text-xs text-live-text mt-1">{getFirstTeeTimeLabel(liveRound)}</p>
-            )}
-            <Link
-              href={`/admin/rounds/${liveRound.id}`}
-              className="mt-3 inline-block text-sm text-live-text font-medium hover:underline"
-            >
-              Manage round →
-            </Link>
           </div>
-        )}
-
-        {/* Quick actions */}
-        <div>
-          <h2 className="mb-3 font-semibold text-ink-title">Quick Actions</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <ActionTile
-              href="/admin/rounds/create"
-              label="Create round"
-              description="Set date, course, tee times"
-              icon={<PlusIcon className="h-6 w-6" />}
-              primary
-            />
-            <ActionTile
-              href="/admin/rounds"
-              label="Manage rounds"
-              description="Edit, publish, delete"
-              icon={<FlagIcon className="h-6 w-6" />}
-            />
-            {/* Invite tile — opens QR modal instead of navigating */}
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={handleOpenQR}
               disabled={!group}
-              className="rounded-xl border border-surface-overlay bg-surface-muted p-4 shadow-sm text-left transition-colors hover:bg-surface-overlay disabled:opacity-40"
+              aria-label="Invite with QR code"
+              className="inline-flex items-center gap-1.5 rounded-full border border-surface-overlay px-3 py-2 text-xs font-semibold text-ink-body hover:bg-surface-muted disabled:opacity-40"
             >
-              <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-card/70">
-                <QRIcon className="h-6 w-6 text-ink-title" />
-              </span>
-              <span className="block text-sm font-semibold text-ink-title">Invite to join</span>
-              <span className="mt-1 block text-xs text-ink-muted">Scan to sign up on the spot</span>
+              <QRIcon className="h-4 w-4" /> Invite
             </button>
-            <ActionTile
-              href="/admin/courses"
-              label="Courses"
-              description="Pars, stroke index, distances"
-              icon={<CourseIcon className="h-6 w-6" />}
-            />
+            <Link
+              href="/admin/rounds/create"
+              className="inline-flex items-center gap-1 rounded-full bg-brand-600 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              <PlusIcon className="h-4 w-4" /> New round
+            </Link>
           </div>
         </div>
+
+        {loading ? (
+          <div className="h-56 animate-pulse rounded-2xl bg-surface-muted" />
+        ) : (
+          <NextUpCard
+            nextUp={nextUp}
+            onNudge={handleNudge}
+            nudging={nudging}
+            nudgeMessage={nudgeMessage}
+          />
+        )}
+
+        {!loading && attention.length > 0 && (
+          <section>
+            <h2 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-ink-hint">
+              Needs attention
+            </h2>
+            <div className="divide-y divide-surface-overlay rounded-2xl border border-surface-overlay bg-surface-card shadow-sm">
+              {attention.map((item) => (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-surface-muted"
+                >
+                  <span className="text-ink-body">
+                    <span className="mr-2 text-amber-500">●</span>
+                    {item.text}
+                  </span>
+                  <span className="shrink-0 text-xs font-semibold text-ink-action">
+                    {item.action} →
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* ── Invite QR modal ──────────────────────────────────────────────────── */}
@@ -345,45 +364,7 @@ function InviteQRModal({
 
 // ── Reusable tile components ─────────────────────────────────────────────────
 
-function StatPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-surface-card rounded-2xl p-4 text-center shadow-sm border border-surface-overlay">
-      <div className="text-2xl font-bold text-brand-600">{value}</div>
-      <div className="text-xs text-ink-muted mt-1">{label}</div>
-    </div>
-  );
-}
 
-function ActionTile({
-  href,
-  label,
-  description,
-  icon,
-  primary = false,
-}: {
-  href: string;
-  label: string;
-  description: string;
-  icon: ReactNode;
-  primary?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`rounded-xl border p-4 shadow-sm transition-colors ${
-        primary
-          ? "border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100"
-          : "border-surface-overlay bg-surface-muted text-ink-title hover:bg-surface-overlay"
-      }`}
-    >
-      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-surface-card/70">
-        {icon}
-      </span>
-      <span className="block text-sm font-semibold">{label}</span>
-      <span className="mt-1 block text-xs text-ink-muted">{description}</span>
-    </Link>
-  );
-}
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 
@@ -395,13 +376,6 @@ function PlusIcon({ className }: { className?: string }) {
   );
 }
 
-function FlagIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7 4v16M7 5h9l-1.5 3L16 11H7" />
-    </svg>
-  );
-}
 
 function QRIcon({ className }: { className?: string }) {
   return (
@@ -411,18 +385,168 @@ function QRIcon({ className }: { className?: string }) {
   );
 }
 
-function CourseIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18M3 8l4-2 4 2 4-2 4 2M7 21v-5m4 5v-8m4 8v-5" />
-    </svg>
-  );
-}
 
 function CloseIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
+  );
+}
+
+// ─── Next up card ─────────────────────────────────────────────────────────────
+
+function NextUpCard({
+  nextUp,
+  onNudge,
+  nudging,
+  nudgeMessage,
+}: {
+  nextUp: ReturnType<typeof buildNextUp>;
+  onNudge: () => void;
+  nudging: boolean;
+  nudgeMessage: string;
+}) {
+  if (nextUp.mode === "none") {
+    return (
+      <section className="rounded-2xl border border-dashed border-surface-overlay bg-surface-card p-6 text-center">
+        <p className="font-semibold text-ink-title">No round on the calendar</p>
+        <p className="mt-1 text-sm text-ink-muted">Create the next one and the checklist starts here.</p>
+        <Link
+          href="/admin/rounds/create"
+          className="mt-4 inline-flex rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white"
+        >
+          + New round
+        </Link>
+      </section>
+    );
+  }
+
+  const { round } = nextUp;
+  const heading = (
+    <p className="text-[11px] font-bold uppercase tracking-wide text-ink-hint">
+      {nextUp.mode === "live" ? "Live now" : nextUp.mode === "closeOut" ? "Ready to close out" : "Next up"}
+    </p>
+  );
+  const title = (
+    <p className="mt-1 font-bold text-ink-title">
+      Round {round.roundNumber} · {round.courseName}
+    </p>
+  );
+
+  if (nextUp.mode === "live") {
+    return (
+      <section className="rounded-2xl border border-live-text/30 bg-live-bg p-4">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-live-text">● Live now</p>
+        {title}
+        <p className="text-xs text-live-text">{getFirstTeeTimeLabel(round) ?? format(round.date, "EEE d MMM")}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Link
+            href={`/admin/rounds/${round.id}/leaderboard`}
+            className="rounded-xl border border-surface-overlay bg-surface-card py-2.5 text-center text-sm font-semibold text-ink-body"
+          >
+            Live cards
+          </Link>
+          <Link
+            href={`/admin/rounds/${round.id}`}
+            className="rounded-xl bg-brand-600 py-2.5 text-center text-sm font-semibold text-white"
+          >
+            Close out →
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  if (nextUp.mode === "closeOut") {
+    return (
+      <section className="rounded-2xl border border-amber-300/60 bg-surface-card p-4 shadow-sm">
+        {heading}
+        {title}
+        <p className="text-xs text-ink-muted">
+          Played {format(round.date, "EEE d MMM")} · results not published yet
+        </p>
+        <Link
+          href={`/admin/rounds/${round.id}`}
+          className="mt-3 block rounded-xl bg-brand-600 py-2.5 text-center text-sm font-semibold text-white"
+        >
+          Close out &amp; publish →
+        </Link>
+      </section>
+    );
+  }
+
+  const { items, doneCount, daysAway } = nextUp;
+  const when =
+    daysAway === 0 ? "today" : daysAway === 1 ? "tomorrow" : `in ${daysAway} days`;
+  return (
+    <section className="rounded-2xl border border-surface-overlay bg-surface-card shadow-sm">
+      <Link href={`/admin/rounds/${round.id}`} className="block px-4 pt-4 pb-3 hover:bg-surface-muted/50">
+        {heading}
+        {title}
+        <p className="text-xs text-ink-muted">
+          {format(round.date, "EEE d MMM")} · {when}
+        </p>
+      </Link>
+      <ul className="divide-y divide-surface-overlay border-t border-surface-overlay">
+        {items.map((item) => (
+          <li key={item.key} className="flex items-center gap-3 px-4 py-3">
+            <span
+              aria-label={item.done ? "done" : "to do"}
+              className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${
+                item.done
+                  ? "border-brand-500 bg-brand-500 text-white"
+                  : "border-surface-overlay text-transparent"
+              }`}
+            >
+              ✓
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className={`text-sm ${item.done ? "text-ink-muted" : "font-semibold text-ink-title"}`}>
+                {item.label}
+              </p>
+              <p className="truncate text-xs text-ink-hint">{item.detail}</p>
+            </div>
+            {item.action?.kind === "link" && (
+              <Link
+                href={item.action.href}
+                className="shrink-0 rounded-full border border-surface-overlay px-3 py-1.5 text-xs font-semibold text-ink-action hover:bg-surface-muted"
+              >
+                {item.action.label}
+              </Link>
+            )}
+            {item.action?.kind === "nudge" && (
+              <button
+                type="button"
+                onClick={onNudge}
+                disabled={nudging}
+                className="shrink-0 rounded-full border border-surface-overlay px-3 py-1.5 text-xs font-semibold text-ink-action hover:bg-surface-muted disabled:opacity-50"
+              >
+                {nudging ? "Sending…" : item.action.label}
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-3 border-t border-surface-overlay px-4 py-3">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-muted">
+          <div
+            className="h-full rounded-full bg-brand-500 transition-all"
+            style={{ width: `${(doneCount / items.length) * 100}%` }}
+          />
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-ink-muted">
+          {doneCount} of {items.length} ready
+        </span>
+      </div>
+      {nudgeMessage && (
+        <p className="border-t border-surface-overlay px-4 py-2 text-xs text-ink-action">{nudgeMessage}</p>
+      )}
+      {round.rsvpNudgedAt && !nudgeMessage && (
+        <p className="border-t border-surface-overlay px-4 py-2 text-[11px] text-ink-hint">
+          Last nudged {format(round.rsvpNudgedAt, "EEE d MMM, h:mm a")}
+        </p>
+      )}
+    </section>
   );
 }
