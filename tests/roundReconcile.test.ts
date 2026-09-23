@@ -121,14 +121,15 @@ test("an impossible handicap is rejected rather than used", () => {
 
 // ─── Name matching ──────────────────────────────────────────────────────────
 
-test("matches on display name, nickname, and first name plus last initial", () => {
+test("matches on display name and first name plus last initial — never nickname", () => {
   const members = [
     member(),
     member({ uid: "u-murph", displayName: "Darren Murphy", nickname: "Murph" }),
   ];
 
   assert.equal(matchMemberByName("Ash Grybas", members)?.uid, "u-ash");
-  assert.equal(matchMemberByName("  murph ", members)?.uid, "u-murph");
+  // Nicknames are profile-only; admin tools must not resolve them.
+  assert.equal(matchMemberByName("  murph ", members), null);
   assert.equal(matchMemberByName("Darren M", members)?.uid, "u-murph");
 });
 

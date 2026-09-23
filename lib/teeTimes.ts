@@ -1,12 +1,12 @@
 import type { AppUser, Round, TeeTime } from "@/types";
 
+// Tee groups and every admin screen use REAL names (first name, plus last
+// initial when two members share a first name). Nicknames are profile-only:
+// self-chosen nicknames made it hard to tell who was who when assigning groups.
 export function formatShortMemberName(
-  member: Pick<AppUser, "displayName" | "nickname" | "uid">,
-  members: Pick<AppUser, "displayName" | "nickname" | "uid">[] = []
+  member: Pick<AppUser, "displayName" | "uid">,
+  members: Pick<AppUser, "displayName" | "uid">[] = []
 ) {
-  const nickname = member.nickname?.trim();
-  if (nickname) return nickname;
-
   const parts = member.displayName.trim().split(/\s+/).filter(Boolean);
   const firstName = parts[0] ?? member.displayName;
   const duplicateCount = members.filter((candidate) => {
@@ -91,9 +91,7 @@ export function resolveMemberIdsFromText(text: string, members: AppUser[]) {
     .filter(Boolean)
     .forEach((entry) => {
       const exactMatch = members.find(
-        (member) =>
-          normalizeName(member.displayName) === entry ||
-          normalizeName(member.nickname ?? "") === entry
+        (member) => normalizeName(member.displayName) === entry
       );
       if (exactMatch) {
         usedIds.add(exactMatch.uid);
@@ -181,11 +179,6 @@ function normalizeName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function getPreferredShortBaseName(
-  member: Pick<AppUser, "displayName" | "nickname">
-) {
-  const nickname = member.nickname?.trim();
-  if (nickname) return nickname;
-
+function getPreferredShortBaseName(member: Pick<AppUser, "displayName">) {
   return member.displayName.trim().split(/\s+/).filter(Boolean)[0] ?? member.displayName;
 }

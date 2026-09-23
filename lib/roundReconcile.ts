@@ -167,8 +167,8 @@ export function parseHandicapList(text: string): {
 /**
  * Match a spreadsheet name to a member.
  *
- * Tries the full display name, then the nickname the app shows on round
- * screens, then first name plus last initial. Never guesses on first name
+ * Tries the full display name, then first name plus last initial. Nicknames
+ * are deliberately ignored — they're profile-only, never used by admin tools. Never guesses on first name
  * alone — two Pauls and two Gregs in one group make that actively dangerous.
  */
 export function matchMemberByName(
@@ -181,11 +181,6 @@ export function matchMemberByName(
     (member) => normaliseName(member.displayName) === target
   );
   if (byDisplay) return byDisplay;
-
-  const byNickname = members.find(
-    (member) => member.nickname && normaliseName(member.nickname) === target
-  );
-  if (byNickname) return byNickname;
 
   const [first, ...rest] = target.split(" ");
   const lastInitial = rest.length > 0 ? rest[rest.length - 1][0] : null;
