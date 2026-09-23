@@ -11,6 +11,8 @@ import {
 } from "@/lib/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogoLockup, LogoMark } from "@/components/marketing/Logo";
+import { BILLING_ENABLED } from "@/lib/subscription";
+import BillingDisabledRedirect from "@/components/BillingDisabledRedirect";
 
 const GLOW_STYLE = {
   background: "radial-gradient(60% 55% at 50% 8%, rgba(30,138,62,0.30), transparent 68%)",
@@ -25,7 +27,14 @@ function toSlug(value: string) {
     .replace(/-+/g, "-");
 }
 
+// New groups are closed while billing is off — GolfCaddy is FourPlay-only for now.
+// Flip NEXT_PUBLIC_BILLING_ENABLED=true to reopen signups (see lib/subscription.ts).
 export default function CreateGroupPage() {
+  if (!BILLING_ENABLED) return <BillingDisabledRedirect to="/signin" />;
+  return <CreateGroupForm />;
+}
+
+function CreateGroupForm() {
   const { appUser, loading } = useAuth();
   const router = useRouter();
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogoLockup, LogoMark } from "@/components/marketing/Logo";
 import LiveStandingsPreview from "@/components/marketing/LiveStandingsPreview";
+import { BILLING_ENABLED } from "@/lib/subscription";
 
 // This page is deliberately fixed dark (mkt-* tokens) — it does not follow
 // the app's system-preference theme. See docs/superpowers/plans/
@@ -78,7 +79,9 @@ export default function RootPage() {
         <div className="hidden items-center gap-7 md:flex">
           <a href="#features" className="text-[15px] font-semibold text-mkt-muted hover:text-mkt-text">Features</a>
           <a href="#live" className="text-[15px] font-semibold text-mkt-muted hover:text-mkt-text">Live scoring</a>
-          <a href="#pricing" className="text-[15px] font-semibold text-mkt-muted hover:text-mkt-text">Pricing</a>
+          {BILLING_ENABLED && (
+            <a href="#pricing" className="text-[15px] font-semibold text-mkt-muted hover:text-mkt-text">Pricing</a>
+          )}
           <Link href="/signin" className="text-[15px] font-semibold text-mkt-text">Sign in</Link>
           <Link href="/signin" className="rounded-[11px] bg-mkt-primary px-5 py-2.5 text-[15px] font-bold text-white">Open app</Link>
         </div>
@@ -118,10 +121,21 @@ export default function RootPage() {
               </a>
             </div>
             <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-mkt-muted">
-              <span>30 days free</span>
-              <span className="h-1 w-1 rounded-full bg-mkt-faint" />
-              <span>No credit card</span>
-              <span className="h-1 w-1 rounded-full bg-mkt-faint" />
+              {BILLING_ENABLED ? (
+                <>
+                  <span>30 days free</span>
+                  <span className="h-1 w-1 rounded-full bg-mkt-faint" />
+                  <span>No credit card</span>
+                  <span className="h-1 w-1 rounded-full bg-mkt-faint" />
+                </>
+              ) : (
+                <>
+                  <span>Private groups</span>
+                  <span className="h-1 w-1 rounded-full bg-mkt-faint" />
+                  <span>Members by invite</span>
+                  <span className="h-1 w-1 rounded-full bg-mkt-faint" />
+                </>
+              )}
               <span>No app store</span>
             </div>
           </div>
@@ -242,7 +256,8 @@ export default function RootPage() {
         </div>
       </div>
 
-      {/* Pricing */}
+      {/* Pricing — hidden while billing is off (lib/subscription.ts) */}
+      {BILLING_ENABLED && (
       <div id="pricing" className="border-y border-mkt-border bg-mkt-card2 px-6 py-16 sm:px-14 sm:py-20">
         <div className="mx-auto max-w-[1200px]">
           <div className="mb-10 text-center">
@@ -283,6 +298,7 @@ export default function RootPage() {
           <p className="mt-7 text-center text-sm text-mkt-muted">30 days free on every plan &middot; no credit card required</p>
         </div>
       </div>
+      )}
 
       {/* Final CTA */}
       <div className="relative mx-auto max-w-[1200px] px-6 py-20 text-center sm:px-14 sm:py-24">
@@ -292,10 +308,12 @@ export default function RootPage() {
         />
         <div className="relative">
           <h2 className="mx-auto mb-5 max-w-[720px] text-[32px] font-extrabold leading-[1.1] tracking-[-0.035em] sm:text-[46px]">
-            Get your group set up before the next round.
+            {BILLING_ENABLED ? "Get your group set up before the next round." : "Already in a group? Jump back in."}
           </h2>
           <p className="mx-auto mb-8 max-w-[520px] text-lg text-mkt-muted">
-            Two minutes to create your group and send the invite link. No app store, no spreadsheet, no card.
+            {BILLING_ENABLED
+              ? "Two minutes to create your group and send the invite link. No app store, no spreadsheet, no card."
+              : "GolfCaddy is invite-only. Got an invite link from your organiser? Sign in and you\u2019re straight in."}
           </p>
           <Link
             href="/signin"
@@ -306,7 +324,8 @@ export default function RootPage() {
         </div>
       </div>
 
-      {/* Member hook (copy-link, kept from the previous page) */}
+      {/* Member hook — only makes sense while we sell to other groups */}
+      {BILLING_ENABLED && (
       <div className="mx-auto max-w-[1200px] px-6 py-14 text-center sm:px-14">
         <p className="mb-3 text-2xl">👋</p>
         <h2 className="mb-2 text-xl font-bold">Not the group organiser?</h2>
@@ -321,6 +340,7 @@ export default function RootPage() {
           {copied ? "✓ Link copied!" : "Copy link to share"}
         </button>
       </div>
+      )}
 
       {/* Footer */}
       <div className="border-t border-mkt-border px-6 py-8 sm:px-14">
